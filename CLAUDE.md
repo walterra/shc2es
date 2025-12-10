@@ -18,13 +18,36 @@ Based on the [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at
 - **Security**: Data encrypted locally on device; works offline, optional cloud for remote access
 - **Device Support**: 2nd-gen Bosch Smart Home devices; 1st-gen via 868 MHz Funk-Stick accessory
 
-## Project Status
+## Commands
 
-This is a new project. The codebase structure and build commands will be documented here as development progresses.
+```bash
+yarn install          # Install dependencies
+yarn poll             # Start long polling CLI
+```
 
-## Planned Architecture
+### Environment Variables
 
-Based on the project description:
-- **Data Collection**: Long polling from Bosch Smart Home API
-- **Storage Format**: NDJSON (newline-delimited JSON) files
+```bash
+BSH_HOST=192.168.x.x      # Controller IP address (required)
+BSH_PASSWORD=xxxxx        # System password for initial pairing (required first run)
+BSH_CLIENT_NAME=oss_xxx   # Client name (optional, has default)
+BSH_CLIENT_ID=oss_xxx     # Client ID (optional, has default)
+```
+
+### First Run (Pairing)
+
+```bash
+BSH_PASSWORD=your_password BSH_HOST=192.168.x.x yarn poll
+# Press pairing button on Controller II when prompted
+```
+
+## Architecture
+
+- **src/poll.ts** - CLI script for long polling device events
+- **certs/** - Generated client certificates (gitignored)
+- Uses `bosch-smart-home-bridge` library for controller communication
+
+## Planned Features
+
+- **Storage**: NDJSON file output for collected events
 - **Visualization**: Time series charts/graphs

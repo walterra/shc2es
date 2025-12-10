@@ -1,0 +1,18 @@
+{
+  "name": "bosch-smart-home",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Walter M. Rafelsberger <walter@rafelsberger.at>",
+  "license": "MIT",
+  "scripts": {
+    "poll": "ts-node src/poll.ts"
+  },
+  "dependencies": {
+    "bosch-smart-home-bridge": "^1.7.47"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
