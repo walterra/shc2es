@@ -4,29 +4,45 @@ import * as path from 'path';
 
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const DATA_DIR = path.join(__dirname, '..', 'data');
+const LOGS_DIR = path.join(__dirname, '..', 'logs');
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Ensure directories exist
+for (const dir of [DATA_DIR, LOGS_DIR]) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
 
+const dateStamp = new Date().toISOString().split('T')[0];
+
 // App logger - for debugging the polling tool itself
-// Uses pino-pretty in development for human-readable output
+// Writes to both console (pretty) and file (JSON)
+const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
+
 export const appLogger = pino({
   name: 'poll',
   level: LOG_LEVEL,
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? { target: 'pino-pretty', options: { colorize: true } }
-      : undefined,
+  transport: {
+    targets: [
+      // Console output (pretty in dev)
+      {
+        target: 'pino-pretty',
+        options: { colorize: true },
+        level: LOG_LEVEL,
+      },
+      // File output (JSON for Claude Code to parse)
+      {
+        target: 'pino/file',
+        options: { destination: appLogFile },
+        level: LOG_LEVEL,
+      },
+    ],
+  },
 });
 
 // Data logger - for smart home events (NDJSON file)
 // Always structured JSON, writes to timestamped file
-const dataLogFile = path.join(
-  DATA_DIR,
-  `events-${new Date().toISOString().split('T')[0]}.ndjson`
-);
+const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
 
 export const dataLogger = pino(
   {
@@ -42,5 +58,5 @@ export const dataLogger = pino(
   pino.destination(dataLogFile)
 );
 
-// Log file location for reference
-appLogger.info({ dataLogFile }, 'Data logging to file');
+// Log file locations for reference
+appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
