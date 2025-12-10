@@ -6,10 +6,13 @@ import split from 'split2';
 import chokidar from 'chokidar';
 import { Tail } from 'tail';
 import * as path from 'path';
+import { createLogger } from './logger';
+
+const log = createLogger('ingest');
 
 // Environment validation
 if (!process.env.ES_NODE || !process.env.ES_PASSWORD) {
-  console.error('ES_NODE and ES_PASSWORD must be set in .env');
+  log.fatal('ES_NODE and ES_PASSWORD must be set in .env');
   process.exit(1);
 }
 
@@ -62,8 +65,7 @@ let registry: DeviceRegistry | null = null;
 
 function loadRegistry(): void {
   if (!existsSync(REGISTRY_FILE)) {
-    console.warn(`Warning: ${REGISTRY_FILE} not found. Run 'yarn registry' to generate it.`);
-    console.warn('Events will be indexed without device/room names.\n');
+    log.warn({ registryFile: REGISTRY_FILE }, "Registry not found. Run 'yarn registry' to generate it. Events will be indexed without device/room names.");
     return;
   }
 
@@ -72,10 +74,9 @@ function loadRegistry(): void {
     registry = JSON.parse(content);
     const deviceCount = Object.keys(registry!.devices).length;
     const roomCount = Object.keys(registry!.rooms).length;
-    console.log(`Loaded registry: ${deviceCount} devices, ${roomCount} rooms (fetched: ${registry!.fetchedAt})`);
+    log.info({ deviceCount, roomCount, fetchedAt: registry!.fetchedAt }, 'Loaded device registry');
   } catch (err) {
-    console.warn(`Warning: Failed to load registry: ${err}`);
-    console.warn('Events will be indexed without device/room names.\n');
+    log.warn({ err }, 'Failed to load registry. Events will be indexed without device/room names.');
   }
 }
 
@@ -205,16 +206,16 @@ function parseLine(line: string): SmartHomeEvent | null {
     const cleanLine = line.startsWith('{,') ? '{' + line.slice(2) : line;
     return JSON.parse(cleanLine);
   } catch {
-    console.error('Failed to parse line:', line.slice(0, 100));
+    log.error({ linePreview: line.slice(0, 100) }, 'Failed to parse line');
     return null;
   }
 }
 
 async function setup(): Promise<void> {
-  console.log('Setting up Elasticsearch pipeline and index template...');
+  log.info('Setting up Elasticsearch pipeline and index template');
 
   // Create ingest pipeline
-  console.log(`Creating ingest pipeline: ${PIPELINE_NAME}`);
+  log.info({ pipelineName: PIPELINE_NAME }, 'Creating ingest pipeline');
   await client.ingest.putPipeline({
     id: PIPELINE_NAME,
     description: 'Add event.ingested timestamp to smart home events',
@@ -227,10 +228,10 @@ async function setup(): Promise<void> {
       },
     ],
   });
-  console.log('Pipeline created successfully');
+  log.info('Pipeline created successfully');
 
   // Create index template (applies to smart-home-events-* indices)
-  console.log(`Creating index template: ${TEMPLATE_NAME} for pattern ${INDEX_PATTERN}`);
+  log.info({ templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN }, 'Creating index template');
   await client.indices.putIndexTemplate({
     name: TEMPLATE_NAME,
     index_patterns: [INDEX_PATTERN],
@@ -275,14 +276,13 @@ async function setup(): Promise<void> {
       },
     },
   });
-  console.log('Index template created successfully');
-  console.log(`\nNew indices matching ${INDEX_PATTERN} will automatically use the template.`);
+  log.info({ indexPattern: INDEX_PATTERN }, 'Index template created. New indices will automatically use the template.');
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
   const dateStr = extractDateFromFilename(filePath);
   const indexName = getIndexName(dateStr);
-  console.log(`Importing: ${filePath} -> ${indexName}`);
+  log.info({ filePath, indexName }, 'Importing file');
 
   const documents: Array<{ doc: TransformedEvent; id: string }> = [];
 
@@ -314,14 +314,11 @@ async function bulkImportFile(filePath: string): Promise<number> {
 
           if (result.errors) {
             const errors = result.items.filter((item) => item.index?.error);
-            console.error(`${errors.length} documents failed to index`);
-            errors.slice(0, 3).forEach((item) => {
-              console.error('Error:', item.index?.error);
-            });
+            log.error({ errorCount: errors.length, errors: errors.slice(0, 3).map((item) => item.index?.error) }, 'Documents failed to index');
           }
 
           const indexed = result.items.filter((item) => !item.index?.error).length;
-          console.log(`Indexed ${indexed} documents into ${indexName}`);
+          log.info({ indexed, indexName }, 'Indexed documents');
           resolve(indexed);
         } catch (err) {
           reject(err);
@@ -332,16 +329,16 @@ async function bulkImportFile(filePath: string): Promise<number> {
 }
 
 async function batchImport(): Promise<void> {
-  console.log('Starting batch import...');
+  log.info('Starting batch import');
 
   const files = await glob(`${DATA_DIR}/events-*.ndjson`);
 
   if (files.length === 0) {
-    console.log('No NDJSON files found in data directory');
+    log.info({ dataDir: DATA_DIR }, 'No NDJSON files found in data directory');
     return;
   }
 
-  console.log(`Found ${files.length} file(s) to import`);
+  log.info({ fileCount: files.length }, 'Found files to import');
 
   let totalIndexed = 0;
   for (const file of files.sort()) {
@@ -349,12 +346,11 @@ async function batchImport(): Promise<void> {
     totalIndexed += indexed;
   }
 
-  console.log(`\nBatch import complete: ${totalIndexed} total documents indexed`);
+  log.info({ totalIndexed }, 'Batch import complete');
 }
 
 async function watchAndTail(): Promise<void> {
-  console.log('Starting watch mode...');
-  console.log(`Watching: ${DATA_DIR}/events-*.ndjson`);
+  log.info({ watchPattern: `${DATA_DIR}/events-*.ndjson` }, 'Starting watch mode');
 
   const activeTails = new Map<string, Tail>();
 
@@ -366,7 +362,7 @@ async function watchAndTail(): Promise<void> {
   watcher.on('add', (filePath) => {
     const dateStr = extractDateFromFilename(filePath);
     const indexName = getIndexName(dateStr);
-    console.log(`Tailing: ${filePath} -> ${indexName}`);
+    log.info({ filePath, indexName }, 'Tailing file');
 
     const tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
@@ -381,14 +377,14 @@ async function watchAndTail(): Promise<void> {
           id: generateDocId(doc),
           document: transformed,
         });
-        console.log(`Indexed event: ${doc['@type']} from ${doc.deviceId || 'unknown'} -> ${indexName}`);
+        log.debug({ eventType: doc['@type'], deviceId: doc.deviceId, indexName }, 'Indexed event');
       } catch (err) {
-        console.error('Index error:', err);
+        log.error({ err }, 'Index error');
       }
     });
 
     tail.on('error', (err) => {
-      console.error(`Tail error for ${filePath}:`, err);
+      log.error({ err, filePath }, 'Tail error');
     });
 
     activeTails.set(filePath, tail);
@@ -399,19 +395,19 @@ async function watchAndTail(): Promise<void> {
     if (tail) {
       tail.unwatch();
       activeTails.delete(filePath);
-      console.log(`Stopped tailing: ${filePath}`);
+      log.info({ filePath }, 'Stopped tailing file');
     }
   });
 
   // Graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\nShutting down...');
+    log.info('Shutting down');
     watcher.close();
     activeTails.forEach((tail) => tail.unwatch());
     process.exit(0);
   });
 
-  console.log('Watch mode active. Press Ctrl+C to stop.');
+  log.info('Watch mode active. Press Ctrl+C to stop.');
 }
 
 async function main(): Promise<void> {
@@ -425,9 +421,9 @@ async function main(): Promise<void> {
   try {
     // Test connection
     await client.ping();
-    console.log('Connected to Elasticsearch');
+    log.info({ esNode: process.env.ES_NODE }, 'Connected to Elasticsearch');
   } catch (err) {
-    console.error('Failed to connect to Elasticsearch:', err);
+    log.fatal({ err }, 'Failed to connect to Elasticsearch');
     process.exit(1);
   }
 
@@ -441,6 +437,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err);
+  log.fatal({ err }, 'Fatal error');
   process.exit(1);
 });

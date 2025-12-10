@@ -15,8 +15,37 @@ for (const dir of [DATA_DIR, LOGS_DIR]) {
 
 const dateStamp = new Date().toISOString().split('T')[0];
 
-// App logger - for debugging the polling tool itself
+// Factory function to create script-specific loggers
 // Writes to both console (pretty) and file (JSON)
+export function createLogger(scriptName: string): pino.Logger {
+  const logFile = path.join(LOGS_DIR, `${scriptName}-${dateStamp}.log`);
+
+  const logger = pino({
+    name: scriptName,
+    level: LOG_LEVEL,
+    transport: {
+      targets: [
+        // Console output (pretty in dev)
+        {
+          target: 'pino-pretty',
+          options: { colorize: true },
+          level: LOG_LEVEL,
+        },
+        // File output (JSON for Claude Code to parse)
+        {
+          target: 'pino/file',
+          options: { destination: logFile },
+          level: LOG_LEVEL,
+        },
+      ],
+    },
+  });
+
+  logger.info({ logFile }, 'Logging initialized');
+  return logger;
+}
+
+// App logger - for debugging the polling tool itself
 const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
 
 export const appLogger = pino({
