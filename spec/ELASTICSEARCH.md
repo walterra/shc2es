@@ -85,8 +85,18 @@ PUT smart-home-events
       "id": { "type": "keyword" },
       "deviceId": { "type": "keyword" },
       "path": { "type": "keyword" },
-      "name": { "type": "keyword" },
-      "iconId": { "type": "keyword" },
+      "device": {
+        "properties": {
+          "name": { "type": "keyword" },
+          "type": { "type": "keyword" }
+        }
+      },
+      "room": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "name": { "type": "keyword" }
+        }
+      },
       "metric": {
         "properties": {
           "name": { "type": "keyword" },
@@ -138,8 +148,18 @@ async function setup() {
         id: { type: "keyword" },
         deviceId: { type: "keyword" },
         path: { type: "keyword" },
-        name: { type: "keyword" },
-        iconId: { type: "keyword" },
+        device: {
+          properties: {
+            name: { type: "keyword" },
+            type: { type: "keyword" },
+          },
+        },
+        room: {
+          properties: {
+            id: { type: "keyword" },
+            name: { type: "keyword" },
+          },
+        },
         metric: {
           properties: {
             name: { type: "keyword" },
@@ -151,6 +171,36 @@ async function setup() {
   });
 }
 ```
+
+### Device Registry
+
+The ingest script loads device and room names from `data/device-registry.json` to enrich events with human-readable names. Generate this file by running:
+
+```bash
+yarn registry
+```
+
+Registry structure:
+```json
+{
+  "fetchedAt": "2025-12-10T14:46:36.795Z",
+  "devices": {
+    "hdm:ZigBee:001e5e0902b94515": {
+      "name": "EG WZ Room thermostat",
+      "roomId": "hz_1",
+      "type": "RTH2_BAT"
+    }
+  },
+  "rooms": {
+    "hz_1": {
+      "name": "EG Wohnzimmer",
+      "iconId": "icon_room_living_room"
+    }
+  }
+}
+```
+
+Re-run `yarn registry` when devices are added/removed/renamed.
 
 ### Document Transform
 
@@ -171,7 +221,7 @@ Source NDJSON:
 }
 ```
 
-Indexed document (after transform + pipeline):
+Indexed document (after transform + pipeline + enrichment):
 
 ```json
 {
@@ -181,6 +231,8 @@ Indexed document (after transform + pipeline):
   "@type": "DeviceServiceData",
   "id": "HumidityLevel",
   "deviceId": "hdm:ZigBee:001e5e0902b94515",
+  "device": { "name": "EG WZ Room thermostat", "type": "RTH2_BAT" },
+  "room": { "id": "hz_1", "name": "EG Wohnzimmer" },
   "metric": { "name": "humidity", "value": 42.71 }
 }
 ```
@@ -200,16 +252,15 @@ Source NDJSON:
 }
 ```
 
-Indexed document (after transform + pipeline):
+Indexed document (after transform + pipeline + enrichment):
 
 ```json
 {
   "@timestamp": "2025-12-10T10:18:49.938Z",
   "event": { "ingested": "2025-12-10T11:30:00.000Z" },
-  "iconId": "icon_room_living_room",
   "@type": "room",
-  "name": "EG Wohnzimmer",
   "id": "hz_1",
+  "room": { "id": "hz_1", "name": "EG Wohnzimmer" },
   "metric": { "name": "humidity", "value": 42.71 }
 }
 ```
@@ -220,6 +271,7 @@ Indexed document (after transform + pipeline):
 2. `event.ingested` added automatically by ingest pipeline
 3. Extract numeric values from `state` or `extProperties` into normalized `metric.name`/`metric.value`
 4. Remove original `state` and `extProperties` after extraction (avoid field explosion)
+5. Enrich with `device.name`, `device.type`, `room.id`, `room.name` from device registry
 
 #### Metric Extraction Logic
 

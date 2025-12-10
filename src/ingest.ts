@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Client } from '@elastic/elasticsearch';
-import { createReadStream } from 'fs';
+import { createReadStream, existsSync, readFileSync } from 'fs';
 import { glob } from 'glob';
 import split from 'split2';
 import chokidar from 'chokidar';
@@ -25,6 +25,46 @@ const client = new Client({
 const INDEX_NAME = 'smart-home-events';
 const PIPELINE_NAME = 'smart-home-events-pipeline';
 const DATA_DIR = path.join(__dirname, '..', 'data');
+const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
+
+// Device registry for enrichment
+interface DeviceInfo {
+  name: string;
+  roomId?: string;
+  type?: string;
+}
+
+interface RoomInfo {
+  name: string;
+  iconId?: string;
+}
+
+interface DeviceRegistry {
+  fetchedAt: string;
+  devices: Record<string, DeviceInfo>;
+  rooms: Record<string, RoomInfo>;
+}
+
+let registry: DeviceRegistry | null = null;
+
+function loadRegistry(): void {
+  if (!existsSync(REGISTRY_FILE)) {
+    console.warn(`Warning: ${REGISTRY_FILE} not found. Run 'yarn registry' to generate it.`);
+    console.warn('Events will be indexed without device/room names.\n');
+    return;
+  }
+
+  try {
+    const content = readFileSync(REGISTRY_FILE, 'utf-8');
+    registry = JSON.parse(content);
+    const deviceCount = Object.keys(registry!.devices).length;
+    const roomCount = Object.keys(registry!.rooms).length;
+    console.log(`Loaded registry: ${deviceCount} devices, ${roomCount} rooms (fetched: ${registry!.fetchedAt})`);
+  } catch (err) {
+    console.warn(`Warning: Failed to load registry: ${err}`);
+    console.warn('Events will be indexed without device/room names.\n');
+  }
+}
 
 // Event types from Bosch Smart Home API:
 // - DeviceServiceData: sensor readings with deviceId, path, state
@@ -49,14 +89,24 @@ interface Metric {
   value: number;
 }
 
+interface DeviceField {
+  name: string;
+  type?: string;
+}
+
+interface RoomField {
+  id: string;
+  name: string;
+}
+
 interface TransformedEvent {
   '@timestamp': string | undefined;
   '@type'?: string;
   id?: string;
   deviceId?: string;
   path?: string;
-  name?: string;
-  iconId?: string;
+  device?: DeviceField;
+  room?: RoomField;
   metric?: Metric;
 }
 
@@ -91,8 +141,32 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
   // Add type-specific fields
   if (doc.deviceId) result.deviceId = doc.deviceId;
   if (doc.path) result.path = doc.path;
-  if (doc.name) result.name = doc.name;
-  if (doc.iconId) result.iconId = doc.iconId;
+
+  // Enrich with device/room info from registry
+  if (registry) {
+    // For DeviceServiceData events - lookup by deviceId
+    if (doc.deviceId && registry.devices[doc.deviceId]) {
+      const deviceInfo = registry.devices[doc.deviceId];
+      result.device = { name: deviceInfo.name };
+      if (deviceInfo.type) result.device.type = deviceInfo.type;
+
+      // Get room from device's roomId
+      if (deviceInfo.roomId && registry.rooms[deviceInfo.roomId]) {
+        result.room = {
+          id: deviceInfo.roomId,
+          name: registry.rooms[deviceInfo.roomId].name,
+        };
+      }
+    }
+
+    // For room events - lookup by id
+    if (doc['@type'] === 'room' && doc.id && registry.rooms[doc.id]) {
+      result.room = {
+        id: doc.id,
+        name: registry.rooms[doc.id].name,
+      };
+    }
+  }
 
   // Extract and normalize metric
   const metric = extractMetric(doc);
@@ -167,8 +241,18 @@ async function setup(): Promise<void> {
         id: { type: 'keyword' },
         deviceId: { type: 'keyword' },
         path: { type: 'keyword' },
-        name: { type: 'keyword' },
-        iconId: { type: 'keyword' },
+        device: {
+          properties: {
+            name: { type: 'keyword' },
+            type: { type: 'keyword' },
+          },
+        },
+        room: {
+          properties: {
+            id: { type: 'keyword' },
+            name: { type: 'keyword' },
+          },
+        },
         metric: {
           properties: {
             name: { type: 'keyword' },
@@ -316,6 +400,11 @@ async function watchAndTail(): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+
+  // Load device registry for enrichment (not needed for --setup)
+  if (!args.includes('--setup')) {
+    loadRegistry();
+  }
 
   try {
     // Test connection
