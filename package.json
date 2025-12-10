@@ -12,15 +12,25 @@
     "logs:raw": "cat logs/poll-$(date +%Y-%m-%d).log",
     "logs:raw:tail": "tail -f logs/poll-$(date +%Y-%m-%d).log",
     "data": "tail -20 data/events-$(date +%Y-%m-%d).ndjson",
-    "data:tail": "tail -f data/events-$(date +%Y-%m-%d).ndjson"
+    "data:tail": "tail -f data/events-$(date +%Y-%m-%d).ndjson",
+    "ingest:setup": "ts-node src/ingest.ts --setup",
+    "ingest": "ts-node src/ingest.ts",
+    "ingest:watch": "ts-node src/ingest.ts --watch"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.2.0",
     "bosch-smart-home-bridge": "^1.7.47",
+    "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
-    "pino": "^10.1.0"
+    "glob": "^13.0.0",
+    "pino": "^10.1.0",
+    "split2": "^4.2.0",
+    "tail": "^2.2.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.2",
+    "@types/split2": "^4.2.3",
+    "@types/tail": "^2.2.3",
     "pino-pretty": "^13.1.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
