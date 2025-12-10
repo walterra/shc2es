@@ -22,10 +22,23 @@ const client = new Client({
   tls: { rejectUnauthorized: false },
 });
 
-const INDEX_NAME = 'smart-home-events';
+const INDEX_PREFIX = 'smart-home-events';
+const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
 const PIPELINE_NAME = 'smart-home-events-pipeline';
+const TEMPLATE_NAME = 'smart-home-events-template';
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
+
+// Extract date from filename like events-2025-12-10.ndjson
+function extractDateFromFilename(filePath: string): string {
+  const match = path.basename(filePath).match(/events-(\d{4}-\d{2}-\d{2})\.ndjson/);
+  return match ? match[1] : new Date().toISOString().split('T')[0];
+}
+
+// Get index name for a specific date
+function getIndexName(date: string): string {
+  return `${INDEX_PREFIX}-${date}`;
+}
 
 // Device registry for enrichment
 interface DeviceInfo {
@@ -198,7 +211,7 @@ function parseLine(line: string): SmartHomeEvent | null {
 }
 
 async function setup(): Promise<void> {
-  console.log('Setting up Elasticsearch index and pipeline...');
+  console.log('Setting up Elasticsearch pipeline and index template...');
 
   // Create ingest pipeline
   console.log(`Creating ingest pipeline: ${PIPELINE_NAME}`);
@@ -216,66 +229,65 @@ async function setup(): Promise<void> {
   });
   console.log('Pipeline created successfully');
 
-  // Check if index exists
-  const indexExists = await client.indices.exists({ index: INDEX_NAME });
-  if (indexExists) {
-    console.log(`Index ${INDEX_NAME} already exists`);
-    return;
-  }
-
-  // Create index with mapping
-  console.log(`Creating index: ${INDEX_NAME}`);
-  await client.indices.create({
-    index: INDEX_NAME,
-    settings: {
-      index: {
-        default_pipeline: PIPELINE_NAME,
+  // Create index template (applies to smart-home-events-* indices)
+  console.log(`Creating index template: ${TEMPLATE_NAME} for pattern ${INDEX_PATTERN}`);
+  await client.indices.putIndexTemplate({
+    name: TEMPLATE_NAME,
+    index_patterns: [INDEX_PATTERN],
+    priority: 100,
+    template: {
+      settings: {
+        index: {
+          default_pipeline: PIPELINE_NAME,
+        },
       },
-    },
-    mappings: {
-      properties: {
-        '@timestamp': { type: 'date' },
-        event: {
-          properties: {
-            ingested: { type: 'date' },
+      mappings: {
+        properties: {
+          '@timestamp': { type: 'date' },
+          event: {
+            properties: {
+              ingested: { type: 'date' },
+            },
           },
-        },
-        '@type': { type: 'keyword' },
-        id: { type: 'keyword' },
-        deviceId: { type: 'keyword' },
-        path: { type: 'keyword' },
-        device: {
-          properties: {
-            name: { type: 'keyword' },
-            type: { type: 'keyword' },
+          '@type': { type: 'keyword' },
+          id: { type: 'keyword' },
+          deviceId: { type: 'keyword' },
+          path: { type: 'keyword' },
+          device: {
+            properties: {
+              name: { type: 'keyword' },
+              type: { type: 'keyword' },
+            },
           },
-        },
-        room: {
-          properties: {
-            id: { type: 'keyword' },
-            name: { type: 'keyword' },
+          room: {
+            properties: {
+              id: { type: 'keyword' },
+              name: { type: 'keyword' },
+            },
           },
-        },
-        metric: {
-          properties: {
-            name: { type: 'keyword' },
-            value: { type: 'float' },
+          metric: {
+            properties: {
+              name: { type: 'keyword' },
+              value: { type: 'float' },
+            },
           },
         },
       },
     },
   });
-  console.log('Index created successfully');
+  console.log('Index template created successfully');
+  console.log(`\nNew indices matching ${INDEX_PATTERN} will automatically use the template.`);
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
-  console.log(`Importing: ${filePath}`);
+  const dateStr = extractDateFromFilename(filePath);
+  const indexName = getIndexName(dateStr);
+  console.log(`Importing: ${filePath} -> ${indexName}`);
 
-  let count = 0;
   const documents: Array<{ doc: TransformedEvent; id: string }> = [];
 
   return new Promise((resolve, reject) => {
-    const stream = createReadStream(filePath)
+    createReadStream(filePath)
       .pipe(split())
       .on('data', (line: string) => {
         const doc = parseLine(line);
@@ -284,7 +296,6 @@ async function bulkImportFile(filePath: string): Promise<number> {
             doc: transformDoc(doc),
             id: generateDocId(doc),
           });
-          count++;
         }
       })
       .on('end', async () => {
@@ -295,7 +306,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
 
         try {
           const operations = documents.flatMap(({ doc, id }) => [
-            { index: { _index: INDEX_NAME, _id: id } },
+            { index: { _index: indexName, _id: id } },
             doc,
           ]);
 
@@ -310,7 +321,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
           }
 
           const indexed = result.items.filter((item) => !item.index?.error).length;
-          console.log(`Indexed ${indexed} documents from ${path.basename(filePath)}`);
+          console.log(`Indexed ${indexed} documents into ${indexName}`);
           resolve(indexed);
         } catch (err) {
           reject(err);
@@ -353,7 +364,9 @@ async function watchAndTail(): Promise<void> {
   });
 
   watcher.on('add', (filePath) => {
-    console.log(`Tailing: ${filePath}`);
+    const dateStr = extractDateFromFilename(filePath);
+    const indexName = getIndexName(dateStr);
+    console.log(`Tailing: ${filePath} -> ${indexName}`);
 
     const tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
@@ -364,11 +377,11 @@ async function watchAndTail(): Promise<void> {
       try {
         const transformed = transformDoc(doc);
         await client.index({
-          index: INDEX_NAME,
+          index: indexName,
           id: generateDocId(doc),
           document: transformed,
         });
-        console.log(`Indexed event: ${doc['@type']} from ${doc.deviceId || 'unknown'}`);
+        console.log(`Indexed event: ${doc['@type']} from ${doc.deviceId || 'unknown'} -> ${indexName}`);
       } catch (err) {
         console.error('Index error:', err);
       }

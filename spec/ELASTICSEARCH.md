@@ -38,9 +38,17 @@ Elasticsearch (smart-home-events index)
 
 ## Index Configuration
 
-### Index Name
+### Index Naming
 
-`smart-home-events` (or use data streams for ILM)
+Date-based indices for time-series data:
+- **Pattern**: `smart-home-events-YYYY-MM-DD`
+- **Examples**: `smart-home-events-2025-12-10`, `smart-home-events-2025-12-11`
+- **Wildcard**: `smart-home-events-*` for querying all data
+
+Benefits:
+- Easy to delete old data (drop entire index)
+- Better performance for time-range queries
+- Natural alignment with daily NDJSON files
 
 ### Ingest Pipeline
 
@@ -61,46 +69,50 @@ PUT _ingest/pipeline/smart-home-events-pipeline
 }
 ```
 
-### Index Mapping
+### Index Template
 
-Create the index with mapping before ingesting data:
+Use an index template to apply settings/mappings to all `smart-home-events-*` indices:
 
 ```json
-PUT smart-home-events
+PUT _index_template/smart-home-events-template
 {
-  "settings": {
-    "index": {
-      "default_pipeline": "smart-home-events-pipeline"
-    }
-  },
-  "mappings": {
-    "properties": {
-      "@timestamp": { "type": "date" },
-      "event": {
-        "properties": {
-          "ingested": { "type": "date" }
-        }
-      },
-      "@type": { "type": "keyword" },
-      "id": { "type": "keyword" },
-      "deviceId": { "type": "keyword" },
-      "path": { "type": "keyword" },
-      "device": {
-        "properties": {
-          "name": { "type": "keyword" },
-          "type": { "type": "keyword" }
-        }
-      },
-      "room": {
-        "properties": {
-          "id": { "type": "keyword" },
-          "name": { "type": "keyword" }
-        }
-      },
-      "metric": {
-        "properties": {
-          "name": { "type": "keyword" },
-          "value": { "type": "float" }
+  "index_patterns": ["smart-home-events-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "index": {
+        "default_pipeline": "smart-home-events-pipeline"
+      }
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "event": {
+          "properties": {
+            "ingested": { "type": "date" }
+          }
+        },
+        "@type": { "type": "keyword" },
+        "id": { "type": "keyword" },
+        "deviceId": { "type": "keyword" },
+        "path": { "type": "keyword" },
+        "device": {
+          "properties": {
+            "name": { "type": "keyword" },
+            "type": { "type": "keyword" }
+          }
+        },
+        "room": {
+          "properties": {
+            "id": { "type": "keyword" },
+            "name": { "type": "keyword" }
+          }
+        },
+        "metric": {
+          "properties": {
+            "name": { "type": "keyword" },
+            "value": { "type": "float" }
+          }
         }
       }
     }
@@ -116,7 +128,7 @@ Run before first ingestion (`yarn ingest:setup`):
 async function setup() {
   // Create ingest pipeline
   await client.ingest.putPipeline({
-    id: "smart-home-events-pipeline",
+    id: PIPELINE_NAME,
     description: "Add event.ingested timestamp to smart home events",
     processors: [
       {
@@ -128,42 +140,46 @@ async function setup() {
     ],
   });
 
-  // Create index with mapping
-  await client.indices.create({
-    index: INDEX_NAME,
-    settings: {
-      index: {
-        default_pipeline: "smart-home-events-pipeline",
+  // Create index template (applies to smart-home-events-* indices)
+  await client.indices.putIndexTemplate({
+    name: TEMPLATE_NAME,
+    index_patterns: [INDEX_PATTERN],
+    priority: 100,
+    template: {
+      settings: {
+        index: {
+          default_pipeline: PIPELINE_NAME,
+        },
       },
-    },
-    mappings: {
-      properties: {
-        "@timestamp": { type: "date" },
-        event: {
-          properties: {
-            ingested: { type: "date" },
+      mappings: {
+        properties: {
+          "@timestamp": { type: "date" },
+          event: {
+            properties: {
+              ingested: { type: "date" },
+            },
           },
-        },
-        "@type": { type: "keyword" },
-        id: { type: "keyword" },
-        deviceId: { type: "keyword" },
-        path: { type: "keyword" },
-        device: {
-          properties: {
-            name: { type: "keyword" },
-            type: { type: "keyword" },
+          "@type": { type: "keyword" },
+          id: { type: "keyword" },
+          deviceId: { type: "keyword" },
+          path: { type: "keyword" },
+          device: {
+            properties: {
+              name: { type: "keyword" },
+              type: { type: "keyword" },
+            },
           },
-        },
-        room: {
-          properties: {
-            id: { type: "keyword" },
-            name: { type: "keyword" },
+          room: {
+            properties: {
+              id: { type: "keyword" },
+              name: { type: "keyword" },
+            },
           },
-        },
-        metric: {
-          properties: {
-            name: { type: "keyword" },
-            value: { type: "float" },
+          metric: {
+            properties: {
+              name: { type: "keyword" },
+              value: { type: "float" },
+            },
           },
         },
       },
