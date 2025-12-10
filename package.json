@@ -15,7 +15,8 @@
     "data:tail": "tail -f data/events-$(date +%Y-%m-%d).ndjson",
     "ingest:setup": "ts-node src/ingest.ts --setup",
     "ingest": "ts-node src/ingest.ts",
-    "ingest:watch": "ts-node src/ingest.ts --watch"
+    "ingest:watch": "ts-node src/ingest.ts --watch",
+    "registry": "ts-node src/fetch-registry.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
