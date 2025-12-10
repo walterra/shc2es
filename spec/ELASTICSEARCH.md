@@ -85,7 +85,14 @@ PUT smart-home-events
       "id": { "type": "keyword" },
       "deviceId": { "type": "keyword" },
       "path": { "type": "keyword" },
-      "state": { "type": "object", "dynamic": true }
+      "name": { "type": "keyword" },
+      "iconId": { "type": "keyword" },
+      "metric": {
+        "properties": {
+          "name": { "type": "keyword" },
+          "value": { "type": "float" }
+        }
+      }
     }
   }
 }
@@ -100,41 +107,44 @@ async function setup() {
   // Create ingest pipeline
   await client.ingest.putPipeline({
     id: "smart-home-events-pipeline",
-    body: {
-      description: "Add event.ingested timestamp to smart home events",
-      processors: [
-        {
-          set: {
-            field: "event.ingested",
-            value: "{{{_ingest.timestamp}}}",
-          },
+    description: "Add event.ingested timestamp to smart home events",
+    processors: [
+      {
+        set: {
+          field: "event.ingested",
+          value: "{{{_ingest.timestamp}}}",
         },
-      ],
-    },
+      },
+    ],
   });
 
   // Create index with mapping
   await client.indices.create({
     index: INDEX_NAME,
-    body: {
-      settings: {
-        index: {
-          default_pipeline: "smart-home-events-pipeline",
-        },
+    settings: {
+      index: {
+        default_pipeline: "smart-home-events-pipeline",
       },
-      mappings: {
-        properties: {
-          "@timestamp": { type: "date" },
-          event: {
-            properties: {
-              ingested: { type: "date" },
-            },
+    },
+    mappings: {
+      properties: {
+        "@timestamp": { type: "date" },
+        event: {
+          properties: {
+            ingested: { type: "date" },
           },
-          "@type": { type: "keyword" },
-          id: { type: "keyword" },
-          deviceId: { type: "keyword" },
-          path: { type: "keyword" },
-          state: { type: "object", dynamic: true },
+        },
+        "@type": { type: "keyword" },
+        id: { type: "keyword" },
+        deviceId: { type: "keyword" },
+        path: { type: "keyword" },
+        name: { type: "keyword" },
+        iconId: { type: "keyword" },
+        metric: {
+          properties: {
+            name: { type: "keyword" },
+            value: { type: "float" },
+          },
         },
       },
     },
@@ -144,7 +154,11 @@ async function setup() {
 
 ### Document Transform
 
-Source NDJSON from Bosch API:
+The Bosch Smart Home API produces two event types that need different handling:
+
+#### Event Type: DeviceServiceData
+
+Source NDJSON:
 
 ```json
 {
@@ -157,24 +171,90 @@ Source NDJSON from Bosch API:
 }
 ```
 
-Indexed document (after pipeline):
+Indexed document (after transform + pipeline):
 
 ```json
 {
   "@timestamp": "2025-12-10T10:18:49.923Z",
-  "event": {
-    "ingested": "2025-12-10T11:30:00.000Z"
-  },
+  "event": { "ingested": "2025-12-10T11:30:00.000Z" },
   "path": "/devices/hdm:ZigBee:001e5e0902b94515/services/HumidityLevel",
   "@type": "DeviceServiceData",
   "id": "HumidityLevel",
-  "state": { "@type": "humidityLevelState", "humidity": 42.71 },
-  "deviceId": "hdm:ZigBee:001e5e0902b94515"
+  "deviceId": "hdm:ZigBee:001e5e0902b94515",
+  "metric": { "name": "humidity", "value": 42.71 }
 }
 ```
 
-- Rename `time` to `@timestamp` for ES time-series conventions
-- `event.ingested` added automatically by ingest pipeline
+#### Event Type: room
+
+Source NDJSON:
+
+```json
+{
+  "time": "2025-12-10T10:18:49.938Z",
+  "iconId": "icon_room_living_room",
+  "extProperties": { "humidity": "42.71" },
+  "@type": "room",
+  "name": "EG Wohnzimmer",
+  "id": "hz_1"
+}
+```
+
+Indexed document (after transform + pipeline):
+
+```json
+{
+  "@timestamp": "2025-12-10T10:18:49.938Z",
+  "event": { "ingested": "2025-12-10T11:30:00.000Z" },
+  "iconId": "icon_room_living_room",
+  "@type": "room",
+  "name": "EG Wohnzimmer",
+  "id": "hz_1",
+  "metric": { "name": "humidity", "value": 42.71 }
+}
+```
+
+#### Transform Rules
+
+1. Rename `time` to `@timestamp` for ES time-series conventions
+2. `event.ingested` added automatically by ingest pipeline
+3. Extract numeric values from `state` or `extProperties` into normalized `metric.name`/`metric.value`
+4. Remove original `state` and `extProperties` after extraction (avoid field explosion)
+
+#### Metric Extraction Logic
+
+```typescript
+function extractMetric(doc: SmartHomeEvent): { name: string; value: number } | null {
+  // DeviceServiceData: extract from state object
+  if (doc.state && typeof doc.state === 'object') {
+    for (const [key, val] of Object.entries(doc.state)) {
+      if (key !== '@type' && typeof val === 'number') {
+        return { name: key, value: val };
+      }
+    }
+  }
+  // room: extract from extProperties (values are strings)
+  if (doc.extProperties && typeof doc.extProperties === 'object') {
+    for (const [key, val] of Object.entries(doc.extProperties)) {
+      const num = parseFloat(String(val));
+      if (!isNaN(num)) {
+        return { name: key, value: num };
+      }
+    }
+  }
+  return null;
+}
+```
+
+#### Benefits of Normalized Metrics
+
+| Aspect | Nested `state.temperature` | Normalized `metric.name/value` |
+|--------|---------------------------|-------------------------------|
+| Querying | `state.temperature: >20` | `metric.name: temperature AND metric.value: >20` |
+| Aggregations | Separate agg per field | Single agg on `metric.value`, group by `metric.name` |
+| Kibana Lens | Multiple Y-axes needed | Easy breakdown by `metric.name` |
+| Mapping | Dynamic (field explosion risk) | Fixed schema |
+| New sensors | May cause mapping conflicts | Just works |
 
 ## Script Modes
 
@@ -302,24 +382,19 @@ Add to `package.json`:
 
 ## Deduplication Strategy
 
-To avoid duplicate documents on restart:
-
-1. **Option A**: Use document `_id` based on `deviceId + time`
-2. **Option B**: Track last indexed timestamp per file in a state file
-3. **Option C**: Use ES ingest pipeline with fingerprint processor
-
-Recommended: Option A - deterministic `_id`:
+To avoid duplicate documents on restart, use deterministic `_id` based on event type and entity:
 
 ```typescript
-onDocument(doc) {
-  return {
-    index: {
-      _index: INDEX_NAME,
-      _id: `${doc.deviceId}-${doc.time}`,
-    },
-  };
+function generateDocId(doc: SmartHomeEvent): string {
+  // Use deviceId for DeviceServiceData, or id (room id like hz_1) for room events
+  const entityId = doc.deviceId || doc.id || 'unknown';
+  return `${doc['@type']}-${entityId}-${doc.time}`;
 }
 ```
+
+Example IDs:
+- `DeviceServiceData-hdm:ZigBee:001e5e0902b94515-2025-12-10T10:18:49.923Z`
+- `room-hz_1-2025-12-10T10:18:49.938Z`
 
 ## Error Handling
 

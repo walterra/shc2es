@@ -26,14 +26,27 @@ const INDEX_NAME = 'smart-home-events';
 const PIPELINE_NAME = 'smart-home-events-pipeline';
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
+// Event types from Bosch Smart Home API:
+// - DeviceServiceData: sensor readings with deviceId, path, state
+// - room: room updates with name, iconId, extProperties
 interface SmartHomeEvent {
   time?: string;
   '@type'?: string;
   id?: string;
+  // DeviceServiceData fields
   deviceId?: string;
   path?: string;
   state?: Record<string, unknown>;
+  // room fields
+  name?: string;
+  iconId?: string;
+  extProperties?: Record<string, unknown>;
   [key: string]: unknown;
+}
+
+interface Metric {
+  name: string;
+  value: number;
 }
 
 interface TransformedEvent {
@@ -42,20 +55,56 @@ interface TransformedEvent {
   id?: string;
   deviceId?: string;
   path?: string;
-  state?: Record<string, unknown>;
-  [key: string]: unknown;
+  name?: string;
+  iconId?: string;
+  metric?: Metric;
+}
+
+function extractMetric(doc: SmartHomeEvent): Metric | null {
+  // DeviceServiceData: extract from state object
+  if (doc.state && typeof doc.state === 'object') {
+    for (const [key, val] of Object.entries(doc.state)) {
+      if (key !== '@type' && typeof val === 'number') {
+        return { name: key, value: val };
+      }
+    }
+  }
+  // room: extract from extProperties (values are strings)
+  if (doc.extProperties && typeof doc.extProperties === 'object') {
+    for (const [key, val] of Object.entries(doc.extProperties)) {
+      const num = parseFloat(String(val));
+      if (!isNaN(num)) {
+        return { name: key, value: num };
+      }
+    }
+  }
+  return null;
 }
 
 function transformDoc(doc: SmartHomeEvent): TransformedEvent {
-  const { time, ...rest } = doc;
-  return {
-    '@timestamp': time,
-    ...rest,
+  const result: TransformedEvent = {
+    '@timestamp': doc.time,
+    '@type': doc['@type'],
+    id: doc.id,
   };
+
+  // Add type-specific fields
+  if (doc.deviceId) result.deviceId = doc.deviceId;
+  if (doc.path) result.path = doc.path;
+  if (doc.name) result.name = doc.name;
+  if (doc.iconId) result.iconId = doc.iconId;
+
+  // Extract and normalize metric
+  const metric = extractMetric(doc);
+  if (metric) result.metric = metric;
+
+  return result;
 }
 
 function generateDocId(doc: SmartHomeEvent): string {
-  return `${doc.deviceId || 'unknown'}-${doc.time || Date.now()}`;
+  // Use deviceId for DeviceServiceData, or id (room id like hz_1) for room events
+  const entityId = doc.deviceId || doc.id || 'unknown';
+  return `${doc['@type']}-${entityId}-${doc.time || Date.now()}`;
 }
 
 // Parse NDJSON line, handling pino's leading comma issue
@@ -118,7 +167,14 @@ async function setup(): Promise<void> {
         id: { type: 'keyword' },
         deviceId: { type: 'keyword' },
         path: { type: 'keyword' },
-        state: { type: 'object', dynamic: true },
+        name: { type: 'keyword' },
+        iconId: { type: 'keyword' },
+        metric: {
+          properties: {
+            name: { type: 'keyword' },
+            value: { type: 'float' },
+          },
+        },
       },
     },
   });
