@@ -178,7 +178,10 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
 function generateDocId(doc: SmartHomeEvent): string {
   // Use deviceId for DeviceServiceData, or id (room id like hz_1) for room events
   const entityId = doc.deviceId || doc.id || 'unknown';
-  return `${doc['@type']}-${entityId}-${doc.time || Date.now()}`;
+  // Include service id (e.g., HumidityLevel, TemperatureLevel) for full uniqueness
+  const serviceId = doc.deviceId ? doc.id : undefined;
+  const parts = [doc['@type'], entityId, serviceId, doc.time || Date.now()].filter(Boolean);
+  return parts.join('-');
 }
 
 // Parse NDJSON line, handling pino's leading comma issue
