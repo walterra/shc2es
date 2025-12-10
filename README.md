@@ -1,6 +1,6 @@
 # Bosch Smart Home Data Collector
 
-Node.js project to collect device data from Bosch Smart Home Controller II via long polling. Data is stored as NDJSON files for time series visualization.
+Node.js project to collect device data from Bosch Smart Home Controller II via long polling. Data is stored as NDJSON files and can be ingested into Elasticsearch for time series visualization.
 
 ## Prerequisites
 
@@ -8,6 +8,7 @@ Node.js project to collect device data from Bosch Smart Home Controller II via l
 - Yarn
 - [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at/de/produkte/steuerung-und-zentrale/smart-home-controller/) on your local network
 - System password (set in Bosch Smart Home app under Settings → System → Smart Home Controller)
+- Elasticsearch (optional, for data visualization)
 
 ## Installation
 
@@ -28,9 +29,16 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```bash
+# Bosch Smart Home Controller (required)
 BSH_HOST=192.168.x.x      # Your controller's IP address
 BSH_PASSWORD=xxxxx        # System password from Bosch app
 LOG_LEVEL=info            # Optional: debug, info, warn, error
+
+# Elasticsearch (optional, for ingest)
+ES_NODE=https://localhost:9200
+ES_USER=elastic
+ES_PASSWORD=<password>
+ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
 ```
 
 **Finding your controller's IP:** Check the Bosch Smart Home app (Settings → System → Smart Home Controller) or your router's DHCP client list.
@@ -47,13 +55,11 @@ On first run, you need to pair with the controller:
 
 The client certificate will be generated and saved automatically.
 
-### Normal Operation
+### Collecting Data
 
 ```bash
-yarn poll
+yarn poll             # Start collecting events (Ctrl+C to stop)
 ```
-
-Press `Ctrl+C` to stop.
 
 ### Viewing Logs
 
@@ -64,11 +70,37 @@ yarn data             # View last 20 smart home events
 yarn data:tail        # Follow events in real-time
 ```
 
+### Elasticsearch Ingestion
+
+Ingest collected data into Elasticsearch for visualization in Kibana:
+
+```bash
+# 1. Fetch device/room names for enrichment (run once, or when devices change)
+yarn registry
+
+# 2. Create ES pipeline and index template (run once)
+yarn ingest:setup
+
+# 3. Batch import existing NDJSON files
+yarn ingest
+
+# 4. Or: watch for new events and ingest in real-time
+yarn ingest:watch
+```
+
+Data is indexed into daily indices: `smart-home-events-YYYY-MM-DD`
+
+Each document includes:
+- `@timestamp` - Event time
+- `device.name` / `device.type` - Human-readable device info
+- `room.name` - Room assignment
+- `metric.name` / `metric.value` - Normalized sensor readings (temperature, humidity, etc.)
+
 ## Output Files
 
 | Directory | Contents |
 |-----------|----------|
-| `data/` | Smart home events as NDJSON (`events-YYYY-MM-DD.ndjson`) |
+| `data/` | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry |
 | `logs/` | Application logs for debugging (`poll-YYYY-MM-DD.log`) |
 | `certs/` | Generated client certificates |
 
