@@ -65,24 +65,45 @@ appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
 // Implements the library's Logger interface and forwards to pino
 import type { Logger as BshbLoggerInterface } from 'bosch-smart-home-bridge';
 
+// Serialize params, extracting Error details properly
+function serializeParams(params: unknown[]): unknown[] {
+  return params.map((p) => {
+    if (p instanceof Error) {
+      const err = p as Error & { cause?: unknown; code?: string; errno?: number };
+      return {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+        cause: err.cause,
+        code: err.code,
+        errno: err.errno,
+      };
+    }
+    if (Array.isArray(p)) {
+      return serializeParams(p);
+    }
+    return p;
+  });
+}
+
 export class BshbLogger implements BshbLoggerInterface {
   fine(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.trace({ bshb: true, params: optionalParams }, String(message));
+    appLogger.trace({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   debug(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.debug({ bshb: true, params: optionalParams }, String(message));
+    appLogger.debug({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   info(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.info({ bshb: true, params: optionalParams }, String(message));
+    appLogger.info({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   warn(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.warn({ bshb: true, params: optionalParams }, String(message));
+    appLogger.warn({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   error(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.error({ bshb: true, params: optionalParams }, String(message));
+    appLogger.error({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 }
