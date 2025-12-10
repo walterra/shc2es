@@ -10,6 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Use the logging commands below to inspect logs
 3. Fix code based on log analysis
 
+**Note:** First-time pairing requires physical button press on Controller II - agent cannot complete this step.
+
 ## Project Overview
 
 Node.js project for collecting Bosch Smart Home device data via long polling, storing it as NDJSON, and visualizing as time series.
@@ -31,6 +33,7 @@ Based on the [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at
 ```bash
 yarn install          # Install dependencies
 yarn poll             # Start long polling CLI (USER RUNS THIS, NOT AGENT)
+yarn tsc --noEmit     # Type check without emitting
 ```
 
 ### Debugging Commands (Agent should use these)
@@ -55,6 +58,16 @@ yarn data:tail        # Follow events in real-time
 3. Parse logs to identify errors (look for `"level":50` for errors, `"level":60` for fatal)
 4. Fix the code in `src/poll.ts` or `src/logger.ts`
 5. Ask user to restart `yarn poll`
+
+### Pino Log Levels
+
+| Level | Value | Use |
+|-------|-------|-----|
+| fatal | 60 | App crash |
+| error | 50 | Errors |
+| warn | 40 | Warnings |
+| info | 30 | Normal operation |
+| debug | 20 | Verbose debugging |
 
 ### Environment Variables
 
@@ -101,3 +114,7 @@ Two separate log streams:
 ## Planned Features
 
 - **Visualization**: Time series charts/graphs
+
+## Documentation Maintenance
+
+Keep `README.md` up to date when making changes. The README is end-user focused (installation, usage, configuration) while CLAUDE.md is agent-focused (debugging, restrictions, architecture).
