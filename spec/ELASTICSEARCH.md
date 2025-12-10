@@ -417,16 +417,22 @@ async function watchAndTail() {
 
 ## Environment Variables
 
-Add to `.env` (required):
+Add to `.env`:
 
 ```bash
-# Elasticsearch connection
+# Elasticsearch connection (required)
 ES_NODE=https://<ip>:9200
 ES_USER=elastic
 ES_PASSWORD=<password>
+
+# Index configuration (optional)
+ES_INDEX_PREFIX=smart-home-events   # Default: smart-home-events
 ```
 
-All ES configuration comes from environment variables - no hardcoded values in code.
+The `ES_INDEX_PREFIX` controls:
+- Index names: `{prefix}-YYYY-MM-DD` (e.g., `smart-home-events-2025-12-10`)
+- Template name: `{prefix}-template`
+- Pipeline name: `{prefix}-pipeline`
 
 ## Commands
 

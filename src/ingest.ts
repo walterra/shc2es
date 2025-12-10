@@ -22,10 +22,10 @@ const client = new Client({
   tls: { rejectUnauthorized: false },
 });
 
-const INDEX_PREFIX = 'smart-home-events';
+const INDEX_PREFIX = process.env.ES_INDEX_PREFIX || 'smart-home-events';
 const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
-const PIPELINE_NAME = 'smart-home-events-pipeline';
-const TEMPLATE_NAME = 'smart-home-events-template';
+const PIPELINE_NAME = `${INDEX_PREFIX}-pipeline`;
+const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
 
