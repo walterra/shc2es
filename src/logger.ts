@@ -60,3 +60,29 @@ export const dataLogger = pino(
 
 // Log file locations for reference
 appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
+
+// Bridge logger for bosch-smart-home-bridge library
+// Implements the library's Logger interface and forwards to pino
+import type { Logger as BshbLoggerInterface } from 'bosch-smart-home-bridge';
+
+export class BshbLogger implements BshbLoggerInterface {
+  fine(message?: unknown, ...optionalParams: unknown[]): void {
+    appLogger.trace({ bshb: true, params: optionalParams }, String(message));
+  }
+
+  debug(message?: unknown, ...optionalParams: unknown[]): void {
+    appLogger.debug({ bshb: true, params: optionalParams }, String(message));
+  }
+
+  info(message?: unknown, ...optionalParams: unknown[]): void {
+    appLogger.info({ bshb: true, params: optionalParams }, String(message));
+  }
+
+  warn(message?: unknown, ...optionalParams: unknown[]): void {
+    appLogger.warn({ bshb: true, params: optionalParams }, String(message));
+  }
+
+  error(message?: unknown, ...optionalParams: unknown[]): void {
+    appLogger.error({ bshb: true, params: optionalParams }, String(message));
+  }
+}

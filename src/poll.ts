@@ -6,7 +6,7 @@ import {
   BoschSmartHomeBridgeBuilder,
   BshbUtils,
 } from 'bosch-smart-home-bridge';
-import { appLogger, dataLogger } from './logger';
+import { appLogger, dataLogger, BshbLogger } from './logger';
 
 // Configuration via .env file or environment variables
 const CONTROLLER_HOST = process.env.BSH_HOST;
@@ -111,6 +111,7 @@ function main(): void {
     .withHost(CONTROLLER_HOST)
     .withClientCert(cert)
     .withClientPrivateKey(key)
+    .withLogger(new BshbLogger())
     .build();
 
   appLogger.info('Checking pairing status');
