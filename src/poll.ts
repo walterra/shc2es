@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -6,8 +7,8 @@ import {
   BshbUtils,
 } from 'bosch-smart-home-bridge';
 
-// Configuration - set these via environment variables or edit directly
-const CONTROLLER_HOST = process.env.BSH_HOST || '192.168.0.10';
+// Configuration via .env file or environment variables
+const CONTROLLER_HOST = process.env.BSH_HOST;
 const CLIENT_NAME = process.env.BSH_CLIENT_NAME || 'oss_bosch_smart_home_poll';
 const CLIENT_ID = process.env.BSH_CLIENT_ID || 'oss_bosch_smart_home_poll_client';
 const SYSTEM_PASSWORD = process.env.BSH_PASSWORD || '';
@@ -85,9 +86,13 @@ async function startPolling(bshb: BoschSmartHomeBridge): Promise<void> {
 async function main(): Promise<void> {
   console.log('Bosch Smart Home Long Polling Client\n');
 
+  if (!CONTROLLER_HOST) {
+    console.error('Error: BSH_HOST is required. Set it in .env file or environment.');
+    process.exit(1);
+  }
+
   if (!SYSTEM_PASSWORD) {
-    console.error('Error: BSH_PASSWORD environment variable is required for initial pairing.');
-    console.error('Usage: BSH_PASSWORD=your_password BSH_HOST=192.168.x.x yarn poll');
+    console.error('Error: BSH_PASSWORD is required for initial pairing. Set it in .env file.');
     process.exit(1);
   }
 
