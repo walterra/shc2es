@@ -2,6 +2,8 @@
 
 CLI tools to collect, store, and visualize Bosch Smart Home Controller II data via long polling. Data gets collected as NDJSON and can be passed on to Elasticsearch for Kibana dashboards and time series visualization.
 
+![Kibana Dashboard](docs/images/dashboard.png)
+
 ## Quick Start
 
 Get up and running in 5 minutes:
