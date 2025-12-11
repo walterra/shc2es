@@ -21,6 +21,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - `files` field added (publishes only dist/, README.md, LICENSE)
 - `description` field added
 - `keywords` field added
+- `repository`, `bugs`, `homepage` fields added
 
 ### Blocking Issues
 
@@ -31,21 +32,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ## npm Publishing Checklist
 
 ### High Priority (Discoverability & Usability)
-
-- [ ] **Add repository links** (after GitHub repo is created)
-
-  ```json
-  {
-    "repository": {
-      "type": "git",
-      "url": "git+https://github.com/USERNAME/shc2es.git"
-    },
-    "bugs": {
-      "url": "https://github.com/USERNAME/shc2es/issues"
-    },
-    "homepage": "https://github.com/USERNAME/shc2es#readme"
-  }
-  ```
 
 - [ ] **Add engines field** (Node.js version requirement)
   ```json
