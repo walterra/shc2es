@@ -82,18 +82,25 @@ LOG_LEVEL=info            # Log level: debug, info, warn, error (optional)
 
 # OpenTelemetry (optional)
 OTEL_SERVICE_NAME=bosch-smart-home
-OTEL_EXPORTER_OTLP_ENDPOINT=https://your-apm.elastic.co
-OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <token>
 OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
+
+# EDOT Collector (for local collector setup)
+ES_NODE=https://localhost:9200
+ELASTIC_API_KEY=your_api_key_here
 ```
 
 ### OpenTelemetry Instrumentation
 
-All scripts include automatic OpenTelemetry instrumentation via `@elastic/opentelemetry-node`. Telemetry is sent to the configured OTLP endpoint (Elastic APM).
+All scripts include automatic OpenTelemetry instrumentation via `@elastic/opentelemetry-node`. Telemetry is sent to the local EDOT Collector (localhost:4318) by default.
+
+**EDOT Collector commands:**
+- `yarn otel:collector:start` - Start the collector (Docker)
+- `yarn otel:collector:stop` - Stop the collector
+- `yarn otel:collector:logs` - View collector logs
 
 To run without instrumentation, use `yarn poll:no-otel`.
 
-See `spec/OPEN-TELEMETRY.md` for detailed configuration and best practices.
+See `spec/OPEN-TELEMETRY.md` for detailed configuration, APM UI requirements, and best practices.
 
 ## Architecture
 

@@ -1,5 +1,9 @@
-# EDOT Collector Configuration
+# EDOT Collector Configuration for Kibana APM UI
 # See: https://www.elastic.co/docs/reference/opentelemetry/edot-collector
+#
+# Required components for APM UI:
+# - elasticapm processor: enriches traces for APM UI compatibility
+# - signaltometrics connector: generates APM metrics from traces
 
 receivers:
   otlp:
@@ -11,22 +15,28 @@ receivers:
 
 processors:
   batch:
-    # Batch telemetry before sending to reduce overhead
     timeout: 5s
     send_batch_size: 1000
 
+  # Required for Kibana APM UI - enriches traces with Elastic-specific attributes
+  # For Stack 8.18/8.19, use elastictrace: {} instead
+  elasticapm: {}
+
+connectors:
+  # Required for Kibana APM UI - generates APM metrics from traces
+  # (latency histograms, throughput, service maps)
+  signaltometrics:
+
 exporters:
-  # Debug exporter - outputs to console (useful for troubleshooting)
   debug:
     verbosity: basic
 
-  # Elasticsearch exporter
-  # Uses ES_NODE and ELASTIC_API_KEY from .env
-  elasticsearch:
+  # Elasticsearch exporter with OTel-native mapping
+  elasticsearch/otel:
     endpoints: ["${env:ES_NODE}"]
     api_key: ${env:ELASTIC_API_KEY}
     mapping:
-      mode: ecs  # Use ECS-compatible mapping
+      mode: otel  # Preserves OTel semantics (recommended for Stack 9.x)
     logs_dynamic_index:
       enabled: true
     metrics_dynamic_index:
@@ -40,13 +50,16 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [debug, elasticsearch]
+      processors: [batch, elasticapm]
+      exporters: [debug, signaltometrics, elasticsearch/otel]
+
+    # Metrics pipeline receives both direct metrics AND generated APM metrics
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, signaltometrics]
       processors: [batch]
-      exporters: [debug, elasticsearch]
+      exporters: [debug, elasticsearch/otel]
+
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, elasticsearch]
+      exporters: [debug, elasticsearch/otel]

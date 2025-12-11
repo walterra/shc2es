@@ -32,8 +32,9 @@ The complete observability stack for this project:
                │    (localhost:4317/4318)     │
                │                              │
                │  • OTLP receiver (gRPC/HTTP) │
+               │  • elasticapm processor      │
+               │  • signaltometrics connector │
                │  • Batch processing          │
-               │  • Debug logging             │
                │  • Elasticsearch export      │
                └──────────────┬───────────────┘
                               │
@@ -41,9 +42,9 @@ The complete observability stack for this project:
                ┌──────────────────────────────┐
                │       Elasticsearch          │
                │                              │
-               │  • traces-generic-*          │
-               │  • metrics-generic-*         │
-               │  • logs-generic-*            │
+               │  • traces-*.otel-*           │
+               │  • metrics-*.otel-*          │
+               │  • logs-*.otel-*             │
                └──────────────┬───────────────┘
                               │
                               ▼
@@ -58,11 +59,13 @@ The complete observability stack for this project:
 
 ### Data Flow Summary
 
-| Signal  | Source                      | Transport                    | Index Pattern        |
-|---------|-----------------------------|------------------------------|----------------------|
-| Traces  | EDOT SDK auto-instrumentation | OTLP → Collector → ES      | `traces-generic-*`   |
-| Metrics | EDOT SDK (host, runtime)    | OTLP → Collector → ES        | `metrics-generic-*`  |
-| Logs    | Pino + OTel Transport       | OTLP → Collector → ES        | `logs-generic-*`     |
+| Signal  | Source                      | Transport                              | Index Pattern        |
+|---------|-----------------------------|----------------------------------------|----------------------|
+| Traces  | EDOT SDK auto-instrumentation | OTLP → elasticapm → ES               | `traces-*.otel-*`    |
+| Metrics | EDOT SDK + signaltometrics  | OTLP → signaltometrics → ES            | `metrics-*.otel-*`   |
+| Logs    | Pino + OTel Transport       | OTLP → Collector → ES                  | `logs-*.otel-*`      |
+
+**Note:** The `elasticapm` processor and `signaltometrics` connector are required for Kibana APM UI compatibility. See [Kibana APM UI Requirements](#kibana-apm-ui-requirements) for details.
 
 ## Recommended Approach: EDOT Node.js
 
@@ -411,14 +414,43 @@ You can make the EDOT Collector part of your project by adding yarn commands tha
 | Enterprise support from Elastic | Yes | Community only |
 | Pre-tuned for Elastic Observability | Yes | No |
 | Proactive bug fixes | Yes | Standard release cycle |
+| **Kibana APM UI support** | **Yes (with elasticapm)** | **No** |
+
+#### Kibana APM UI Requirements
+
+To use the Kibana APM UI (Services, Traces, Service Maps) with EDOT Collector sending directly to Elasticsearch, you **must** use Elastic-specific components that are only available in the EDOT Collector:
+
+| Component | Purpose | Required For |
+|-----------|---------|--------------|
+| `elasticapm` processor | Enriches traces with Elastic-specific attributes | APM UI trace visualization |
+| `signaltometrics` connector | Generates pre-aggregated APM metrics from traces | Service maps, latency histograms, throughput charts |
+
+**Why these components are required:**
+
+Without `elasticapm` and `signaltometrics`, trace data lands in `traces-generic-*` indices with raw OTel format. The Kibana APM UI expects:
+- Enriched trace attributes for proper service/transaction grouping
+- Pre-aggregated metrics for dashboards (latency percentiles, throughput, error rates)
+
+**Version compatibility:**
+
+| Elastic Stack | EDOT Collector | Processor to use |
+|---------------|----------------|------------------|
+| 9.x | 9.x | `elasticapm` |
+| 8.18, 8.19 | 9.x | `elastictrace` (deprecated) |
+
+**Important:** The `elasticapm` processor and `signaltometrics` connector are **not** included in the upstream OpenTelemetry Collector Contrib distribution. You must use EDOT Collector for Kibana APM UI compatibility.
 
 #### Docker Setup
 
 **1. Create `otel-collector-config.yml`:**
 
 ```yaml
-# EDOT Collector Configuration
+# EDOT Collector Configuration for Kibana APM UI
 # See: https://www.elastic.co/docs/reference/opentelemetry/edot-collector
+#
+# Required components for APM UI:
+# - elasticapm processor: enriches traces for APM UI compatibility
+# - signaltometrics connector: generates APM metrics from traces
 
 receivers:
   otlp:
@@ -430,22 +462,28 @@ receivers:
 
 processors:
   batch:
-    # Batch telemetry before sending to reduce overhead
     timeout: 5s
     send_batch_size: 1000
 
+  # Required for Kibana APM UI - enriches traces with Elastic-specific attributes
+  # For Stack 8.18/8.19, use elastictrace: {} instead
+  elasticapm: {}
+
+connectors:
+  # Required for Kibana APM UI - generates APM metrics from traces
+  # (latency histograms, throughput, service maps)
+  signaltometrics:
+
 exporters:
-  # Debug exporter - outputs to console (useful for troubleshooting)
   debug:
     verbosity: basic
 
-  # Elasticsearch exporter
-  # Uses ES_NODE and ELASTIC_API_KEY from .env
-  elasticsearch:
+  # Elasticsearch exporter with OTel-native mapping
+  elasticsearch/otel:
     endpoints: ["${env:ES_NODE}"]
     api_key: ${env:ELASTIC_API_KEY}
     mapping:
-      mode: ecs  # Use ECS-compatible mapping
+      mode: otel  # Preserves OTel semantics (recommended for Stack 9.x)
     logs_dynamic_index:
       enabled: true
     metrics_dynamic_index:
@@ -459,22 +497,27 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [debug, elasticsearch]
+      processors: [batch, elasticapm]
+      exporters: [debug, signaltometrics, elasticsearch/otel]
+
+    # Metrics pipeline receives both direct metrics AND generated APM metrics
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, signaltometrics]
       processors: [batch]
-      exporters: [debug, elasticsearch]
+      exporters: [debug, elasticsearch/otel]
+
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, elasticsearch]
+      exporters: [debug, elasticsearch/otel]
 ```
 
 **Key configuration notes:**
-- Uses `${env:VAR_NAME}` syntax for OTel Collector environment variable expansion
-- `mapping.mode: ecs` enables ECS-compatible field mappings
-- `*_dynamic_index.enabled: true` auto-creates indices with proper templates
+- `elasticapm: {}` processor enriches traces for Kibana APM UI compatibility
+- `signaltometrics` connector generates APM metrics (latency, throughput) from traces
+- `signaltometrics` appears in traces exporters (source) AND metrics receivers (sink)
+- `mapping.mode: otel` preserves OTel-native format (recommended for Stack 9.x)
+- Uses `${env:VAR_NAME}` syntax for environment variable expansion
 - `tls.insecure_skip_verify: true` needed for self-signed certs (remove in production)
 
 **2. Create `docker-compose.otel.yml`:**
@@ -549,12 +592,12 @@ yarn otel:collector:stop
 
 ```bash
 # Check indices were created
-curl -k -u elastic:$ES_PASSWORD "$ES_NODE/_cat/indices/*generic*?v"
+curl -k -u elastic:$ES_PASSWORD "$ES_NODE/_cat/indices/*otel*?v"
 
-# Expected output:
-# traces-generic-default     - trace spans
-# metrics-generic-default    - metrics
-# logs-generic-default       - application logs
+# Expected output (with elasticapm + signaltometrics):
+# traces-apm.otel-default    - enriched trace spans
+# metrics-apm.otel-default   - APM metrics (latency, throughput)
+# logs-apm.otel-default      - application logs
 ```
 
 ### Option 3: Plain OpenTelemetry Collector
