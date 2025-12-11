@@ -4,18 +4,20 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 
 ## Current State
 
-### Already in Place
+### Done
+
 - MIT license declared in package.json
 - Comprehensive README.md with usage documentation
 - TypeScript configuration (tsconfig.json)
 - `.env.example` template for environment variables
 - Detailed spec documentation (ELASTICSEARCH.md, KIBANA.md, OPEN-TELEMETRY.md)
 - CLAUDE.md for development guidance
+- LICENSE file created (MIT)
 
 ### Blocking Issues
+
 - `main` field points to non-existent `index.js`
 - No build script to compile TypeScript
-- No LICENSE file (only declared in package.json)
 
 ---
 
@@ -23,12 +25,8 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 
 ### Critical (Must Fix Before Publishing)
 
-- [ ] **Create LICENSE file**
-  ```bash
-  # Copy MIT license text to LICENSE file in project root
-  ```
-
 - [ ] **Fix package.json entry points**
+
   ```json
   {
     "main": "dist/poll.js",
@@ -39,6 +37,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   ```
 
 - [ ] **Add build script**
+
   ```json
   {
     "scripts": {
@@ -51,17 +50,14 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - [ ] **Add files field** (controls what gets published)
   ```json
   {
-    "files": [
-      "dist",
-      "README.md",
-      "LICENSE"
-    ]
+    "files": ["dist", "README.md", "LICENSE"]
   }
   ```
 
 ### High Priority (Discoverability & Usability)
 
 - [ ] **Add description**
+
   ```json
   {
     "description": "Collects Bosch Smart Home Controller II data via long polling for Elasticsearch/Kibana"
@@ -69,6 +65,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   ```
 
 - [ ] **Add keywords** (improves npm search visibility)
+
   ```json
   {
     "keywords": [
@@ -85,6 +82,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   ```
 
 - [ ] **Add repository links** (after GitHub repo is created)
+
   ```json
   {
     "repository": {
@@ -110,6 +108,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ### Medium Priority (Professional Polish)
 
 - [ ] **Create CHANGELOG.md**
+
   ```markdown
   # Changelog
 
@@ -123,6 +122,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   ## [1.0.0] - YYYY-MM-DD
 
   ### Added
+
   - Initial release
   - Long polling from Bosch Smart Home Controller II
   - NDJSON event logging
@@ -131,6 +131,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   ```
 
 - [ ] **Add .nvmrc** (pin Node.js version for contributors)
+
   ```
   20
   ```
@@ -168,32 +169,38 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ### High Priority (Community Standards)
 
 - [ ] **Create CONTRIBUTING.md**
+
   ```markdown
   # Contributing to shc2es
 
   ## Getting Started
+
   1. Fork the repository
   2. Clone your fork
   3. Install dependencies: `yarn install`
   4. Copy `.env.example` to `.env` and configure
 
   ## Development
+
   - Run type checking: `yarn tsc --noEmit`
   - View logs: `yarn logs`
 
   ## Pull Requests
+
   - Create a branch for your feature/fix
   - Ensure type checking passes
   - Update documentation if needed
   - Submit PR with clear description
 
   ## Reporting Issues
+
   - Check existing issues first
   - Include Node.js version and OS
   - Provide steps to reproduce
   ```
 
 - [ ] **Create SECURITY.md**
+
   ```markdown
   # Security Policy
 
@@ -217,9 +224,11 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
   ```
 
 - [ ] **Create CODE_OF_CONDUCT.md**
+
   - Use [Contributor Covenant](https://www.contributor-covenant.org/) v2.1
 
 - [ ] **Add GitHub Actions CI** (`.github/workflows/ci.yml`)
+
   ```yaml
   name: CI
 
@@ -243,7 +252,7 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
           uses: actions/setup-node@v4
           with:
             node-version: ${{ matrix.node-version }}
-            cache: 'yarn'
+            cache: "yarn"
 
         - run: yarn install --frozen-lockfile
         - run: yarn tsc --noEmit
@@ -253,6 +262,7 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ### Medium Priority (Issue Management)
 
 - [ ] **Add issue templates** (`.github/ISSUE_TEMPLATE/`)
+
   - `bug_report.md` - Bug report template
   - `feature_request.md` - Feature request template
 
@@ -265,6 +275,7 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ### Low Priority (Automation)
 
 - [ ] **Add Dependabot** (`.github/dependabot.yml`)
+
   ```yaml
   version: 2
   updates:
@@ -298,6 +309,7 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ### Sensitive Data
 
 Ensure these are NEVER committed:
+
 - `.env` files (use `.env.example` as template)
 - `certs/` directory (generated per-installation)
 - `data/` and `logs/` directories
