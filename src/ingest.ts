@@ -43,7 +43,7 @@ const DASHBOARD_FILE = path.join(DASHBOARDS_DIR, 'smart-home.ndjson');
 
 // Extract date from filename like events-2025-12-10.ndjson
 function extractDateFromFilename(filePath: string): string {
-  const match = path.basename(filePath).match(/events-(\d{4}-\d{2}-\d{2})\.ndjson/);
+  const match = /events-(\d{4}-\d{2}-\d{2})\.ndjson/.exec(path.basename(filePath));
   return match ? match[1] : new Date().toISOString().split('T')[0];
 }
 
@@ -223,7 +223,7 @@ function parseLine(line: string): SmartHomeEvent | null {
 interface ImportResponse {
   success: boolean;
   successCount: number;
-  errors?: Array<{ type: string; id: string; error: { type: string; reason: string } }>;
+  errors?: { type: string; id: string; error: { type: string; reason: string } }[];
 }
 
 interface SavedObjectReference {
@@ -276,7 +276,7 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 
     // Prefix dashboard title to distinguish from other deployments
     if (obj.type === 'dashboard' && obj.attributes?.title) {
-      obj.attributes.title = `${prefix}`;
+      obj.attributes.title = prefix;
     }
 
     // Prefix index pattern name/title to match the prefixed indices
@@ -422,7 +422,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
   const indexName = getIndexName(dateStr);
   log.info({ filePath, indexName }, 'Importing file');
 
-  const documents: Array<{ doc: TransformedEvent; id: string }> = [];
+  const documents: { doc: TransformedEvent; id: string }[] = [];
 
   return new Promise((resolve, reject) => {
     createReadStream(filePath)
@@ -541,7 +541,7 @@ async function watchAndTail(): Promise<void> {
   process.on('SIGINT', () => {
     log.info('Shutting down');
     watcher.close();
-    activeTails.forEach((tail) => tail.unwatch());
+    activeTails.forEach((tail) => { tail.unwatch(); });
     process.exit(0);
   });
 

@@ -76,7 +76,7 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
           error: (err) => {
             appLogger.error({ err: err.message }, 'Long polling error');
             appLogger.info('Reconnecting in 5 seconds');
-            setTimeout(() => startPolling(bshb), 5000);
+            setTimeout(() => { startPolling(bshb); }, 5000);
           },
         });
       };
