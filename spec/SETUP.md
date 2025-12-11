@@ -124,6 +124,18 @@ gh release create v1.0.0 --generate-notes
 
 ---
 
+## NPM
+
+To enable OIDC publishing on npmjs.com (after first manual publish):
+
+1. Go to package settings on npmjs.com
+2. Add trusted publisher:
+
+
+    - User: walterra
+    - Repo: shc2es
+    - Workflow: release.yml
+
 ## References
 
 - [Snyk - Best Practices for Modern npm Packages](https://snyk.io/blog/best-practices-create-modern-npm-package/)
