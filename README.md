@@ -4,7 +4,7 @@ Smart Home Controller to Elasticsearch pipeline. Collects device data from Bosch
 
 ## Prerequisites
 
-- Node.js (v18+)
+- Node.js (v20+)
 - Yarn
 - [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at/de/produkte/steuerung-und-zentrale/smart-home-controller/) on your local network
 - System password (set in Bosch Smart Home app under Settings → System → Smart Home Controller)
@@ -30,22 +30,29 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```bash
-# Bosch Smart Home Controller (required)
+# Bosch Smart Home Controller (required for yarn poll)
 BSH_HOST=192.168.x.x      # Your controller's IP address
 BSH_PASSWORD=xxxxx        # System password from Bosch app
 LOG_LEVEL=info            # Optional: debug, info, warn, error
 
-# Elasticsearch (optional, for ingest)
+# Elasticsearch (required for yarn ingest commands)
 ES_NODE=https://localhost:9200
-ES_USER=elastic
+ES_USER=elastic           # Optional, defaults to "elastic"
 ES_PASSWORD=<password>
 ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
 
+# Kibana (optional, for dashboard import during yarn ingest:setup)
+KIBANA_NODE=https://localhost:5601
+
 # OpenTelemetry / Elastic APM (optional)
-OTEL_SERVICE_NAME=shc2es
+# OTEL_SERVICE_NAME is set automatically per-command (e.g., shc2es-poll, shc2es-ingest)
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
 OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
+
+# EDOT Collector (alternative to direct OTLP endpoint)
+# Used by yarn otel:collector commands - requires ES_NODE above
+ELASTIC_API_KEY=your_api_key_here   # Generate in Kibana: Stack Management → API Keys
 ```
 
 **Finding your controller's IP:** Check the Bosch Smart Home app (Settings → System → Smart Home Controller) or your router's DHCP client list.
@@ -86,6 +93,7 @@ Ingest collected data into Elasticsearch for visualization in Kibana:
 yarn registry
 
 # 2. Create ES pipeline and index template (run once)
+# Also imports Kibana dashboard if KIBANA_NODE is configured
 yarn ingest:setup
 
 # 3. Batch import existing NDJSON files
@@ -97,6 +105,17 @@ yarn ingest:watch
 
 Data is indexed into daily indices: `smart-home-events-YYYY-MM-DD`
 
+### Dashboard Management
+
+Export dashboards from Kibana for version control:
+
+```bash
+yarn dashboard:export --list          # List available dashboards
+yarn dashboard:export "Smart Home"    # Export a dashboard by name
+```
+
+Exported dashboards are saved to `dashboards/` and automatically imported during `yarn ingest:setup` if `KIBANA_NODE` is configured.
+
 ### OpenTelemetry / APM
 
 All scripts include automatic instrumentation via the [Elastic Distribution of OpenTelemetry Node.js](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup) (EDOT). When configured, telemetry data (traces, metrics) is sent to Elastic APM.
@@ -104,10 +123,11 @@ All scripts include automatic instrumentation via the [Elastic Distribution of O
 **To enable APM**, add these to your `.env`:
 
 ```bash
-OTEL_SERVICE_NAME=shc2es
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
 ```
+
+The service name is set automatically per-command (e.g., `shc2es-poll`, `shc2es-ingest`).
 
 **To disable instrumentation**, use:
 
@@ -129,9 +149,10 @@ Each document includes:
 
 | Directory | Contents |
 |-----------|----------|
-| `data/` | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry |
+| `data/` | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
 | `logs/` | Application logs for debugging (`poll-YYYY-MM-DD.log`) |
-| `certs/` | Generated client certificates |
+| `certs/` | Generated client certificates (`client-cert.pem`, `client-key.pem`) |
+| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`) |
 
 ## Hardware
 
