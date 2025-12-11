@@ -64,6 +64,14 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 
 ## GitHub Repository Checklist
 
+### Medium Priority (Code Quality)
+
+- [ ] **Add ESLint with flat config** (`eslint.config.mjs`)
+  - `eslint`, `typescript-eslint`
+  - Use `strictTypeChecked` + `stylisticTypeChecked` configs
+- [ ] **Add Prettier** for formatting
+  - `prettier`, `eslint-config-prettier`
+
 ### Medium Priority (Issue Management)
 
 - [ ] **Add issue templates** (`.github/ISSUE_TEMPLATE/`)
@@ -86,7 +94,7 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 - [ ] **Use Trusted Publishing** - OIDC-based npm publishing from CI (no stored tokens)
 - [ ] **Enable 2FA** on npm account
 - [ ] **Use granular read-only tokens** for CI installs
-- [ ] **Run `npm audit`** before releases
+- [x] **Run `yarn audit`** before releases
 
 ### Repository Security
 
