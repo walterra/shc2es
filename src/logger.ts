@@ -6,8 +6,18 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
 
-// Check if OTel is enabled (SDK not disabled and endpoint configured or using default)
+// Service name from OTEL_SERVICE_NAME (set per-script in package.json)
+// Falls back to 'bosch-smart-home' if not set
+const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || 'bosch-smart-home';
+
+// Check if OTel is enabled (SDK not disabled)
 const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== 'true';
+
+// Build logger name - uses full service name (e.g., bosch-smart-home-poll)
+// and appends component for sub-loggers (e.g., bosch-smart-home-poll:data)
+function buildLoggerName(component?: string): string {
+  return component ? `${SERVICE_NAME}:${component}` : SERVICE_NAME;
+}
 
 // Ensure directories exist
 for (const dir of [DATA_DIR, LOGS_DIR]) {
@@ -19,32 +29,47 @@ for (const dir of [DATA_DIR, LOGS_DIR]) {
 const dateStamp = new Date().toISOString().split('T')[0];
 
 // Factory function to create script-specific loggers
-// Writes to both console (pretty) and file (JSON)
-export function createLogger(scriptName: string): pino.Logger {
-  const logFile = path.join(LOGS_DIR, `${scriptName}-${dateStamp}.log`);
+// Writes to console (pretty), file (JSON), and OTel (if enabled)
+// Uses OTEL_SERVICE_NAME as the logger name (set per-script in package.json)
+export function createLogger(logFilePrefix: string): pino.Logger {
+  const logFile = path.join(LOGS_DIR, `${logFilePrefix}-${dateStamp}.log`);
+  const loggerName = buildLoggerName(); // Uses SERVICE_NAME directly
+
+  const targets: pino.TransportTargetOptions[] = [
+    // Console output (pretty in dev)
+    {
+      target: 'pino-pretty',
+      options: { colorize: true },
+      level: LOG_LEVEL,
+    },
+    // File output (JSON for Claude Code to parse)
+    {
+      target: 'pino/file',
+      options: { destination: logFile },
+      level: LOG_LEVEL,
+    },
+  ];
+
+  // Add OpenTelemetry transport if enabled
+  if (OTEL_LOGS_ENABLED) {
+    targets.push({
+      target: 'pino-opentelemetry-transport',
+      options: {
+        // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
+      },
+      level: LOG_LEVEL,
+    });
+  }
 
   const logger = pino({
-    name: scriptName,
+    name: loggerName,
     level: LOG_LEVEL,
     transport: {
-      targets: [
-        // Console output (pretty in dev)
-        {
-          target: 'pino-pretty',
-          options: { colorize: true },
-          level: LOG_LEVEL,
-        },
-        // File output (JSON for Claude Code to parse)
-        {
-          target: 'pino/file',
-          options: { destination: logFile },
-          level: LOG_LEVEL,
-        },
-      ],
+      targets,
     },
   });
 
-  logger.info({ logFile }, 'Logging initialized');
+  logger.info({ logFile, serviceName: SERVICE_NAME }, 'Logging initialized');
   return logger;
 }
 
@@ -79,7 +104,7 @@ if (OTEL_LOGS_ENABLED) {
 }
 
 export const appLogger = pino({
-  name: 'poll',
+  name: buildLoggerName(), // Uses SERVICE_NAME (bosch-smart-home-poll)
   level: LOG_LEVEL,
   transport: {
     targets: appLoggerTargets,
@@ -92,7 +117,7 @@ const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
 
 export const dataLogger = pino(
   {
-    name: 'data',
+    name: buildLoggerName('data'), // bosch-smart-home-poll:data
     level: 'info',
     // Minimal formatting - just the event data
     formatters: {

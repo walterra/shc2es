@@ -1,11 +1,11 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  BoschSmartHomeBridgeBuilder,
-  BshbUtils,
-} from 'bosch-smart-home-bridge';
+import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
 import { firstValueFrom } from 'rxjs';
+import { createLogger } from './logger';
+
+const log = createLogger('registry');
 
 const CONTROLLER_HOST = process.env.BSH_HOST;
 const CLIENT_NAME = process.env.BSH_CLIENT_NAME || 'oss_bosch_smart_home_poll';
@@ -28,10 +28,10 @@ function loadCertificate(): { cert: string; key: string } {
 }
 
 async function main(): Promise<void> {
-  console.log('Fetching device and room registry from Bosch Smart Home Controller...\n');
+  log.info('Fetching device and room registry from Bosch Smart Home Controller');
 
   if (!CONTROLLER_HOST) {
-    console.error('BSH_HOST is required. Set it in .env file.');
+    log.fatal('BSH_HOST is required. Set it in .env file.');
     process.exit(1);
   }
 
@@ -46,16 +46,16 @@ async function main(): Promise<void> {
   const client = bshb.getBshcClient();
 
   // Fetch devices
-  console.log('Fetching devices...');
+  log.info('Fetching devices...');
   const devicesResponse = await firstValueFrom(client.getDevices());
   const devices = devicesResponse.parsedResponse;
-  console.log(`Found ${devices.length} devices\n`);
+  log.info({ count: devices.length }, 'Devices fetched');
 
   // Fetch rooms
-  console.log('Fetching rooms...');
+  log.info('Fetching rooms...');
   const roomsResponse = await firstValueFrom(client.getRooms());
   const rooms = roomsResponse.parsedResponse;
-  console.log(`Found ${rooms.length} rooms\n`);
+  log.info({ count: rooms.length }, 'Rooms fetched');
 
   // Build registry
   const registry = {
@@ -70,10 +70,8 @@ async function main(): Promise<void> {
       name: room.name,
       iconId: room.iconId,
     };
-    console.log(`Room: ${room.id} -> "${room.name}"`);
+    log.debug({ roomId: room.id, roomName: room.name }, 'Room mapped');
   }
-
-  console.log('');
 
   // Map devices
   for (const device of devices) {
@@ -83,19 +81,23 @@ async function main(): Promise<void> {
       type: device.deviceModel,
     };
     const roomName = device.roomId ? registry.rooms[device.roomId]?.name : 'no room';
-    console.log(`Device: ${device.id}`);
-    console.log(`  Name: ${device.name}`);
-    console.log(`  Room: ${roomName} (${device.roomId || 'none'})`);
-    console.log(`  Type: ${device.deviceModel}`);
-    console.log('');
+    log.debug(
+      {
+        deviceId: device.id,
+        deviceName: device.name,
+        roomName,
+        deviceType: device.deviceModel,
+      },
+      'Device mapped'
+    );
   }
 
   // Save registry
   fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-  console.log(`\nRegistry saved to: ${REGISTRY_FILE}`);
+  log.info({ registryFile: REGISTRY_FILE }, 'Registry saved');
 }
 
 main().catch((err) => {
-  console.error('Error:', err.message);
+  log.fatal({ err: err.message }, 'Error fetching registry');
   process.exit(1);
 });
