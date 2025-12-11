@@ -1,23 +1,78 @@
 # shc2es
 
-Smart Home Controller to Elasticsearch pipeline. Collects device data from Bosch Smart Home Controller II via long polling, stores as NDJSON, and ingests into Elasticsearch for Kibana dashboards and time series visualization.
+CLI tools to collect, store, and visualize Bosch Smart Home Controller II data via long polling. Data gets collected as NDJSON and can be passed on to Elasticsearch for Kibana dashboards and time series visualization.
+
+## Quick Start
+
+Get up and running in 5 minutes:
+
+```bash
+# 1. Install
+npm install -g shc2es
+
+# 2. Configure (create .env in your working directory)
+cat > .env << EOF
+BSH_HOST=192.168.x.x      # Your controller's IP (find in Bosch app or router)
+BSH_PASSWORD=your_password # System password from Bosch Smart Home app
+EOF
+
+# 3. Start collecting data - First press the button on Controller II
+shc2es poll
+```
+
+**That's it!** Events are now being collected as NDJSON files in `data/events-YYYY-MM-DD.ndjson`. Press `Ctrl+C` to stop.
+
+### Optional: Visualize in Elasticsearch
+
+```bash
+# Use start-local to set up ES/Kibana dev environments
+curl -fsSL https://elastic.co/start-local | sh
+
+# Populate your .env with the information provided by the start-local script
+ES_NODE=https://localhost:9200
+ES_PASSWORD=your_es_password
+KIBANA_NODE=http://localhost:5601  # For dashboard import
+ELASTIC_API_KEY=your_es_api_key    # For OTEL telemetry
+
+# Set up and ingest
+shc2es registry          # Fetch device/room names
+shc2es ingest --setup    # Create index + import dashboard
+shc2es ingest --watch    # Real-time ingestion
+```
+
+This will read the collected NDJSON files and add them to Elsaticsearch.
+
+Open Kibana → Dashboards → "Smart Home" to see your data.
+
+---
 
 ## Prerequisites
 
 - Node.js (v20+)
-- Yarn
 - [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at/de/produkte/steuerung-und-zentrale/smart-home-controller/) on your local network
 - System password (set in Bosch Smart Home app under Settings → System → Smart Home Controller)
 - Elasticsearch (optional, for data visualization)
 - Elastic APM (optional, for application performance monitoring)
+- Yarn (only if installing from source)
 
 ## Installation
 
+### From npm (recommended)
+
 ```bash
-git clone <repo-url>
+npm install -g shc2es
+```
+
+### From source (for development)
+
+```bash
+git clone https://github.com/walterra/shc2es.git
 cd shc2es
 yarn install
+yarn build
 ```
+
+When running from source, use `yarn poll`, `yarn ingest`, etc. instead of `shc2es`.
 
 ## Configuration
 
@@ -96,6 +151,7 @@ yarn es-dev:logs      # Follow container logs
 ```
 
 After starting, you'll have:
+
 - Elasticsearch at http://localhost:9200
 - Kibana at http://localhost:5601
 - Credentials stored in `elastic-start-local/.env`
@@ -158,6 +214,7 @@ Or set `OTEL_SDK_DISABLED=true` in your environment.
 See `spec/OPEN-TELEMETRY.md` for detailed configuration and best practices.
 
 Each document includes:
+
 - `@timestamp` - Event time
 - `device.name` / `device.type` - Human-readable device info
 - `room.name` - Room assignment
@@ -165,12 +222,12 @@ Each document includes:
 
 ## Output Files
 
-| Directory | Contents |
-|-----------|----------|
-| `data/` | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
-| `logs/` | Application logs for debugging (`poll-YYYY-MM-DD.log`) |
-| `certs/` | Generated client certificates (`client-cert.pem`, `client-key.pem`) |
-| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`) |
+| Directory     | Contents                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `data/`       | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
+| `logs/`       | Application logs for debugging (`poll-YYYY-MM-DD.log`)                                   |
+| `certs/`      | Generated client certificates (`client-cert.pem`, `client-key.pem`)                      |
+| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`)                                         |
 
 ## Hardware
 
