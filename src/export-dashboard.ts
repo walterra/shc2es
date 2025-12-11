@@ -1,32 +1,32 @@
-import 'dotenv/config';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import * as path from 'path';
-import { createLogger } from './logger';
+import "dotenv/config";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
+import * as path from "path";
+import { createLogger } from "./logger";
 
 // Disable TLS verification for self-signed certs
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-const log = createLogger('export-dashboard');
+const log = createLogger("export-dashboard");
 
 // Environment validation
 if (!process.env.KIBANA_NODE) {
-  log.fatal('KIBANA_NODE must be set in .env');
+  log.fatal("KIBANA_NODE must be set in .env");
   process.exit(1);
 }
 
 if (!process.env.ES_PASSWORD) {
-  log.fatal('ES_PASSWORD must be set in .env (used for Kibana auth)');
+  log.fatal("ES_PASSWORD must be set in .env (used for Kibana auth)");
   process.exit(1);
 }
 
 const KIBANA_NODE = process.env.KIBANA_NODE;
-const ES_USER = process.env.ES_USER || 'elastic';
+const ES_USER = process.env.ES_USER ?? "elastic";
 const ES_PASSWORD = process.env.ES_PASSWORD;
-const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
-const DEFAULT_DASHBOARD_NAME = 'smart-home';
+const DASHBOARDS_DIR = path.join(__dirname, "..", "dashboards");
+const DEFAULT_DASHBOARD_NAME = "smart-home";
 
 function getAuthHeader(): string {
-  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64')}`;
+  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString("base64")}`;
 }
 
 interface SavedObject {
@@ -39,30 +39,37 @@ interface SavedObject {
 }
 
 // Fields to strip from exported objects for privacy
-const SENSITIVE_FIELDS = ['created_by', 'updated_by', 'created_at', 'updated_at', 'version'];
+const SENSITIVE_FIELDS = [
+  "created_by",
+  "updated_by",
+  "created_at",
+  "updated_at",
+  "version",
+];
 
 function stripSensitiveMetadata(ndjson: string): string {
-  const lines = ndjson.trim().split('\n');
+  const lines = ndjson.trim().split("\n");
   const strippedLines: string[] = [];
 
   for (const line of lines) {
     const obj = JSON.parse(line) as Record<string, unknown>;
 
     // Skip export metadata line (has exportedCount)
-    if ('exportedCount' in obj) {
+    if ("exportedCount" in obj) {
       strippedLines.push(line);
       continue;
     }
 
     // Remove sensitive fields
     for (const field of SENSITIVE_FIELDS) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete obj[field];
     }
 
     strippedLines.push(JSON.stringify(obj));
   }
 
-  return strippedLines.join('\n');
+  return strippedLines.join("\n");
 }
 
 interface FindResponse {
@@ -71,42 +78,48 @@ interface FindResponse {
 }
 
 async function findDashboardByName(name: string): Promise<SavedObject | null> {
-  log.info({ name }, 'Searching for dashboard by name');
+  log.info({ name }, "Searching for dashboard by name");
 
   const params = new URLSearchParams({
-    type: 'dashboard',
+    type: "dashboard",
     search: name,
-    search_fields: 'title',
+    search_fields: "title",
   });
 
-  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_find?${params}`, {
-    method: 'GET',
-    headers: {
-      'kbn-xsrf': 'true',
-      Authorization: getAuthHeader(),
+  const response = await fetch(
+    `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        "kbn-xsrf": "true",
+        Authorization: getAuthHeader(),
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     const text = await response.text();
-    log.fatal({ status: response.status, body: text }, 'Search failed');
+    log.fatal({ status: response.status, body: text }, "Search failed");
     process.exit(1);
   }
 
   const result = (await response.json()) as FindResponse;
 
   if (result.total === 0) {
-    log.warn({ name }, 'No dashboards found matching name');
+    log.warn({ name }, "No dashboards found matching name");
     return null;
   }
 
   // Look for exact match first
   const exactMatch = result.saved_objects.find(
-    (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase()
+    (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase(),
   );
 
   if (exactMatch) {
-    log.info({ id: exactMatch.id, title: exactMatch.attributes.title }, 'Found exact match');
+    log.info(
+      { id: exactMatch.id, title: exactMatch.attributes.title },
+      "Found exact match",
+    );
     return exactMatch;
   }
 
@@ -116,69 +129,78 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
       id: obj.id,
       title: obj.attributes.title,
     }));
-    log.warn({ matches }, 'Multiple dashboards found, using first match');
+    log.warn({ matches }, "Multiple dashboards found, using first match");
   }
 
   const match = result.saved_objects[0];
-  log.info({ id: match.id, title: match.attributes.title }, 'Using dashboard');
+  log.info({ id: match.id, title: match.attributes.title }, "Using dashboard");
   return match;
 }
 
 async function listDashboards(): Promise<void> {
-  log.info('Listing all dashboards');
+  log.info("Listing all dashboards");
 
   const params = new URLSearchParams({
-    type: 'dashboard',
-    per_page: '100',
+    type: "dashboard",
+    per_page: "100",
   });
 
-  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_find?${params}`, {
-    method: 'GET',
-    headers: {
-      'kbn-xsrf': 'true',
-      Authorization: getAuthHeader(),
+  const response = await fetch(
+    `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        "kbn-xsrf": "true",
+        Authorization: getAuthHeader(),
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     const text = await response.text();
-    log.fatal({ status: response.status, body: text }, 'List failed');
+    log.fatal({ status: response.status, body: text }, "List failed");
     process.exit(1);
   }
 
   const result = (await response.json()) as FindResponse;
 
   if (result.total === 0) {
-    log.info('No dashboards found');
+    log.info("No dashboards found");
     return;
   }
 
-  console.log('\nAvailable dashboards:\n');
+  console.log("\nAvailable dashboards:\n");
   for (const obj of result.saved_objects) {
-    console.log(`  "${obj.attributes.title}" (id: ${obj.id})`);
+    console.log(`  "${obj.attributes.title ?? "Untitled"}" (id: ${obj.id})`);
   }
-  console.log(`\nTotal: ${result.total} dashboard(s)\n`);
+  console.log(`\nTotal: ${String(result.total)} dashboard(s)\n`);
 }
 
-async function exportDashboard(dashboardId: string, outputName: string): Promise<void> {
+async function exportDashboard(
+  dashboardId: string,
+  outputName: string,
+): Promise<void> {
   // Ensure dashboards directory exists
   if (!existsSync(DASHBOARDS_DIR)) {
     mkdirSync(DASHBOARDS_DIR, { recursive: true });
-    log.info({ dir: DASHBOARDS_DIR }, 'Created dashboards directory');
+    log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
   }
 
   const body = {
-    objects: [{ type: 'dashboard', id: dashboardId }],
+    objects: [{ type: "dashboard", id: dashboardId }],
     includeReferencesDeep: true,
   };
 
-  log.info({ kibanaNode: KIBANA_NODE, dashboardId }, 'Exporting dashboard from Kibana');
+  log.info(
+    { kibanaNode: KIBANA_NODE, dashboardId },
+    "Exporting dashboard from Kibana",
+  );
 
   const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'kbn-xsrf': 'true',
-      'Content-Type': 'application/json',
+      "kbn-xsrf": "true",
+      "Content-Type": "application/json",
       Authorization: getAuthHeader(),
     },
     body: JSON.stringify(body),
@@ -186,43 +208,60 @@ async function exportDashboard(dashboardId: string, outputName: string): Promise
 
   if (!response.ok) {
     const text = await response.text();
-    log.fatal({ status: response.status, body: text }, 'Export failed');
+    log.fatal({ status: response.status, body: text }, "Export failed");
     process.exit(1);
   }
 
   const ndjson = await response.text();
 
   // Parse to count objects and validate
-  const lines = ndjson.trim().split('\n');
-  const objects = lines.map((line) => JSON.parse(line));
+  const lines = ndjson.trim().split("\n");
+
+  interface ExportedObject {
+    type: string;
+    [key: string]: unknown;
+  }
+
+  interface ExportMetadata {
+    exportedCount: number;
+    missingRefCount?: number;
+    missingReferences?: unknown[];
+  }
+
+  const objects = lines.map(
+    (line) => JSON.parse(line) as ExportedObject | ExportMetadata,
+  );
 
   // Last line is export metadata
-  const metadata = objects[objects.length - 1];
-  const exportedObjects = objects.slice(0, -1);
+  const metadata = objects[objects.length - 1] as ExportMetadata;
+  const exportedObjects = objects.slice(0, -1) as ExportedObject[];
 
   // Group by type for logging
   const typeCounts: Record<string, number> = {};
   for (const obj of exportedObjects) {
-    typeCounts[obj.type] = (typeCounts[obj.type] || 0) + 1;
+    typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
   }
 
-  log.info({ typeCounts, exportedCount: metadata.exportedCount }, 'Export summary');
+  log.info(
+    { typeCounts, exportedCount: metadata.exportedCount },
+    "Export summary",
+  );
 
-  if (metadata.missingRefCount > 0) {
+  if (metadata.missingRefCount && metadata.missingRefCount > 0) {
     log.warn(
       { missingReferences: metadata.missingReferences },
-      'Some references could not be resolved'
+      "Some references could not be resolved",
     );
   }
 
   // Strip sensitive metadata before saving
   const strippedNdjson = stripSensitiveMetadata(ndjson);
-  log.info({ strippedFields: SENSITIVE_FIELDS }, 'Stripped sensitive metadata');
+  log.info({ strippedFields: SENSITIVE_FIELDS }, "Stripped sensitive metadata");
 
   // Write to file
   const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
   writeFileSync(outputFile, strippedNdjson);
-  log.info({ outputFile }, 'Dashboard exported successfully');
+  log.info({ outputFile }, "Dashboard exported successfully");
 }
 
 function printUsage(): void {
@@ -245,32 +284,35 @@ Examples:
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
-  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     printUsage();
     process.exit(0);
   }
 
-  if (args.includes('--list')) {
+  if (args.includes("--list")) {
     await listDashboards();
     process.exit(0);
   }
 
-  const dashboardName = args.join(' ');
+  const dashboardName = args.join(" ");
 
   try {
     const dashboard = await findDashboardByName(dashboardName);
 
     if (!dashboard) {
-      log.info('Use --list to see available dashboards');
+      log.info("Use --list to see available dashboards");
       process.exit(1);
     }
 
     // Use hardcoded filename (template can be reused with different prefixes)
     await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME);
   } catch (err) {
-    log.fatal({ err }, 'Export failed');
+    log.fatal({ err }, "Export failed");
     process.exit(1);
   }
 }
 
-main();
+main().catch((err: unknown) => {
+  log.fatal({ err }, "Fatal error");
+  process.exit(1);
+});

@@ -1,37 +1,56 @@
-import 'dotenv/config';
-import * as fs from 'fs';
-import * as path from 'path';
-import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
-import { firstValueFrom } from 'rxjs';
-import { createLogger } from './logger';
+import "dotenv/config";
+import * as fs from "fs";
+import * as path from "path";
+import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
+import { firstValueFrom } from "rxjs";
+import { createLogger } from "./logger";
 
-const log = createLogger('registry');
+const log = createLogger("registry");
 
 const CONTROLLER_HOST = process.env.BSH_HOST;
-const CLIENT_NAME = process.env.BSH_CLIENT_NAME || 'oss_bosch_smart_home_poll';
-const CLIENT_ID = process.env.BSH_CLIENT_ID || 'oss_bosch_smart_home_poll_client';
-const SYSTEM_PASSWORD = process.env.BSH_PASSWORD || '';
 
-const CERT_PATH = path.join(__dirname, '..', 'certs');
-const CERT_FILE = path.join(CERT_PATH, 'client-cert.pem');
-const KEY_FILE = path.join(CERT_PATH, 'client-key.pem');
-const REGISTRY_FILE = path.join(__dirname, '..', 'data', 'device-registry.json');
+const CERT_PATH = path.join(__dirname, "..", "certs");
+const CERT_FILE = path.join(CERT_PATH, "client-cert.pem");
+const KEY_FILE = path.join(CERT_PATH, "client-key.pem");
+const REGISTRY_FILE = path.join(
+  __dirname,
+  "..",
+  "data",
+  "device-registry.json",
+);
+
+interface BshRoom {
+  id: string;
+  name: string;
+  iconId?: string;
+}
+
+interface BshDevice {
+  id: string;
+  name: string;
+  roomId?: string;
+  deviceModel?: string;
+}
 
 function loadCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
     return {
-      cert: fs.readFileSync(CERT_FILE, 'utf-8'),
-      key: fs.readFileSync(KEY_FILE, 'utf-8'),
+      cert: fs.readFileSync(CERT_FILE, "utf-8"),
+      key: fs.readFileSync(KEY_FILE, "utf-8"),
     };
   }
-  throw new Error('Certificate not found. Run yarn poll first to generate certificates.');
+  throw new Error(
+    "Certificate not found. Run yarn poll first to generate certificates.",
+  );
 }
 
 async function main(): Promise<void> {
-  log.info('Fetching device and room registry from Bosch Smart Home Controller');
+  log.info(
+    "Fetching device and room registry from Bosch Smart Home Controller",
+  );
 
   if (!CONTROLLER_HOST) {
-    log.fatal('BSH_HOST is required. Set it in .env file.');
+    log.fatal("BSH_HOST is required. Set it in .env file.");
     process.exit(1);
   }
 
@@ -46,21 +65,24 @@ async function main(): Promise<void> {
   const client = bshb.getBshcClient();
 
   // Fetch devices
-  log.info('Fetching devices...');
+  log.info("Fetching devices...");
   const devicesResponse = await firstValueFrom(client.getDevices());
-  const devices = devicesResponse.parsedResponse;
-  log.info({ count: devices.length }, 'Devices fetched');
+  const devices = devicesResponse.parsedResponse as BshDevice[];
+  log.info({ count: devices.length }, "Devices fetched");
 
   // Fetch rooms
-  log.info('Fetching rooms...');
+  log.info("Fetching rooms...");
   const roomsResponse = await firstValueFrom(client.getRooms());
-  const rooms = roomsResponse.parsedResponse;
-  log.info({ count: rooms.length }, 'Rooms fetched');
+  const rooms = roomsResponse.parsedResponse as BshRoom[];
+  log.info({ count: rooms.length }, "Rooms fetched");
 
   // Build registry
   const registry = {
     fetchedAt: new Date().toISOString(),
-    devices: {} as Record<string, { name: string; roomId?: string; type?: string }>,
+    devices: {} as Record<
+      string,
+      { name: string; roomId?: string; type?: string }
+    >,
     rooms: {} as Record<string, { name: string; iconId?: string }>,
   };
 
@@ -70,7 +92,7 @@ async function main(): Promise<void> {
       name: room.name,
       iconId: room.iconId,
     };
-    log.debug({ roomId: room.id, roomName: room.name }, 'Room mapped');
+    log.debug({ roomId: room.id, roomName: room.name }, "Room mapped");
   }
 
   // Map devices
@@ -80,7 +102,9 @@ async function main(): Promise<void> {
       roomId: device.roomId,
       type: device.deviceModel,
     };
-    const roomName = device.roomId ? registry.rooms[device.roomId]?.name : 'no room';
+    const roomName = device.roomId
+      ? registry.rooms[device.roomId].name
+      : "no room";
     log.debug(
       {
         deviceId: device.id,
@@ -88,16 +112,17 @@ async function main(): Promise<void> {
         roomName,
         deviceType: device.deviceModel,
       },
-      'Device mapped'
+      "Device mapped",
     );
   }
 
   // Save registry
   fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-  log.info({ registryFile: REGISTRY_FILE }, 'Registry saved');
+  log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
 }
 
-main().catch((err) => {
-  log.fatal({ err: err.message }, 'Error fetching registry');
+main().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  log.fatal({ err: message }, "Error fetching registry");
   process.exit(1);
 });

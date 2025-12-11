@@ -2,38 +2,44 @@
 
 // OTEL auto-instrumentation must be loaded BEFORE any other imports
 // to properly hook into Node.js modules
-const noOtel = process.argv.includes('--no-otel');
+const noOtel = process.argv.includes("--no-otel");
 if (!noOtel) {
   // Find the command (first non-flag argument after script name)
-  const validCommands = ['poll', 'ingest', 'registry', 'dashboard'];
-  const command = process.argv.slice(2).find(arg => !arg.startsWith('-'));
-  const serviceSuffix = command && validCommands.includes(command) ? `-${command}` : '';
-  process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME || `shc2es${serviceSuffix}`;
-  require('@elastic/opentelemetry-node');
+  const validCommands = ["poll", "ingest", "registry", "dashboard"];
+  const command = process.argv.slice(2).find((arg) => !arg.startsWith("-"));
+  const serviceSuffix =
+    command && validCommands.includes(command) ? `-${command}` : "";
+  process.env.OTEL_SERVICE_NAME =
+    process.env.OTEL_SERVICE_NAME ?? `shc2es${serviceSuffix}`;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require("@elastic/opentelemetry-node");
 }
 
-import 'dotenv/config';
+import "dotenv/config";
 
-const VERSION = '1.0.0';
+const VERSION = "1.0.0";
 
-const COMMANDS: Record<string, { description: string; module: string; usage?: string }> = {
+const COMMANDS: Record<
+  string,
+  { description: string; module: string; usage?: string }
+> = {
   poll: {
-    description: 'Start long polling from Smart Home Controller',
-    module: './poll',
+    description: "Start long polling from Smart Home Controller",
+    module: "./poll",
   },
   ingest: {
-    description: 'Ingest events to Elasticsearch',
-    module: './ingest',
-    usage: '[--setup|--watch]',
+    description: "Ingest events to Elasticsearch",
+    module: "./ingest",
+    usage: "[--setup|--watch]",
   },
   registry: {
-    description: 'Fetch device/room registry from controller',
-    module: './fetch-registry',
+    description: "Fetch device/room registry from controller",
+    module: "./fetch-registry",
   },
   dashboard: {
-    description: 'Export Kibana dashboard',
-    module: './export-dashboard',
-    usage: '<name>|--list',
+    description: "Export Kibana dashboard",
+    module: "./export-dashboard",
+    usage: "<name>|--list",
   },
 };
 
@@ -46,7 +52,7 @@ Usage: shc2es <command> [options]
 Commands:
 ${Object.entries(COMMANDS)
   .map(([name, cmd]) => `  ${name.padEnd(12)} ${cmd.description}`)
-  .join('\n')}
+  .join("\n")}
 
 Options:
   --help, -h     Show this help message
@@ -71,30 +77,30 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   // Filter out global flags to find the command
-  const globalFlags = ['--no-otel', '--help', '-h', '--version', '-v'];
-  const filteredArgs = args.filter(arg => !globalFlags.includes(arg));
+  const globalFlags = ["--no-otel", "--help", "-h", "--version", "-v"];
+  const filteredArgs = args.filter((arg) => !globalFlags.includes(arg));
   const command = filteredArgs[0];
 
   // Handle global flags (check version first since it's more specific)
-  if (args.includes('--version') || args.includes('-v')) {
+  if (args.includes("--version") || args.includes("-v")) {
     console.log(`shc2es v${VERSION}`);
     process.exit(0);
   }
 
-  if (args.includes('--help') || args.includes('-h') || !command) {
+  if (args.includes("--help") || args.includes("-h") || !command) {
     printUsage();
     process.exit(0);
   }
 
-  if (!COMMANDS[command]) {
+  if (!(command in COMMANDS)) {
     console.error(`Unknown command: ${command}\n`);
-    console.error(`Available commands: ${Object.keys(COMMANDS).join(', ')}`);
+    console.error(`Available commands: ${Object.keys(COMMANDS).join(", ")}`);
     console.error(`Run 'shc2es --help' for usage information.`);
     process.exit(1);
   }
 
   // Remove the command and --no-otel from argv so submodules see correct args
-  const subArgs = args.filter(arg => arg !== command && arg !== '--no-otel');
+  const subArgs = args.filter((arg) => arg !== command && arg !== "--no-otel");
   process.argv = [process.argv[0], process.argv[1], ...subArgs];
 
   // Dynamic import of the command module
@@ -102,7 +108,8 @@ async function main(): Promise<void> {
   await import(modulePath);
 }
 
-main().catch((err) => {
-  console.error('Fatal error:', err.message);
+main().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error("Fatal error:", message);
   process.exit(1);
 });
