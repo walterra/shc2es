@@ -19,6 +19,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - OTEL instrumentation built into CLI (auto-enabled, use `--no-otel` to disable)
 - Yarn scripts simplified to use CLI via ts-node
 - `files` field added (publishes only dist/, README.md, LICENSE)
+- `description` field added
 
 ### Blocking Issues
 
@@ -29,14 +30,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ## npm Publishing Checklist
 
 ### High Priority (Discoverability & Usability)
-
-- [ ] **Add description**
-
-  ```json
-  {
-    "description": "Collects Bosch Smart Home Controller II data via long polling for Elasticsearch/Kibana"
-  }
-  ```
 
 - [ ] **Add keywords** (improves npm search visibility)
 
