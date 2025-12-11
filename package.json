@@ -16,7 +16,8 @@
     "ingest:setup": "ts-node src/ingest.ts --setup",
     "ingest": "ts-node src/ingest.ts",
     "ingest:watch": "ts-node src/ingest.ts --watch",
-    "registry": "ts-node src/fetch-registry.ts"
+    "registry": "ts-node src/fetch-registry.ts",
+    "dashboard:export": "ts-node src/export-dashboard.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
