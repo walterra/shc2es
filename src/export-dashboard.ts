@@ -23,39 +23,135 @@ const KIBANA_NODE = process.env.KIBANA_NODE;
 const ES_USER = process.env.ES_USER || 'elastic';
 const ES_PASSWORD = process.env.ES_PASSWORD;
 const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
-const OUTPUT_FILE = path.join(DASHBOARDS_DIR, 'smart-home.ndjson');
 
-async function exportDashboard(dashboardId?: string): Promise<void> {
+function getAuthHeader(): string {
+  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64')}`;
+}
+
+interface SavedObject {
+  id: string;
+  type: string;
+  attributes: {
+    title?: string;
+    [key: string]: unknown;
+  };
+}
+
+interface FindResponse {
+  saved_objects: SavedObject[];
+  total: number;
+}
+
+async function findDashboardByName(name: string): Promise<SavedObject | null> {
+  log.info({ name }, 'Searching for dashboard by name');
+
+  const params = new URLSearchParams({
+    type: 'dashboard',
+    search: name,
+    search_fields: 'title',
+  });
+
+  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_find?${params}`, {
+    method: 'GET',
+    headers: {
+      'kbn-xsrf': 'true',
+      Authorization: getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    log.fatal({ status: response.status, body: text }, 'Search failed');
+    process.exit(1);
+  }
+
+  const result = (await response.json()) as FindResponse;
+
+  if (result.total === 0) {
+    log.warn({ name }, 'No dashboards found matching name');
+    return null;
+  }
+
+  // Look for exact match first
+  const exactMatch = result.saved_objects.find(
+    (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase()
+  );
+
+  if (exactMatch) {
+    log.info({ id: exactMatch.id, title: exactMatch.attributes.title }, 'Found exact match');
+    return exactMatch;
+  }
+
+  // If no exact match, show all matches and use first one
+  if (result.total > 1) {
+    const matches = result.saved_objects.map((obj) => ({
+      id: obj.id,
+      title: obj.attributes.title,
+    }));
+    log.warn({ matches }, 'Multiple dashboards found, using first match');
+  }
+
+  const match = result.saved_objects[0];
+  log.info({ id: match.id, title: match.attributes.title }, 'Using dashboard');
+  return match;
+}
+
+async function listDashboards(): Promise<void> {
+  log.info('Listing all dashboards');
+
+  const params = new URLSearchParams({
+    type: 'dashboard',
+    per_page: '100',
+  });
+
+  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_find?${params}`, {
+    method: 'GET',
+    headers: {
+      'kbn-xsrf': 'true',
+      Authorization: getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    log.fatal({ status: response.status, body: text }, 'List failed');
+    process.exit(1);
+  }
+
+  const result = (await response.json()) as FindResponse;
+
+  if (result.total === 0) {
+    log.info('No dashboards found');
+    return;
+  }
+
+  console.log('\nAvailable dashboards:\n');
+  for (const obj of result.saved_objects) {
+    console.log(`  "${obj.attributes.title}" (id: ${obj.id})`);
+  }
+  console.log(`\nTotal: ${result.total} dashboard(s)\n`);
+}
+
+async function exportDashboard(dashboardId: string, outputName: string): Promise<void> {
   // Ensure dashboards directory exists
   if (!existsSync(DASHBOARDS_DIR)) {
     mkdirSync(DASHBOARDS_DIR, { recursive: true });
     log.info({ dir: DASHBOARDS_DIR }, 'Created dashboards directory');
   }
 
-  const auth = Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64');
+  const body = {
+    objects: [{ type: 'dashboard', id: dashboardId }],
+    includeReferencesDeep: true,
+  };
 
-  // Build request body - either specific dashboard or all dashboards
-  const body = dashboardId
-    ? {
-        objects: [{ type: 'dashboard', id: dashboardId }],
-        includeReferencesDeep: true,
-      }
-    : {
-        type: 'dashboard',
-        includeReferencesDeep: true,
-      };
-
-  log.info(
-    { kibanaNode: KIBANA_NODE, dashboardId: dashboardId || 'all' },
-    'Exporting dashboard(s) from Kibana'
-  );
+  log.info({ kibanaNode: KIBANA_NODE, dashboardId }, 'Exporting dashboard from Kibana');
 
   const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
     method: 'POST',
     headers: {
       'kbn-xsrf': 'true',
       'Content-Type': 'application/json',
-      Authorization: `Basic ${auth}`,
+      Authorization: getAuthHeader(),
     },
     body: JSON.stringify(body),
   });
@@ -92,18 +188,58 @@ async function exportDashboard(dashboardId?: string): Promise<void> {
   }
 
   // Write to file
-  writeFileSync(OUTPUT_FILE, ndjson);
-  log.info({ outputFile: OUTPUT_FILE }, 'Dashboard exported successfully');
+  const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
+  writeFileSync(outputFile, ndjson);
+  log.info({ outputFile }, 'Dashboard exported successfully');
+}
+
+function printUsage(): void {
+  console.log(`
+Usage: yarn dashboard:export <dashboard-name>
+
+Arguments:
+  <dashboard-name>    Name (title) of the dashboard to export
+
+Options:
+  --list              List all available dashboards
+
+Examples:
+  yarn dashboard:export bosch-smart-home
+  yarn dashboard:export "My Dashboard"
+  yarn dashboard:export --list
+`);
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
-  // Optional: pass dashboard ID as argument
-  const dashboardId = args[0];
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+    printUsage();
+    process.exit(0);
+  }
+
+  if (args.includes('--list')) {
+    await listDashboards();
+    process.exit(0);
+  }
+
+  const dashboardName = args.join(' ');
 
   try {
-    await exportDashboard(dashboardId);
+    const dashboard = await findDashboardByName(dashboardName);
+
+    if (!dashboard) {
+      log.info('Use --list to see available dashboards');
+      process.exit(1);
+    }
+
+    // Use sanitized title as output filename
+    const outputName = (dashboard.attributes.title || 'dashboard')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    await exportDashboard(dashboard.id, outputName);
   } catch (err) {
     log.fatal({ err }, 'Export failed');
     process.exit(1);
