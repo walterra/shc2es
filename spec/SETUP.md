@@ -25,6 +25,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - `engines` field added (node >=20.0.0)
 - `.nvmrc` file added (version 20)
 - CHANGELOG.md created
+- CONTRIBUTING.md created
 
 ### Blocking Issues
 
@@ -58,37 +59,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ## GitHub Repository Checklist
 
 ### High Priority (Community Standards)
-
-- [ ] **Create CONTRIBUTING.md**
-
-  ```markdown
-  # Contributing to shc2es
-
-  ## Getting Started
-
-  1. Fork the repository
-  2. Clone your fork
-  3. Install dependencies: `yarn install`
-  4. Copy `.env.example` to `.env` and configure
-
-  ## Development
-
-  - Run type checking: `yarn tsc --noEmit`
-  - View logs: `yarn logs`
-
-  ## Pull Requests
-
-  - Create a branch for your feature/fix
-  - Ensure type checking passes
-  - Update documentation if needed
-  - Submit PR with clear description
-
-  ## Reporting Issues
-
-  - Check existing issues first
-  - Include Node.js version and OS
-  - Provide steps to reproduce
-  ```
 
 - [ ] **Create SECURITY.md**
 
