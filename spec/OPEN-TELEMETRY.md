@@ -106,7 +106,7 @@ npm install --save @elastic/opentelemetry-node
 ### Example Configuration
 
 ```bash
-export OTEL_SERVICE_NAME="bosch-smart-home-poller"
+export OTEL_SERVICE_NAME="shc2es-poll"
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://your-deployment.apm.region.cloud.es.io"
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_APM_SECRET_TOKEN"
 export OTEL_RESOURCE_ATTRIBUTES="service.version=1.0.0,deployment.environment=production"
@@ -555,7 +555,7 @@ ES_NODE=https://192.168.1.140:9200
 ELASTIC_API_KEY=your_api_key_here
 
 # OpenTelemetry service identification
-OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_SERVICE_NAME=shc2es
 ```
 
 **4. Add yarn scripts to `package.json`:**

@@ -236,7 +236,7 @@ Options:
   --list              List all available dashboards
 
 Examples:
-  yarn dashboard:export bosch-smart-home
+  yarn dashboard:export shc2es
   yarn dashboard:export "My Dashboard"
   yarn dashboard:export --list
 `);

@@ -14,7 +14,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Node.js project for collecting Bosch Smart Home device data via long polling, storing it as NDJSON, and visualizing as time series.
+**shc2es** (Smart Home Controller to Elasticsearch) - Collects device data from Bosch Smart Home Controller II via long polling, stores as NDJSON, and ingests into Elasticsearch for Kibana dashboards.
+
+### Naming & Trademarks
+
+The project name `shc2es` uses abbreviations to avoid trademark issues:
+- **SHC** = Smart Home Controller (from official Bosch API docs naming: `bosch-shc-api-docs`)
+- **ES** = Elasticsearch (common community abbreviation)
+
+**Trademark restrictions** (do not use these in package/project names):
+- "Elasticsearch", "Elastic", "Kibana" - [Elastic Trademark Policy](https://www.elastic.co/legal/trademarks)
+- "Bosch" with claims suggesting involvement - [Bosch SHC API License](https://github.com/BoschSmartHome/bosch-shc-api-docs)
+
+**Allowed**: Use full trademark names in descriptions, README, and GitHub topics for discoverability.
 
 ## Hardware
 
@@ -81,7 +93,7 @@ BSH_CLIENT_ID=oss_xxx     # Client ID (optional, has default)
 LOG_LEVEL=info            # Log level: debug, info, warn, error (optional)
 
 # OpenTelemetry (optional)
-OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_SERVICE_NAME=shc2es
 OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
 
 # EDOT Collector (for local collector setup)

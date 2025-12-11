@@ -7,14 +7,14 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
 
 // Service name from OTEL_SERVICE_NAME (set per-script in package.json)
-// Falls back to 'bosch-smart-home' if not set
-const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || 'bosch-smart-home';
+// Falls back to 'shc2es' if not set
+const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || 'shc2es';
 
 // Check if OTel is enabled (SDK not disabled)
 const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== 'true';
 
-// Build logger name - uses full service name (e.g., bosch-smart-home-poll)
-// and appends component for sub-loggers (e.g., bosch-smart-home-poll:data)
+// Build logger name - uses full service name (e.g., shc2es-poll)
+// and appends component for sub-loggers (e.g., shc2es-poll:data)
 function buildLoggerName(component?: string): string {
   return component ? `${SERVICE_NAME}:${component}` : SERVICE_NAME;
 }
@@ -104,7 +104,7 @@ if (OTEL_LOGS_ENABLED) {
 }
 
 export const appLogger = pino({
-  name: buildLoggerName(), // Uses SERVICE_NAME (bosch-smart-home-poll)
+  name: buildLoggerName(), // Uses SERVICE_NAME (shc2es-poll)
   level: LOG_LEVEL,
   transport: {
     targets: appLoggerTargets,
@@ -117,7 +117,7 @@ const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
 
 export const dataLogger = pino(
   {
-    name: buildLoggerName('data'), // bosch-smart-home-poll:data
+    name: buildLoggerName('data'), // shc2es-poll:data
     level: 'info',
     // Minimal formatting - just the event data
     formatters: {

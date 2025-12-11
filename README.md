@@ -1,6 +1,6 @@
-# Bosch Smart Home Data Collector
+# shc2es
 
-Node.js project to collect device data from Bosch Smart Home Controller II via long polling. Data is stored as NDJSON files and can be ingested into Elasticsearch for time series visualization.
+Smart Home Controller to Elasticsearch pipeline. Collects device data from Bosch Smart Home Controller II via long polling, stores as NDJSON, and ingests into Elasticsearch for Kibana dashboards and time series visualization.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Node.js project to collect device data from Bosch Smart Home Controller II via l
 
 ```bash
 git clone <repo-url>
-cd bosch-smart-home
+cd shc2es
 yarn install
 ```
 
@@ -42,7 +42,7 @@ ES_PASSWORD=<password>
 ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
 
 # OpenTelemetry / Elastic APM (optional)
-OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_SERVICE_NAME=shc2es
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
 OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
@@ -104,7 +104,7 @@ All scripts include automatic instrumentation via the [Elastic Distribution of O
 **To enable APM**, add these to your `.env`:
 
 ```bash
-OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_SERVICE_NAME=shc2es
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
 ```
