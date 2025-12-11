@@ -24,6 +24,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - `repository`, `bugs`, `homepage` fields added
 - `engines` field added (node >=20.0.0)
 - `.nvmrc` file added (version 20)
+- CHANGELOG.md created
 
 ### Blocking Issues
 
@@ -34,29 +35,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ## npm Publishing Checklist
 
 ### Medium Priority (Professional Polish)
-
-- [ ] **Create CHANGELOG.md**
-
-  ```markdown
-  # Changelog
-
-  All notable changes to this project will be documented in this file.
-
-  The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-  and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-  ## [Unreleased]
-
-  ## [1.0.0] - YYYY-MM-DD
-
-  ### Added
-
-  - Initial release
-  - Long polling from Bosch Smart Home Controller II
-  - NDJSON event logging
-  - Elasticsearch ingestion support
-  - OpenTelemetry instrumentation
-  ```
 
 - [ ] **Add type field** (explicit module system)
   ```json
