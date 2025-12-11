@@ -13,28 +13,29 @@ Get up and running in 5 minutes:
 npm install -g shc2es
 
 # 2. Configure (create .env in your working directory)
-cat > .env << EOF
-BSH_HOST=192.168.x.x      # Your controller's IP (find in Bosch app or router)
-BSH_PASSWORD=your_password # System password from Bosch Smart Home app
-EOF
 
-# 3. Start collecting data - First press the button on Controller II
+# Your controller's IP (find in Bosch app or router)
+BSH_HOST=192.168.x.x
+
+# System password from Bosch Smart Home app
+BSH_PASSWORD=your_password
+
+# 3. Start collecting data
+
+# On first run press the button on Bosch Smart Home Controller II!
 shc2es poll
-```
 
-**That's it!** Events are now being collected as NDJSON files in `data/events-YYYY-MM-DD.ndjson`. Press `Ctrl+C` to stop.
+# 4. Set up Elasticsearch/Kibana
 
-### Optional: Visualize in Elasticsearch
-
-```bash
 # Use start-local to set up ES/Kibana dev environments
 curl -fsSL https://elastic.co/start-local | sh
 
 # Populate your .env with the information provided by the start-local script
 ES_NODE=https://localhost:9200
 ES_PASSWORD=your_es_password
-KIBANA_NODE=http://localhost:5601  # For dashboard import
-ELASTIC_API_KEY=your_es_api_key    # For OTEL telemetry
+KIBANA_NODE=http://localhost:5601
+COLLECTOR_ES_NODE=http://host.docker.internal:9200
+ELASTIC_API_KEY=your_es_api_key
 
 # Set up and ingest
 shc2es registry          # Fetch device/room names
