@@ -20,6 +20,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - Yarn scripts simplified to use CLI via ts-node
 - `files` field added (publishes only dist/, README.md, LICENSE)
 - `description` field added
+- `keywords` field added
 
 ### Blocking Issues
 
@@ -30,23 +31,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ## npm Publishing Checklist
 
 ### High Priority (Discoverability & Usability)
-
-- [ ] **Add keywords** (improves npm search visibility)
-
-  ```json
-  {
-    "keywords": [
-      "smart-home",
-      "bosch",
-      "elasticsearch",
-      "kibana",
-      "iot",
-      "home-automation",
-      "long-polling",
-      "ndjson"
-    ]
-  }
-  ```
 
 - [ ] **Add repository links** (after GitHub repo is created)
 
