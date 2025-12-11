@@ -4,3 +4,4 @@ certs/
 data/
 logs/
 .env
+elastic-start-local/

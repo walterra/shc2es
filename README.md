@@ -84,6 +84,24 @@ yarn data             # View last 20 smart home events
 yarn data:tail        # Follow events in real-time
 ```
 
+### Local Development Stack
+
+Quickly spin up Elasticsearch and Kibana locally for development using Elastic's [start-local](https://github.com/elastic/start-local) script:
+
+```bash
+yarn es-dev:start     # Download and start Elasticsearch + Kibana (Docker)
+yarn es-dev:stop      # Stop containers (preserves data)
+yarn es-dev:down      # Stop and remove containers
+yarn es-dev:logs      # Follow container logs
+```
+
+After starting, you'll have:
+- Elasticsearch at http://localhost:9200
+- Kibana at http://localhost:5601
+- Credentials stored in `elastic-start-local/.env`
+
+⚠️ **Development only** - Do not use for production.
+
 ### Elasticsearch Ingestion
 
 Ingest collected data into Elasticsearch for visualization in Kibana:

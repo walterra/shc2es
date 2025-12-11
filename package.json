@@ -59,7 +59,11 @@
     "otel:collector": "docker run --rm -p 4317:4317 -p 4318:4318 --env-file .env -v $(pwd)/otel-collector-config.yml:/etc/otel-collector/config.yaml elastic/elastic-agent:9.2.2 otel --config /etc/otel-collector/config.yaml",
     "otel:collector:start": "docker compose -f docker-compose.otel.yml up -d",
     "otel:collector:stop": "docker compose -f docker-compose.otel.yml down",
-    "otel:collector:logs": "docker compose -f docker-compose.otel.yml logs -f"
+    "otel:collector:logs": "docker compose -f docker-compose.otel.yml logs -f",
+    "es-dev:start": "curl -fsSL https://elastic.co/start-local | sh",
+    "es-dev:stop": "cd elastic-start-local && docker compose stop",
+    "es-dev:down": "cd elastic-start-local && docker compose down",
+    "es-dev:logs": "cd elastic-start-local && docker compose logs -f"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
