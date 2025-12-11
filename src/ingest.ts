@@ -1,4 +1,8 @@
 import 'dotenv/config';
+
+// Disable TLS verification for self-signed certs (Kibana import)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import { Client } from '@elastic/elasticsearch';
 import { createReadStream, existsSync, readFileSync } from 'fs';
 import { glob } from 'glob';
@@ -228,10 +232,16 @@ interface SavedObjectReference {
   name: string;
 }
 
+interface SavedObjectAttributes {
+  title?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
 interface SavedObject {
   type: string;
   id: string;
-  attributes?: Record<string, unknown>;
+  attributes?: SavedObjectAttributes;
   references?: SavedObjectReference[];
   // Export metadata line has different structure
   exportedCount?: number;
@@ -261,6 +271,21 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
     if (obj.references && Array.isArray(obj.references)) {
       for (const ref of obj.references) {
         ref.id = `${prefix}-${ref.id}`;
+      }
+    }
+
+    // Prefix dashboard title to distinguish from other deployments
+    if (obj.type === 'dashboard' && obj.attributes?.title) {
+      obj.attributes.title = `${prefix}`;
+    }
+
+    // Prefix index pattern name/title to match the prefixed indices
+    if (obj.type === 'index-pattern' && obj.attributes) {
+      if (obj.attributes.title) {
+        obj.attributes.title = `${prefix}-*`;
+      }
+      if (obj.attributes.name) {
+        obj.attributes.name = prefix;
       }
     }
 
