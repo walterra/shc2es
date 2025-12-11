@@ -29,6 +29,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - SECURITY.md created
 - CODE_OF_CONDUCT.md created (simplified for single-maintainer project)
 - GitHub Actions CI workflow added
+- Dependabot configured (weekly npm updates, 14-day cooldown)
 
 ### Blocking Issues
 
@@ -75,17 +76,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
   - Require status checks to pass
 
 ### Low Priority (Automation)
-
-- [ ] **Add Dependabot** (`.github/dependabot.yml`)
-
-  ```yaml
-  version: 2
-  updates:
-    - package-ecosystem: "npm"
-      directory: "/"
-      schedule:
-        interval: "weekly"
-  ```
 
 - [ ] **Add npm publish workflow** (`.github/workflows/publish.yml`)
   - Use [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) with OIDC
