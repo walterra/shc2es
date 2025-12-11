@@ -18,6 +18,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - CLI with subcommands created (`shc2es poll|ingest|registry|dashboard`)
 - OTEL instrumentation built into CLI (auto-enabled, use `--no-otel` to disable)
 - Yarn scripts simplified to use CLI via ts-node
+- `files` field added (publishes only dist/, README.md, LICENSE)
 
 ### Blocking Issues
 
@@ -26,15 +27,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ---
 
 ## npm Publishing Checklist
-
-### Critical (Must Fix Before Publishing)
-
-- [ ] **Add files field** (controls what gets published)
-  ```json
-  {
-    "files": ["dist", "README.md", "LICENSE"]
-  }
-  ```
 
 ### High Priority (Discoverability & Usability)
 
