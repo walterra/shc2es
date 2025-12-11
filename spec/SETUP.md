@@ -34,15 +34,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 
 ## npm Publishing Checklist
 
-### Medium Priority (Professional Polish)
-
-- [ ] **Add type field** (explicit module system)
-  ```json
-  {
-    "type": "commonjs"
-  }
-  ```
-
 ### Pre-Publish Verification
 
 Before running `npm publish`:
