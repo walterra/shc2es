@@ -33,7 +33,7 @@ The complete observability stack for this project:
                │                              │
                │  • OTLP receiver (gRPC/HTTP) │
                │  • elasticapm processor      │
-               │  • signaltometrics connector │
+               │  • spanmetrics connector     │
                │  • Batch processing          │
                │  • Elasticsearch export      │
                └──────────────┬───────────────┘
@@ -62,10 +62,10 @@ The complete observability stack for this project:
 | Signal  | Source                      | Transport                              | Index Pattern        |
 |---------|-----------------------------|----------------------------------------|----------------------|
 | Traces  | EDOT SDK auto-instrumentation | OTLP → elasticapm → ES               | `traces-*.otel-*`    |
-| Metrics | EDOT SDK + signaltometrics  | OTLP → signaltometrics → ES            | `metrics-*.otel-*`   |
+| Metrics | EDOT SDK + spanmetrics      | OTLP → spanmetrics → ES                | `metrics-*.otel-*`   |
 | Logs    | Pino + OTel Transport       | OTLP → Collector → ES                  | `logs-*.otel-*`      |
 
-**Note:** The `elasticapm` processor and `signaltometrics` connector are required for Kibana APM UI compatibility. See [Kibana APM UI Requirements](#kibana-apm-ui-requirements) for details.
+**Note:** The `elasticapm` processor and `spanmetrics` connector are required for Kibana APM UI compatibility. See [Kibana APM UI Requirements](#kibana-apm-ui-requirements) for details.
 
 ## Recommended Approach: EDOT Node.js
 
@@ -423,11 +423,11 @@ To use the Kibana APM UI (Services, Traces, Service Maps) with EDOT Collector se
 | Component | Purpose | Required For |
 |-----------|---------|--------------|
 | `elasticapm` processor | Enriches traces with Elastic-specific attributes | APM UI trace visualization |
-| `signaltometrics` connector | Generates pre-aggregated APM metrics from traces | Service maps, latency histograms, throughput charts |
+| `spanmetrics` connector | Generates pre-aggregated APM metrics from traces | Service maps, latency histograms, throughput charts |
 
 **Why these components are required:**
 
-Without `elasticapm` and `signaltometrics`, trace data lands in `traces-generic-*` indices with raw OTel format. The Kibana APM UI expects:
+Without `elasticapm` and `spanmetrics`, trace data lands in `traces-generic-*` indices with raw OTel format. The Kibana APM UI expects:
 - Enriched trace attributes for proper service/transaction grouping
 - Pre-aggregated metrics for dashboards (latency percentiles, throughput, error rates)
 
@@ -438,7 +438,7 @@ Without `elasticapm` and `signaltometrics`, trace data lands in `traces-generic-
 | 9.x | 9.x | `elasticapm` |
 | 8.18, 8.19 | 9.x | `elastictrace` (deprecated) |
 
-**Important:** The `elasticapm` processor and `signaltometrics` connector are **not** included in the upstream OpenTelemetry Collector Contrib distribution. You must use EDOT Collector for Kibana APM UI compatibility.
+**Important:** The `elasticapm` processor and `spanmetrics` connector are **not** included in the upstream OpenTelemetry Collector Contrib distribution. You must use EDOT Collector for Kibana APM UI compatibility.
 
 #### Docker Setup
 
@@ -450,7 +450,7 @@ Without `elasticapm` and `signaltometrics`, trace data lands in `traces-generic-
 #
 # Required components for APM UI:
 # - elasticapm processor: enriches traces for APM UI compatibility
-# - signaltometrics connector: generates APM metrics from traces
+# - spanmetrics connector: generates APM metrics from traces
 
 receivers:
   otlp:
@@ -466,13 +466,12 @@ processors:
     send_batch_size: 1000
 
   # Required for Kibana APM UI - enriches traces with Elastic-specific attributes
-  # For Stack 8.18/8.19, use elastictrace: {} instead
   elasticapm: {}
 
 connectors:
   # Required for Kibana APM UI - generates APM metrics from traces
   # (latency histograms, throughput, service maps)
-  signaltometrics:
+  spanmetrics:
 
 exporters:
   debug:
@@ -498,11 +497,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch, elasticapm]
-      exporters: [debug, signaltometrics, elasticsearch/otel]
+      exporters: [debug, spanmetrics, elasticsearch/otel]
 
     # Metrics pipeline receives both direct metrics AND generated APM metrics
     metrics:
-      receivers: [otlp, signaltometrics]
+      receivers: [otlp, spanmetrics]
       processors: [batch]
       exporters: [debug, elasticsearch/otel]
 
@@ -514,8 +513,8 @@ service:
 
 **Key configuration notes:**
 - `elasticapm: {}` processor enriches traces for Kibana APM UI compatibility
-- `signaltometrics` connector generates APM metrics (latency, throughput) from traces
-- `signaltometrics` appears in traces exporters (source) AND metrics receivers (sink)
+- `spanmetrics` connector generates APM metrics (latency, throughput) from traces
+- `spanmetrics` appears in traces exporters (source) AND metrics receivers (sink)
 - `mapping.mode: otel` preserves OTel-native format (recommended for Stack 9.x)
 - Uses `${env:VAR_NAME}` syntax for environment variable expansion
 - `tls.insecure_skip_verify: true` needed for self-signed certs (remove in production)

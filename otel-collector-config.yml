@@ -3,7 +3,7 @@
 #
 # Required components for APM UI:
 # - elasticapm processor: enriches traces for APM UI compatibility
-# - signaltometrics connector: generates APM metrics from traces
+# - spanmetrics connector: generates APM metrics from traces
 
 receivers:
   otlp:
@@ -19,13 +19,12 @@ processors:
     send_batch_size: 1000
 
   # Required for Kibana APM UI - enriches traces with Elastic-specific attributes
-  # For Stack 8.18/8.19, use elastictrace: {} instead
   elasticapm: {}
 
 connectors:
   # Required for Kibana APM UI - generates APM metrics from traces
   # (latency histograms, throughput, service maps)
-  signaltometrics:
+  spanmetrics:
 
 exporters:
   debug:
@@ -51,11 +50,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch, elasticapm]
-      exporters: [debug, signaltometrics, elasticsearch/otel]
+      exporters: [debug, spanmetrics, elasticsearch/otel]
 
     # Metrics pipeline receives both direct metrics AND generated APM metrics
     metrics:
-      receivers: [otlp, signaltometrics]
+      receivers: [otlp, spanmetrics]
       processors: [batch]
       exporters: [debug, elasticsearch/otel]
 
