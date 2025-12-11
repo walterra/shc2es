@@ -26,6 +26,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - `.nvmrc` file added (version 20)
 - CHANGELOG.md created
 - CONTRIBUTING.md created
+- SECURITY.md created
 
 ### Blocking Issues
 
@@ -59,30 +60,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ## GitHub Repository Checklist
 
 ### High Priority (Community Standards)
-
-- [ ] **Create SECURITY.md**
-
-  ```markdown
-  # Security Policy
-
-  ## Supported Versions
-
-  | Version | Supported          |
-  | ------- | ------------------ |
-  | 1.x.x   | :white_check_mark: |
-
-  ## Reporting a Vulnerability
-
-  Please report security vulnerabilities by emailing [EMAIL].
-
-  Do NOT create public GitHub issues for security vulnerabilities.
-
-  ## Security Considerations
-
-  - Never commit `.env` files or certificates
-  - Client certificates (`certs/`) contain private keys
-  - The `data/` directory may contain sensitive home automation data
-  ```
 
 - [ ] **Create CODE_OF_CONDUCT.md**
 
