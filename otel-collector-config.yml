@@ -31,8 +31,9 @@ exporters:
     verbosity: basic
 
   # Elasticsearch exporter with OTel-native mapping
+  # Uses COLLECTOR_ES_NODE (for Docker networking) separate from ES_NODE (for host commands)
   elasticsearch/otel:
-    endpoints: ["${env:ES_NODE}"]
+    endpoints: ["${env:COLLECTOR_ES_NODE}"]
     api_key: ${env:ELASTIC_API_KEY}
     mapping:
       mode: otel  # Preserves OTel semantics (recommended for Stack 9.x)
