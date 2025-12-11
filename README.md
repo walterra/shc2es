@@ -9,6 +9,7 @@ Node.js project to collect device data from Bosch Smart Home Controller II via l
 - [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at/de/produkte/steuerung-und-zentrale/smart-home-controller/) on your local network
 - System password (set in Bosch Smart Home app under Settings → System → Smart Home Controller)
 - Elasticsearch (optional, for data visualization)
+- Elastic APM (optional, for application performance monitoring)
 
 ## Installation
 
@@ -39,6 +40,12 @@ ES_NODE=https://localhost:9200
 ES_USER=elastic
 ES_PASSWORD=<password>
 ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
+
+# OpenTelemetry / Elastic APM (optional)
+OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
 ```
 
 **Finding your controller's IP:** Check the Bosch Smart Home app (Settings → System → Smart Home Controller) or your router's DHCP client list.
@@ -89,6 +96,28 @@ yarn ingest:watch
 ```
 
 Data is indexed into daily indices: `smart-home-events-YYYY-MM-DD`
+
+### OpenTelemetry / APM
+
+All scripts include automatic instrumentation via the [Elastic Distribution of OpenTelemetry Node.js](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup) (EDOT). When configured, telemetry data (traces, metrics) is sent to Elastic APM.
+
+**To enable APM**, add these to your `.env`:
+
+```bash
+OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
+```
+
+**To disable instrumentation**, use:
+
+```bash
+yarn poll:no-otel     # Run without OpenTelemetry
+```
+
+Or set `OTEL_SDK_DISABLED=true` in your environment.
+
+See `spec/OPEN-TELEMETRY.md` for detailed configuration and best practices.
 
 Each document includes:
 - `@timestamp` - Event time

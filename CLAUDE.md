@@ -79,7 +79,21 @@ BSH_PASSWORD=xxxxx        # System password for initial pairing (required first 
 BSH_CLIENT_NAME=oss_xxx   # Client name (optional, has default)
 BSH_CLIENT_ID=oss_xxx     # Client ID (optional, has default)
 LOG_LEVEL=info            # Log level: debug, info, warn, error (optional)
+
+# OpenTelemetry (optional)
+OTEL_SERVICE_NAME=bosch-smart-home
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-apm.elastic.co
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <token>
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
 ```
+
+### OpenTelemetry Instrumentation
+
+All scripts include automatic OpenTelemetry instrumentation via `@elastic/opentelemetry-node`. Telemetry is sent to the configured OTLP endpoint (Elastic APM).
+
+To run without instrumentation, use `yarn poll:no-otel`.
+
+See `spec/OPEN-TELEMETRY.md` for detailed configuration and best practices.
 
 ## Architecture
 
@@ -110,6 +124,8 @@ Two separate log streams:
 - `bosch-smart-home-bridge` - Controller API communication
 - `pino` - Structured JSON logging
 - `dotenv` - Environment variable loading
+- `@elastic/opentelemetry-node` - Auto-instrumentation for Elastic APM
+- `@elastic/elasticsearch` - Elasticsearch client for data ingestion
 
 ## Planned Features
 

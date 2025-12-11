@@ -5,7 +5,8 @@
   "author": "Walter M. Rafelsberger <walter@rafelsberger.at>",
   "license": "MIT",
   "scripts": {
-    "poll": "ts-node src/poll.ts",
+    "poll": "node --require @elastic/opentelemetry-node --require ts-node/register src/poll.ts",
+    "poll:no-otel": "ts-node src/poll.ts",
     "logs": "cat logs/poll-$(date +%Y-%m-%d).log | yarn pino-pretty",
     "logs:tail": "tail -f logs/poll-$(date +%Y-%m-%d).log | yarn pino-pretty",
     "logs:errors": "cat logs/poll-$(date +%Y-%m-%d).log | grep -E '\"level\":(40|50|60)' | yarn pino-pretty",
@@ -13,14 +14,16 @@
     "logs:raw:tail": "tail -f logs/poll-$(date +%Y-%m-%d).log",
     "data": "tail -20 data/events-$(date +%Y-%m-%d).ndjson",
     "data:tail": "tail -f data/events-$(date +%Y-%m-%d).ndjson",
-    "ingest:setup": "ts-node src/ingest.ts --setup",
-    "ingest": "ts-node src/ingest.ts",
-    "ingest:watch": "ts-node src/ingest.ts --watch",
-    "registry": "ts-node src/fetch-registry.ts",
-    "dashboard:export": "ts-node src/export-dashboard.ts"
+    "ingest:setup": "node --require @elastic/opentelemetry-node --require ts-node/register src/ingest.ts --setup",
+    "ingest": "node --require @elastic/opentelemetry-node --require ts-node/register src/ingest.ts",
+    "ingest:watch": "node --require @elastic/opentelemetry-node --require ts-node/register src/ingest.ts --watch",
+    "registry": "node --require @elastic/opentelemetry-node --require ts-node/register src/fetch-registry.ts",
+    "dashboard:export": "node --require @elastic/opentelemetry-node --require ts-node/register src/export-dashboard.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
+    "@elastic/opentelemetry-node": "^1.7.0",
+    "@opentelemetry/api": "^1.9.0",
     "bosch-smart-home-bridge": "^1.7.47",
     "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
