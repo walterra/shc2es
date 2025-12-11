@@ -1,7 +1,7 @@
 {
   "name": "shc2es",
   "version": "1.0.0",
-  "description": "Collects Bosch Smart Home Controller II data via long polling for Elasticsearch/Kibana",
+  "description": "CLI tools to collect, store, and visualize Bosch Smart Home Controller II data with Elasticsearch and Kibana",
   "keywords": [
     "smart-home",
     "bosch",
