@@ -27,6 +27,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - CHANGELOG.md created
 - CONTRIBUTING.md created
 - SECURITY.md created
+- CODE_OF_CONDUCT.md created (Contributor Covenant v2.1)
 
 ### Blocking Issues
 
@@ -60,10 +61,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ## GitHub Repository Checklist
 
 ### High Priority (Community Standards)
-
-- [ ] **Create CODE_OF_CONDUCT.md**
-
-  - Use [Contributor Covenant](https://www.contributor-covenant.org/) v2.1
 
 - [ ] **Add GitHub Actions CI** (`.github/workflows/ci.yml`)
 
