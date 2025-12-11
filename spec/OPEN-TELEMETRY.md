@@ -246,9 +246,184 @@ const logger = pino({
 });
 ```
 
-## Alternative: Upstream OpenTelemetry
+## OTLP Endpoint Options
 
-If you prefer standard OpenTelemetry without Elastic's distribution:
+You need an OTLP endpoint to receive telemetry data. Here are your options:
+
+### Option 1: Elastic Cloud (Easiest)
+
+If you have an Elastic Cloud deployment, it already includes an OTLP endpoint:
+
+**Kibana → Observability → APM → Add data → OpenTelemetry**
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://<deployment-id>.apm.<region>.cloud.es.io
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <your-secret-token>
+```
+
+No collector needed - send directly from your application.
+
+### Option 2: EDOT Collector (Recommended for Self-Managed)
+
+The **EDOT Collector** (Elastic Distribution of OpenTelemetry Collector) is Elastic's distribution, optimized for Elasticsearch. It went GA in 2025.
+
+#### Bundling EDOT Collector with Your Project
+
+You can make the EDOT Collector part of your project by adding yarn commands that run Docker:
+
+```json
+{
+  "scripts": {
+    "otel:collector": "docker run --rm -p 4317:4317 -p 4318:4318 -v $(pwd)/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml -e ELASTIC_AGENT_OTEL=true elastic/elastic-agent:9.2.2",
+    "otel:collector:start": "docker compose -f docker-compose.otel.yml up -d",
+    "otel:collector:stop": "docker compose -f docker-compose.otel.yml down"
+  }
+}
+```
+
+**Pros of bundling:**
+- Self-contained - everything needed is in the repo
+- Easy onboarding - just `yarn otel:collector:start` then `yarn poll`
+- Consistent configuration across environments
+- Version-controlled collector config
+
+**Cons of bundling:**
+- Requires Docker installed
+- Adds complexity if using Elastic Cloud (direct endpoint is simpler)
+- Need to manage collector config files in the repo
+
+**Recommendation:**
+- **Elastic Cloud users**: Skip the collector, use direct OTLP endpoint
+- **Self-managed Elasticsearch**: Bundle the collector for a complete setup
+
+#### EDOT Collector vs Plain OpenTelemetry Collector
+
+| Feature | EDOT Collector | Plain OTel Collector |
+|---------|----------------|----------------------|
+| Elastic-optimized exporters | Yes | Manual config |
+| Kubernetes metadata enrichment | Built-in | Manual setup |
+| Enterprise support from Elastic | Yes | Community only |
+| Pre-tuned for Elastic Observability | Yes | No |
+| Proactive bug fixes | Yes | Standard release cycle |
+
+#### Docker Setup
+
+**1. Create `otel-collector-config.yml`:**
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  elasticsearch:
+    endpoints: ["${ELASTIC_ENDPOINT}"]
+    api_key: ${ELASTIC_API_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch]
+```
+
+**2. Create `.env` for the collector:**
+
+```bash
+HOST_FILESYSTEM=/
+DOCKER_SOCK=/var/run/docker.sock
+ELASTIC_AGENT_OTEL=true
+COLLECTOR_CONTRIB_IMAGE=elastic/elastic-agent:9.2.2
+ELASTIC_API_KEY=<your-api-key>
+ELASTIC_ENDPOINT=https://localhost:9200
+OTEL_COLLECTOR_CONFIG=./otel-collector-config.yml
+```
+
+**3. Create `docker-compose.yml`:**
+
+```yaml
+services:
+  otel-collector:
+    image: ${COLLECTOR_CONTRIB_IMAGE}
+    container_name: otel-collector
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+    restart: unless-stopped
+    user: "0:0"
+    network_mode: host
+    environment:
+      - ELASTIC_AGENT_OTEL=${ELASTIC_AGENT_OTEL}
+      - ELASTIC_API_KEY=${ELASTIC_API_KEY}
+      - ELASTIC_ENDPOINT=${ELASTIC_ENDPOINT}
+    volumes:
+      - ${HOST_FILESYSTEM}:/hostfs:ro
+      - ${DOCKER_SOCK}:/var/run/docker.sock:ro
+      - ${OTEL_COLLECTOR_CONFIG}:/etc/otelcol-contrib/config.yaml:ro
+```
+
+**4. Run:**
+
+```bash
+docker compose up -d
+```
+
+**5. Configure your app (no endpoint needed - defaults to localhost:4318):**
+
+```bash
+OTEL_SERVICE_NAME=bosch-smart-home
+yarn poll
+```
+
+### Option 3: Plain OpenTelemetry Collector
+
+If you prefer the upstream collector without Elastic's distribution:
+
+```bash
+# macOS
+brew install open-telemetry/opentelemetry-collector/opentelemetry-collector
+
+# Or Docker
+docker run -p 4317:4317 -p 4318:4318 \
+  -v $(pwd)/otel-collector-config.yaml:/etc/otelcol/config.yaml \
+  otel/opentelemetry-collector:latest
+```
+
+### Option 4: Disable Telemetry
+
+If you don't need APM:
+
+```bash
+export OTEL_SDK_DISABLED=true
+yarn poll
+```
+
+Or use the no-otel script:
+
+```bash
+yarn poll:no-otel
+```
+
+## Alternative: Upstream OpenTelemetry SDK
+
+If you prefer standard OpenTelemetry without Elastic's SDK distribution:
 
 ```bash
 npm install --save @opentelemetry/api @opentelemetry/auto-instrumentations-node
@@ -313,11 +488,25 @@ export OTEL_TRACES_EXPORTER=console
 
 ## References
 
-- [Elastic Best Practices for Instrumenting OpenTelemetry](https://www.elastic.co/observability-labs/blog/best-practices-instrumenting-opentelemetry)
-- [Auto-instrumentation with OpenTelemetry for Node.js](https://www.elastic.co/observability-labs/blog/auto-instrument-nodejs-apps-opentelemetry)
+### EDOT Node.js SDK
+
 - [EDOT Node.js Setup Documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup)
+- [EDOT Node.js Release Notes](https://www.elastic.co/docs/release-notes/edot/sdks/node)
+- [Elastic OpenTelemetry Node Example Repository](https://github.com/elastic/elastic-otel-node-example)
+- [Auto-instrumentation with OpenTelemetry for Node.js](https://www.elastic.co/observability-labs/blog/auto-instrument-nodejs-apps-opentelemetry)
+
+### EDOT Collector
+
+- [EDOT Collector Documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-collector)
+- [EDOT Collector Docker Quickstart (Self-Managed)](https://www.elastic.co/docs/solutions/observability/get-started/opentelemetry/quickstart/self-managed/docker)
+- [EDOT Collector Docker Quickstart (Elastic Cloud)](https://www.elastic.co/docs/solutions/observability/get-started/opentelemetry/quickstart/ech/docker)
+- [Elastic Distributions of OpenTelemetry GA Announcement](https://www.elastic.co/observability-labs/blog/elastic-distributions-opentelemetry-ga)
+- [GitHub - Elastic OpenTelemetry](https://github.com/elastic/opentelemetry)
+
+### General OpenTelemetry
+
+- [Elastic Best Practices for Instrumenting OpenTelemetry](https://www.elastic.co/observability-labs/blog/best-practices-instrumenting-opentelemetry)
 - [Use OpenTelemetry with Elastic APM](https://www.elastic.co/docs/solutions/observability/apm/opentelemetry)
 - [OpenTelemetry Node.js Getting Started](https://opentelemetry.io/docs/languages/js/getting-started/nodejs/)
-- [Elastic OpenTelemetry Node Example Repository](https://github.com/elastic/elastic-otel-node-example)
-- [EDOT Node.js Release Notes](https://www.elastic.co/docs/release-notes/edot/sdks/node)
 - [OpenTelemetry Instrumentation Libraries](https://opentelemetry.io/docs/languages/js/libraries/)
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
