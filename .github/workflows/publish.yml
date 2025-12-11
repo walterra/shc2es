@@ -24,7 +24,7 @@ jobs:
       - run: yarn tsc --noEmit
       - run: yarn build
 
+      # OIDC trusted publishing - no token needed
+      # Provenance is automatically generated
       - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
