@@ -30,7 +30,8 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - CODE_OF_CONDUCT.md created (simplified for single-maintainer project)
 - GitHub Actions CI workflow added
 - Dependabot configured (weekly npm updates, 14-day cooldown)
-- npm publish workflow added (OIDC trusted publishing, no tokens needed)
+- Changesets configured for release management
+- Release workflow added (auto-creates Release PR, OIDC publishing)
 
 ### Blocking Issues
 

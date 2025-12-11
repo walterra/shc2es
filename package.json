@@ -35,6 +35,9 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "yarn build && yarn tsc --noEmit",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "yarn build && changeset publish",
     "poll": "ts-node src/cli.ts poll",
     "poll:no-otel": "ts-node src/cli.ts poll --no-otel",
     "ingest": "ts-node src/cli.ts ingest",
@@ -68,6 +71,7 @@
     "tail": "^2.2.6"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@types/node": "^24.10.2",
     "@types/split2": "^4.2.3",
     "@types/tail": "^2.2.3",

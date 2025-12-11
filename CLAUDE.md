@@ -146,6 +146,19 @@ Two separate log streams:
 - `@elastic/opentelemetry-node` - Auto-instrumentation for Elastic APM
 - `@elastic/elasticsearch` - Elasticsearch client for data ingestion
 
+## Changesets
+
+**Do NOT use `yarn changeset`** - it's interactive. Create files directly:
+
+```markdown
+# .changeset/<descriptive-name>.md
+---
+"shc2es": patch|minor|major
+---
+
+Description for CHANGELOG.md
+```
+
 ## Planned Features
 
 - **Visualization**: Time series charts/graphs
