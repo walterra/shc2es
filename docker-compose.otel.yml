@@ -2,7 +2,16 @@ services:
   otel-collector:
     image: elastic/elastic-agent:9.2.2
     container_name: otel-collector
-    command: otel --config /etc/otel-collector/config.yaml
+    # Convert OTEL_TLS_VERIFY=false to insecure_skip_verify=true for collector config
+    command: >
+      sh -c '
+        if [ "$$OTEL_TLS_VERIFY" = "false" ]; then
+          export OTEL_TLS_SKIP_VERIFY=true
+        else
+          export OTEL_TLS_SKIP_VERIFY=false
+        fi
+        exec otel --config /etc/otel-collector/config.yaml
+      '
     deploy:
       resources:
         limits:

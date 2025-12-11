@@ -1,12 +1,65 @@
 import "dotenv/config";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
+import { Agent, fetch as undiciFetch } from "undici";
 import { createLogger } from "./logger";
 
-// Disable TLS verification for self-signed certs
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const log = createLogger("export-dashboard");
+
+// TLS configuration for fetch requests
+interface TlsConfig {
+  rejectUnauthorized?: boolean;
+  ca?: Buffer;
+}
+
+// Build TLS config based on environment variables
+// ES_TLS_VERIFY=false disables verification (for self-signed certs in development)
+// ES_CA_CERT=/path/to/ca.pem provides custom CA certificate
+function buildTlsConfig(): TlsConfig {
+  if (process.env.ES_TLS_VERIFY === "false") {
+    log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
+    return { rejectUnauthorized: false };
+  }
+
+  if (process.env.ES_CA_CERT) {
+    if (!existsSync(process.env.ES_CA_CERT)) {
+      log.warn(
+        { path: process.env.ES_CA_CERT },
+        "ES_CA_CERT file not found, using default CA",
+      );
+      return {};
+    }
+    log.debug({ path: process.env.ES_CA_CERT }, "Using custom CA certificate");
+    return { ca: readFileSync(process.env.ES_CA_CERT) };
+  }
+
+  return {};
+}
+
+// Create fetch with custom TLS settings for Kibana requests
+function createTlsFetch(): typeof globalThis.fetch {
+  const tlsConfig = buildTlsConfig();
+
+  // If no custom TLS config needed, use global fetch
+  if (Object.keys(tlsConfig).length === 0) {
+    return globalThis.fetch;
+  }
+
+  const agent = new Agent({
+    connect: {
+      rejectUnauthorized: tlsConfig.rejectUnauthorized ?? true,
+      ca: tlsConfig.ca,
+    },
+  });
+
+  return ((url, options) =>
+    undiciFetch(url, {
+      ...options,
+      dispatcher: agent,
+    })) as typeof globalThis.fetch;
+}
+
+const tlsFetch = createTlsFetch();
 
 // Environment validation
 if (!process.env.KIBANA_NODE) {
@@ -86,7 +139,7 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
     search_fields: "title",
   });
 
-  const response = await fetch(
+  const response = await tlsFetch(
     `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
     {
       method: "GET",
@@ -145,7 +198,7 @@ async function listDashboards(): Promise<void> {
     per_page: "100",
   });
 
-  const response = await fetch(
+  const response = await tlsFetch(
     `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
     {
       method: "GET",
@@ -196,7 +249,7 @@ async function exportDashboard(
     "Exporting dashboard from Kibana",
   );
 
-  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
+  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
     method: "POST",
     headers: {
       "kbn-xsrf": "true",

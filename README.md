@@ -8,6 +8,8 @@ CLI tools to collect, store, and visualize Bosch Smart Home Controller II data v
 
 Get up and running in 5 minutes:
 
+> ⚠️ **For educational and development purposes only.** These instructions use `start-local` with self-signed certificates and disabled TLS verification. Do not use this configuration in production. For production deployments, use properly signed certificates and remove `ES_TLS_VERIFY=false` / `OTEL_TLS_VERIFY=false`.
+
 ```bash
 # 1. Install
 npm install -g shc2es
@@ -31,11 +33,15 @@ shc2es poll
 curl -fsSL https://elastic.co/start-local | sh
 
 # Populate your .env with the information provided by the start-local script
-ES_NODE=https://localhost:9200
+ES_NODE=http://localhost:9200
 ES_PASSWORD=your_es_password
 KIBANA_NODE=http://localhost:5601
 COLLECTOR_ES_NODE=http://host.docker.internal:9200
 ELASTIC_API_KEY=your_es_api_key
+
+# For local development, don't set to false in production!
+ES_TLS_VERIFY=false
+OTEL_TLS_VERIFY=false
 
 # Set up and ingest
 shc2es registry          # Fetch device/room names
@@ -43,7 +49,7 @@ shc2es ingest --setup    # Create index + import dashboard
 shc2es ingest --watch    # Real-time ingestion
 ```
 
-This will read the collected NDJSON files and add them to Elsaticsearch.
+This will read the collected NDJSON files and add them to Elasticsearch.
 
 Open Kibana → Dashboards → "Smart Home" to see your data.
 
@@ -112,6 +118,22 @@ OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production
 # Used by yarn otel:collector commands - requires ES_NODE above
 ELASTIC_API_KEY=your_api_key_here   # Generate in Kibana: Stack Management → API Keys
 ```
+
+### TLS Configuration
+
+By default, TLS certificate verification is **enabled**. For development with self-signed certificates (e.g., `start-local`), you can disable verification:
+
+```bash
+# Elasticsearch/Kibana connections (ingest, dashboard export)
+ES_TLS_VERIFY=false              # Disable cert verification
+ES_CA_CERT=/path/to/ca.pem       # Or: provide custom CA certificate
+
+# OTEL Collector → Elasticsearch
+OTEL_TLS_VERIFY=false            # Disable cert verification
+OTEL_CA_FILE=/path/to/ca.pem     # Or: provide custom CA certificate
+```
+
+⚠️ **Security warning:** Only disable TLS verification in development environments. For production, use properly signed certificates or provide a custom CA.
 
 **Finding your controller's IP:** Check the Bosch Smart Home app (Settings → System → Smart Home Controller) or your router's DHCP client list.
 

@@ -1,9 +1,7 @@
 import "dotenv/config";
 
-// Disable TLS verification for self-signed certs (Kibana import)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 import { Client } from "@elastic/elasticsearch";
+import { Agent, fetch as undiciFetch } from "undici";
 import { createReadStream, existsSync, readFileSync } from "fs";
 import { glob } from "glob";
 import split from "split2";
@@ -13,6 +11,61 @@ import * as path from "path";
 import { createLogger } from "./logger";
 
 const log = createLogger("ingest");
+
+// TLS configuration for ES client and fetch requests
+interface TlsConfig {
+  rejectUnauthorized?: boolean;
+  ca?: Buffer;
+}
+
+// Build TLS config based on environment variables
+// ES_TLS_VERIFY=false disables verification (for self-signed certs in development)
+// ES_CA_CERT=/path/to/ca.pem provides custom CA certificate
+function buildTlsConfig(): TlsConfig {
+  if (process.env.ES_TLS_VERIFY === "false") {
+    log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
+    return { rejectUnauthorized: false };
+  }
+
+  if (process.env.ES_CA_CERT) {
+    if (!existsSync(process.env.ES_CA_CERT)) {
+      log.warn(
+        { path: process.env.ES_CA_CERT },
+        "ES_CA_CERT file not found, using default CA",
+      );
+      return {};
+    }
+    log.debug({ path: process.env.ES_CA_CERT }, "Using custom CA certificate");
+    return { ca: readFileSync(process.env.ES_CA_CERT) };
+  }
+
+  return {};
+}
+
+// Create fetch with custom TLS settings for Kibana requests
+function createTlsFetch(): typeof globalThis.fetch {
+  const tlsConfig = buildTlsConfig();
+
+  // If no custom TLS config needed, use global fetch
+  if (Object.keys(tlsConfig).length === 0) {
+    return globalThis.fetch;
+  }
+
+  const agent = new Agent({
+    connect: {
+      rejectUnauthorized: tlsConfig.rejectUnauthorized ?? true,
+      ca: tlsConfig.ca,
+    },
+  });
+
+  return ((url, options) =>
+    undiciFetch(url, {
+      ...options,
+      dispatcher: agent,
+    })) as typeof globalThis.fetch;
+}
+
+const tlsFetch = createTlsFetch();
 
 // Environment validation
 if (!process.env.ES_NODE || !process.env.ES_PASSWORD) {
@@ -26,7 +79,7 @@ const client = new Client({
     username: process.env.ES_USER ?? "elastic",
     password: process.env.ES_PASSWORD,
   },
-  tls: { rejectUnauthorized: false },
+  tls: buildTlsConfig(),
 });
 
 const INDEX_PREFIX = process.env.ES_INDEX_PREFIX ?? "smart-home-events";
@@ -350,7 +403,7 @@ async function importDashboard(): Promise<void> {
     `${process.env.ES_USER ?? "elastic"}:${process.env.ES_PASSWORD ?? ""}`,
   ).toString("base64");
 
-  const response = await fetch(
+  const response = await tlsFetch(
     `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
     {
       method: "POST",

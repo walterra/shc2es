@@ -44,7 +44,11 @@ exporters:
     traces_dynamic_index:
       enabled: true
     tls:
-      insecure_skip_verify: true  # For self-signed certs in development
+      # OTEL_TLS_VERIFY=false disables verification (for self-signed certs)
+      # OTEL_CA_FILE=/path/to/ca.pem provides custom CA certificate
+      # Note: OTEL_TLS_SKIP_VERIFY is derived from OTEL_TLS_VERIFY in docker-compose
+      insecure_skip_verify: ${env:OTEL_TLS_SKIP_VERIFY:-false}
+      ca_file: ${env:OTEL_CA_FILE:-}
 
 service:
   pipelines:

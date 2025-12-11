@@ -490,7 +490,11 @@ exporters:
     traces_dynamic_index:
       enabled: true
     tls:
-      insecure_skip_verify: true  # For self-signed certs in development
+      # OTEL_TLS_VERIFY=false disables verification (for self-signed certs)
+      # OTEL_CA_FILE=/path/to/ca.pem provides custom CA certificate
+      # Note: OTEL_TLS_SKIP_VERIFY is derived from OTEL_TLS_VERIFY in docker-compose
+      insecure_skip_verify: ${env:OTEL_TLS_SKIP_VERIFY:-false}
+      ca_file: ${env:OTEL_CA_FILE:-}
 
 service:
   pipelines:
@@ -517,7 +521,7 @@ service:
 - `spanmetrics` appears in traces exporters (source) AND metrics receivers (sink)
 - `mapping.mode: otel` preserves OTel-native format (recommended for Stack 9.x)
 - Uses `${env:VAR_NAME}` syntax for environment variable expansion
-- `tls.insecure_skip_verify: true` needed for self-signed certs (remove in production)
+- TLS verification enabled by default; set `OTEL_TLS_VERIFY=false` for self-signed certs
 
 **2. Create `docker-compose.otel.yml`:**
 
