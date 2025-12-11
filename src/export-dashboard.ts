@@ -23,6 +23,7 @@ const KIBANA_NODE = process.env.KIBANA_NODE;
 const ES_USER = process.env.ES_USER || 'elastic';
 const ES_PASSWORD = process.env.ES_PASSWORD;
 const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
+const DEFAULT_DASHBOARD_NAME = 'smart-home';
 
 function getAuthHeader(): string {
   return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64')}`;
@@ -35,6 +36,33 @@ interface SavedObject {
     title?: string;
     [key: string]: unknown;
   };
+}
+
+// Fields to strip from exported objects for privacy
+const SENSITIVE_FIELDS = ['created_by', 'updated_by', 'created_at', 'updated_at', 'version'];
+
+function stripSensitiveMetadata(ndjson: string): string {
+  const lines = ndjson.trim().split('\n');
+  const strippedLines: string[] = [];
+
+  for (const line of lines) {
+    const obj = JSON.parse(line) as Record<string, unknown>;
+
+    // Skip export metadata line (has exportedCount)
+    if ('exportedCount' in obj) {
+      strippedLines.push(line);
+      continue;
+    }
+
+    // Remove sensitive fields
+    for (const field of SENSITIVE_FIELDS) {
+      delete obj[field];
+    }
+
+    strippedLines.push(JSON.stringify(obj));
+  }
+
+  return strippedLines.join('\n');
 }
 
 interface FindResponse {
@@ -187,9 +215,13 @@ async function exportDashboard(dashboardId: string, outputName: string): Promise
     );
   }
 
+  // Strip sensitive metadata before saving
+  const strippedNdjson = stripSensitiveMetadata(ndjson);
+  log.info({ strippedFields: SENSITIVE_FIELDS }, 'Stripped sensitive metadata');
+
   // Write to file
   const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
-  writeFileSync(outputFile, ndjson);
+  writeFileSync(outputFile, strippedNdjson);
   log.info({ outputFile }, 'Dashboard exported successfully');
 }
 
@@ -233,13 +265,8 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    // Use sanitized title as output filename
-    const outputName = (dashboard.attributes.title || 'dashboard')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    await exportDashboard(dashboard.id, outputName);
+    // Use hardcoded filename (template can be reused with different prefixes)
+    await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME);
   } catch (err) {
     log.fatal({ err }, 'Export failed');
     process.exit(1);

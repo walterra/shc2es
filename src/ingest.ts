@@ -32,6 +32,11 @@ const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
 
+// Kibana dashboard import
+const KIBANA_NODE = process.env.KIBANA_NODE;
+const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
+const DASHBOARD_FILE = path.join(DASHBOARDS_DIR, 'smart-home.ndjson');
+
 // Extract date from filename like events-2025-12-10.ndjson
 function extractDateFromFilename(filePath: string): string {
   const match = path.basename(filePath).match(/events-(\d{4}-\d{2}-\d{2})\.ndjson/);
@@ -211,6 +216,111 @@ function parseLine(line: string): SmartHomeEvent | null {
   }
 }
 
+interface ImportResponse {
+  success: boolean;
+  successCount: number;
+  errors?: Array<{ type: string; id: string; error: { type: string; reason: string } }>;
+}
+
+interface SavedObjectReference {
+  type: string;
+  id: string;
+  name: string;
+}
+
+interface SavedObject {
+  type: string;
+  id: string;
+  attributes?: Record<string, unknown>;
+  references?: SavedObjectReference[];
+  // Export metadata line has different structure
+  exportedCount?: number;
+  missingRefCount?: number;
+  [key: string]: unknown;
+}
+
+function prefixSavedObjectIds(ndjson: string, prefix: string): string {
+  const lines = ndjson.trim().split('\n');
+  const prefixedLines: string[] = [];
+
+  for (const line of lines) {
+    const obj = JSON.parse(line) as SavedObject;
+
+    // Skip export metadata line (last line with exportedCount)
+    if (obj.exportedCount !== undefined) {
+      prefixedLines.push(line);
+      continue;
+    }
+
+    // Prefix the object's own ID
+    if (obj.id) {
+      obj.id = `${prefix}-${obj.id}`;
+    }
+
+    // Prefix all reference IDs
+    if (obj.references && Array.isArray(obj.references)) {
+      for (const ref of obj.references) {
+        ref.id = `${prefix}-${ref.id}`;
+      }
+    }
+
+    prefixedLines.push(JSON.stringify(obj));
+  }
+
+  return prefixedLines.join('\n');
+}
+
+async function importDashboard(): Promise<void> {
+  if (!KIBANA_NODE) {
+    log.info('KIBANA_NODE not set, skipping dashboard import');
+    return;
+  }
+
+  if (!existsSync(DASHBOARD_FILE)) {
+    log.info({ dashboardFile: DASHBOARD_FILE }, 'Dashboard file not found, skipping import');
+    return;
+  }
+
+  log.info(
+    { dashboardFile: DASHBOARD_FILE, kibanaNode: KIBANA_NODE, prefix: INDEX_PREFIX },
+    'Importing Kibana dashboard with prefixed IDs'
+  );
+
+  // Read and prefix all saved object IDs
+  const fileContent = readFileSync(DASHBOARD_FILE, 'utf-8');
+  const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
+
+  const formData = new FormData();
+  formData.append('file', new Blob([prefixedContent]), 'dashboard.ndjson');
+
+  const auth = Buffer.from(
+    `${process.env.ES_USER || 'elastic'}:${process.env.ES_PASSWORD}`
+  ).toString('base64');
+
+  const response = await fetch(`${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`, {
+    method: 'POST',
+    headers: {
+      'kbn-xsrf': 'true',
+      Authorization: `Basic ${auth}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    log.error({ status: response.status, body: text }, 'Dashboard import failed');
+    return;
+  }
+
+  const result = (await response.json()) as ImportResponse;
+
+  if (result.success) {
+    log.info({ successCount: result.successCount, prefix: INDEX_PREFIX }, 'Dashboard imported successfully');
+  } else {
+    log.error({ errors: result.errors }, 'Dashboard import had errors');
+  }
+}
+
 async function setup(): Promise<void> {
   log.info('Setting up Elasticsearch pipeline and index template');
 
@@ -277,6 +387,9 @@ async function setup(): Promise<void> {
     },
   });
   log.info({ indexPattern: INDEX_PATTERN }, 'Index template created. New indices will automatically use the template.');
+
+  // Import Kibana dashboard (if configured)
+  await importDashboard();
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
