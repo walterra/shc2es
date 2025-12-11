@@ -27,7 +27,8 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - CHANGELOG.md created
 - CONTRIBUTING.md created
 - SECURITY.md created
-- CODE_OF_CONDUCT.md created (Contributor Covenant v2.1)
+- CODE_OF_CONDUCT.md created (simplified for single-maintainer project)
+- GitHub Actions CI workflow added
 
 ### Blocking Issues
 
@@ -59,40 +60,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ---
 
 ## GitHub Repository Checklist
-
-### High Priority (Community Standards)
-
-- [ ] **Add GitHub Actions CI** (`.github/workflows/ci.yml`)
-
-  ```yaml
-  name: CI
-
-  on:
-    push:
-      branches: [main]
-    pull_request:
-      branches: [main]
-
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          node-version: [18, 20, 22]
-
-      steps:
-        - uses: actions/checkout@v4
-
-        - name: Use Node.js ${{ matrix.node-version }}
-          uses: actions/setup-node@v4
-          with:
-            node-version: ${{ matrix.node-version }}
-            cache: "yarn"
-
-        - run: yarn install --frozen-lockfile
-        - run: yarn tsc --noEmit
-        - run: yarn build
-  ```
 
 ### Medium Priority (Issue Management)
 
