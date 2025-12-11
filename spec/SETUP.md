@@ -13,39 +13,21 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - Detailed spec documentation (ELASTICSEARCH.md, KIBANA.md, OPEN-TELEMETRY.md)
 - CLAUDE.md for development guidance
 - LICENSE file created (MIT)
+- package.json entry points fixed (`bin` → `dist/cli.js`, removed `main` for pure CLI)
+- Build scripts added (`build`, `prepublishOnly`)
+- CLI with subcommands created (`shc2es poll|ingest|registry|dashboard`)
+- OTEL instrumentation built into CLI (auto-enabled, use `--no-otel` to disable)
+- Yarn scripts simplified to use CLI via ts-node
 
 ### Blocking Issues
 
-- `main` field points to non-existent `index.js`
-- No build script to compile TypeScript
+(none)
 
 ---
 
 ## npm Publishing Checklist
 
 ### Critical (Must Fix Before Publishing)
-
-- [ ] **Fix package.json entry points**
-
-  ```json
-  {
-    "main": "dist/poll.js",
-    "bin": {
-      "shc2es": "dist/poll.js"
-    }
-  }
-  ```
-
-- [ ] **Add build script**
-
-  ```json
-  {
-    "scripts": {
-      "build": "tsc",
-      "prepublishOnly": "yarn build && yarn tsc --noEmit"
-    }
-  }
-  ```
 
 - [ ] **Add files field** (controls what gets published)
   ```json
