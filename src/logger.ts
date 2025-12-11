@@ -6,6 +6,9 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
 
+// Check if OTel is enabled (SDK not disabled and endpoint configured or using default)
+const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== 'true';
+
 // Ensure directories exist
 for (const dir of [DATA_DIR, LOGS_DIR]) {
   if (!fs.existsSync(dir)) {
@@ -48,24 +51,38 @@ export function createLogger(scriptName: string): pino.Logger {
 // App logger - for debugging the polling tool itself
 const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
 
+// Build transport targets array
+const appLoggerTargets: pino.TransportTargetOptions[] = [
+  // Console output (pretty in dev)
+  {
+    target: 'pino-pretty',
+    options: { colorize: true },
+    level: LOG_LEVEL,
+  },
+  // File output (JSON for Claude Code to parse)
+  {
+    target: 'pino/file',
+    options: { destination: appLogFile },
+    level: LOG_LEVEL,
+  },
+];
+
+// Add OpenTelemetry transport if enabled
+if (OTEL_LOGS_ENABLED) {
+  appLoggerTargets.push({
+    target: 'pino-opentelemetry-transport',
+    options: {
+      // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
+    },
+    level: LOG_LEVEL,
+  });
+}
+
 export const appLogger = pino({
   name: 'poll',
   level: LOG_LEVEL,
   transport: {
-    targets: [
-      // Console output (pretty in dev)
-      {
-        target: 'pino-pretty',
-        options: { colorize: true },
-        level: LOG_LEVEL,
-      },
-      // File output (JSON for Claude Code to parse)
-      {
-        target: 'pino/file',
-        options: { destination: appLogFile },
-        level: LOG_LEVEL,
-      },
-    ],
+    targets: appLoggerTargets,
   },
 });
 

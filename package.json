@@ -18,7 +18,11 @@
     "ingest": "node --require @elastic/opentelemetry-node --require ts-node/register src/ingest.ts",
     "ingest:watch": "node --require @elastic/opentelemetry-node --require ts-node/register src/ingest.ts --watch",
     "registry": "node --require @elastic/opentelemetry-node --require ts-node/register src/fetch-registry.ts",
-    "dashboard:export": "node --require @elastic/opentelemetry-node --require ts-node/register src/export-dashboard.ts"
+    "dashboard:export": "node --require @elastic/opentelemetry-node --require ts-node/register src/export-dashboard.ts",
+    "otel:collector": "docker run --rm -p 4317:4317 -p 4318:4318 --env-file .env -v $(pwd)/otel-collector-config.yml:/etc/otel-collector/config.yaml elastic/elastic-agent:9.2.2 otel --config /etc/otel-collector/config.yaml",
+    "otel:collector:start": "docker compose -f docker-compose.otel.yml up -d",
+    "otel:collector:stop": "docker compose -f docker-compose.otel.yml down",
+    "otel:collector:logs": "docker compose -f docker-compose.otel.yml logs -f"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
@@ -29,6 +33,7 @@
     "dotenv": "^17.2.3",
     "glob": "^13.0.0",
     "pino": "^10.1.0",
+    "pino-opentelemetry-transport": "^2.0.0",
     "split2": "^4.2.0",
     "tail": "^2.2.6"
   },

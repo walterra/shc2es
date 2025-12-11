@@ -2,6 +2,68 @@
 
 This document covers best practices for instrumenting Node.js processes with OpenTelemetry and sending telemetry data to Elasticsearch/Elastic Observability.
 
+## Architecture Overview
+
+The complete observability stack for this project:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Node.js Application                         │
+│                        (yarn poll)                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────┐    ┌─────────────────────────┐    │
+│  │      EDOT Node.js       │    │   Pino Logger + OTel    │    │
+│  │  (@elastic/otel-node)   │    │      Transport          │    │
+│  │                         │    │                         │    │
+│  │  • Auto-instrumentation │    │  • Structured logs      │    │
+│  │  • Traces               │    │  • Trace correlation    │    │
+│  │  • Metrics              │    │  • OTLP export          │    │
+│  └───────────┬─────────────┘    └───────────┬─────────────┘    │
+│              │                              │                   │
+│              │    Traces & Metrics          │    Logs           │
+│              └──────────────┬───────────────┘                   │
+│                             │                                   │
+└─────────────────────────────┼───────────────────────────────────┘
+                              │
+                              ▼
+               ┌──────────────────────────────┐
+               │       EDOT Collector         │
+               │    (localhost:4317/4318)     │
+               │                              │
+               │  • OTLP receiver (gRPC/HTTP) │
+               │  • Batch processing          │
+               │  • Debug logging             │
+               │  • Elasticsearch export      │
+               └──────────────┬───────────────┘
+                              │
+                              ▼
+               ┌──────────────────────────────┐
+               │       Elasticsearch          │
+               │                              │
+               │  • traces-generic-*          │
+               │  • metrics-generic-*         │
+               │  • logs-generic-*            │
+               └──────────────┬───────────────┘
+                              │
+                              ▼
+               ┌──────────────────────────────┐
+               │          Kibana              │
+               │                              │
+               │  • APM UI (Services, Traces) │
+               │  • Discover (raw data)       │
+               │  • Dashboards                │
+               └──────────────────────────────┘
+```
+
+### Data Flow Summary
+
+| Signal  | Source                      | Transport                    | Index Pattern        |
+|---------|-----------------------------|------------------------------|----------------------|
+| Traces  | EDOT SDK auto-instrumentation | OTLP → Collector → ES      | `traces-generic-*`   |
+| Metrics | EDOT SDK (host, runtime)    | OTLP → Collector → ES        | `metrics-generic-*`  |
+| Logs    | Pino + OTel Transport       | OTLP → Collector → ES        | `logs-generic-*`     |
+
 ## Recommended Approach: EDOT Node.js
 
 The **Elastic Distribution of OpenTelemetry Node.js** (`@elastic/opentelemetry-node`) is the recommended approach for 2025. It's a lightweight wrapper around the OpenTelemetry SDK with Elastic-optimized defaults.
@@ -221,30 +283,74 @@ export OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512
 
 ## Logging Integration
 
-OpenTelemetry logging is still maturing. Recommended approach:
+Send Pino logs directly to the OTel Collector using `pino-opentelemetry-transport`.
 
-1. **Use Pino** (already in this project) for structured JSON logging
-2. **Correlate logs with traces** using trace context
-3. **Ship logs separately** via Elastic Agent or Filebeat
+### Installation
+
+```bash
+npm install --save pino pino-opentelemetry-transport
+```
+
+### Configuration
+
+Add the OTel transport to your Pino logger targets:
 
 ```typescript
 import pino from "pino";
-import { trace, context } from "@opentelemetry/api";
 
-const logger = pino({
-  mixin() {
-    const span = trace.getSpan(context.active());
-    if (span) {
-      const spanContext = span.spanContext();
-      return {
-        trace_id: spanContext.traceId,
-        span_id: spanContext.spanId,
-      };
-    }
-    return {};
+const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== "true";
+
+// Build transport targets array
+const loggerTargets: pino.TransportTargetOptions[] = [
+  // Console output (pretty in dev)
+  {
+    target: "pino-pretty",
+    options: { colorize: true },
+    level: "info",
+  },
+  // File output (JSON)
+  {
+    target: "pino/file",
+    options: { destination: "./logs/app.log" },
+    level: "info",
+  },
+];
+
+// Add OpenTelemetry transport if enabled
+if (OTEL_LOGS_ENABLED) {
+  loggerTargets.push({
+    target: "pino-opentelemetry-transport",
+    options: {
+      // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
+    },
+    level: "info",
+  });
+}
+
+export const logger = pino({
+  name: "my-service",
+  level: "info",
+  transport: {
+    targets: loggerTargets,
   },
 });
 ```
+
+### How It Works
+
+- **Automatic OTLP export**: Logs are sent to `http://localhost:4318/v1/logs` by default
+- **Trace correlation**: If a span is active, trace/span IDs are automatically included
+- **Resource attributes**: Inherits `OTEL_SERVICE_NAME` and other OTel env vars
+- **Graceful fallback**: If OTel is disabled, logs still go to console/file
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector endpoint | `http://localhost:4318` |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | Logs-specific endpoint | Falls back to above |
+| `OTEL_SERVICE_NAME` | Service name in logs | `unknown_service` |
+| `OTEL_SDK_DISABLED` | Disable OTel entirely | `false` |
 
 ## OTLP Endpoint Options
 
@@ -311,6 +417,9 @@ You can make the EDOT Collector part of your project by adding yarn commands tha
 **1. Create `otel-collector-config.yml`:**
 
 ```yaml
+# EDOT Collector Configuration
+# See: https://www.elastic.co/docs/reference/opentelemetry/edot-collector
+
 receivers:
   otlp:
     protocols:
@@ -321,75 +430,131 @@ receivers:
 
 processors:
   batch:
+    # Batch telemetry before sending to reduce overhead
+    timeout: 5s
+    send_batch_size: 1000
 
 exporters:
+  # Debug exporter - outputs to console (useful for troubleshooting)
+  debug:
+    verbosity: basic
+
+  # Elasticsearch exporter
+  # Uses ES_NODE and ELASTIC_API_KEY from .env
   elasticsearch:
-    endpoints: ["${ELASTIC_ENDPOINT}"]
-    api_key: ${ELASTIC_API_KEY}
+    endpoints: ["${env:ES_NODE}"]
+    api_key: ${env:ELASTIC_API_KEY}
+    mapping:
+      mode: ecs  # Use ECS-compatible mapping
+    logs_dynamic_index:
+      enabled: true
+    metrics_dynamic_index:
+      enabled: true
+    traces_dynamic_index:
+      enabled: true
+    tls:
+      insecure_skip_verify: true  # For self-signed certs in development
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [elasticsearch]
+      exporters: [debug, elasticsearch]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [elasticsearch]
+      exporters: [debug, elasticsearch]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [elasticsearch]
+      exporters: [debug, elasticsearch]
 ```
 
-**2. Create `.env` for the collector:**
+**Key configuration notes:**
+- Uses `${env:VAR_NAME}` syntax for OTel Collector environment variable expansion
+- `mapping.mode: ecs` enables ECS-compatible field mappings
+- `*_dynamic_index.enabled: true` auto-creates indices with proper templates
+- `tls.insecure_skip_verify: true` needed for self-signed certs (remove in production)
 
-```bash
-HOST_FILESYSTEM=/
-DOCKER_SOCK=/var/run/docker.sock
-ELASTIC_AGENT_OTEL=true
-COLLECTOR_CONTRIB_IMAGE=elastic/elastic-agent:9.2.2
-ELASTIC_API_KEY=<your-api-key>
-ELASTIC_ENDPOINT=https://localhost:9200
-OTEL_COLLECTOR_CONFIG=./otel-collector-config.yml
-```
-
-**3. Create `docker-compose.yml`:**
+**2. Create `docker-compose.otel.yml`:**
 
 ```yaml
 services:
   otel-collector:
-    image: ${COLLECTOR_CONTRIB_IMAGE}
+    image: elastic/elastic-agent:9.2.2
     container_name: otel-collector
+    command: otel --config /etc/otel-collector/config.yaml
     deploy:
       resources:
         limits:
           memory: 1.5G
     restart: unless-stopped
     user: "0:0"
-    network_mode: host
-    environment:
-      - ELASTIC_AGENT_OTEL=${ELASTIC_AGENT_OTEL}
-      - ELASTIC_API_KEY=${ELASTIC_API_KEY}
-      - ELASTIC_ENDPOINT=${ELASTIC_ENDPOINT}
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    env_file:
+      - .env
     volumes:
-      - ${HOST_FILESYSTEM}:/hostfs:ro
-      - ${DOCKER_SOCK}:/var/run/docker.sock:ro
-      - ${OTEL_COLLECTOR_CONFIG}:/etc/otelcol-contrib/config.yaml:ro
+      - ./otel-collector-config.yml:/etc/otel-collector/config.yaml:ro
 ```
 
-**4. Run:**
+**Key docker-compose notes:**
+- `command: otel --config ...` runs elastic-agent in pure OTel collector mode
+- `env_file: .env` passes all environment variables to the container
+- Port mapping exposes OTLP endpoints to the host
+
+**3. Add to `.env`:**
 
 ```bash
-docker compose up -d
-```
+# Elasticsearch connection (used by collector)
+ES_NODE=https://192.168.1.140:9200
+ELASTIC_API_KEY=your_api_key_here
 
-**5. Configure your app (no endpoint needed - defaults to localhost:4318):**
-
-```bash
+# OpenTelemetry service identification
 OTEL_SERVICE_NAME=bosch-smart-home
+```
+
+**4. Add yarn scripts to `package.json`:**
+
+```json
+{
+  "scripts": {
+    "otel:collector": "docker run --rm -p 4317:4317 -p 4318:4318 --env-file .env -v $(pwd)/otel-collector-config.yml:/etc/otel-collector/config.yaml elastic/elastic-agent:9.2.2 otel --config /etc/otel-collector/config.yaml",
+    "otel:collector:start": "docker compose -f docker-compose.otel.yml up -d",
+    "otel:collector:stop": "docker compose -f docker-compose.otel.yml down",
+    "otel:collector:logs": "docker compose -f docker-compose.otel.yml logs -f"
+  }
+}
+```
+
+**5. Run:**
+
+```bash
+# Start the collector (background)
+yarn otel:collector:start
+
+# Check collector logs
+yarn otel:collector:logs
+
+# Run your instrumented application
 yarn poll
+
+# Stop when done
+yarn otel:collector:stop
+```
+
+**6. Verify data in Elasticsearch:**
+
+```bash
+# Check indices were created
+curl -k -u elastic:$ES_PASSWORD "$ES_NODE/_cat/indices/*generic*?v"
+
+# Expected output:
+# traces-generic-default     - trace spans
+# metrics-generic-default    - metrics
+# logs-generic-default       - application logs
 ```
 
 ### Option 3: Plain OpenTelemetry Collector
@@ -434,6 +599,43 @@ node --require @opentelemetry/auto-instrumentations-node/register app.js
 ```
 
 Elastic accepts OTLP natively, so this works but lacks EDOT's optimizations.
+
+## Kibana Onboarding
+
+To get the best experience with OTel data in Kibana, install the content integrations that provide dashboards and proper index templates.
+
+### Install OTel Integrations
+
+1. **Go to Kibana → Integrations** (or search "Integrations" in global search)
+2. **Search for "otel"**
+3. **Install these content packs:**
+   - **APM** - Service maps, traces view, latency metrics
+   - **System OpenTelemetry Assets** - Host metrics dashboards
+   - Other `*_otel` integrations relevant to your stack
+
+### What the Integrations Provide
+
+| Integration | Assets |
+|-------------|--------|
+| APM | Service map, traces UI, transaction analysis |
+| System OpenTelemetry Assets | Host CPU, memory, disk dashboards |
+| Docker OpenTelemetry Assets | Container metrics dashboards |
+
+### Create Data Views
+
+If data views aren't created automatically:
+
+1. **Kibana → Stack Management → Data Views**
+2. Create views for:
+   - `traces-*` - Trace spans
+   - `metrics-*` - Metrics data
+   - `logs-*` - Application logs
+
+### Verify in Kibana
+
+- **Observability → APM → Services** - Your service should appear
+- **Discover** - Browse raw traces, metrics, logs
+- **Dashboards** - Pre-built OTel dashboards (after installing integrations)
 
 ## Elastic APM Features
 
@@ -502,6 +704,11 @@ export OTEL_TRACES_EXPORTER=console
 - [EDOT Collector Docker Quickstart (Elastic Cloud)](https://www.elastic.co/docs/solutions/observability/get-started/opentelemetry/quickstart/ech/docker)
 - [Elastic Distributions of OpenTelemetry GA Announcement](https://www.elastic.co/observability-labs/blog/elastic-distributions-opentelemetry-ga)
 - [GitHub - Elastic OpenTelemetry](https://github.com/elastic/opentelemetry)
+
+### Logging
+
+- [pino-opentelemetry-transport](https://github.com/pinojs/pino-opentelemetry-transport) - Pino transport for OTLP log export
+- [@opentelemetry/instrumentation-pino](https://www.npmjs.com/package/@opentelemetry/instrumentation-pino) - Auto-instrumentation for trace correlation
 
 ### General OpenTelemetry
 

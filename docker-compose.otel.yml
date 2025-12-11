@@ -1,0 +1,18 @@
+services:
+  otel-collector:
+    image: elastic/elastic-agent:9.2.2
+    container_name: otel-collector
+    command: otel --config /etc/otel-collector/config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+    restart: unless-stopped
+    user: "0:0"
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    env_file:
+      - .env
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector/config.yaml:ro
