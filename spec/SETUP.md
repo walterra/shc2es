@@ -104,6 +104,56 @@ Ensure these are NEVER committed:
 - `certs/` directory (generated per-installation)
 - `data/` and `logs/` directories
 
+### TLS Certificate Verification
+
+**Current State:** Certificate verification is disabled in multiple places for development convenience with self-signed certificates.
+
+| File | Location | Method | Impact |
+|------|----------|--------|--------|
+| `src/ingest.ts:4` | Global | `NODE_TLS_REJECT_UNAUTHORIZED="0"` | Affects all HTTPS in process |
+| `src/ingest.ts:29` | ES client | `tls: { rejectUnauthorized: false }` | ES client only |
+| `src/export-dashboard.ts:7` | Global | `NODE_TLS_REJECT_UNAUTHORIZED="0"` | Affects `fetch()` to Kibana |
+| `otel-collector-config.yml:47` | Exporter | `insecure_skip_verify: true` | EDOT → ES only |
+
+**Problems:**
+
+1. Global `NODE_TLS_REJECT_UNAUTHORIZED="0"` is dangerous - disables verification for ALL connections
+2. No option to enable verification - hardcoded insecure mode
+3. Double configuration in `ingest.ts` (global AND client-specific is redundant)
+
+**Production-Grade TODO:**
+
+- [ ] Add environment variables for TLS configuration:
+  ```bash
+  ES_TLS_VERIFY=true            # Enable cert verification (default: true)
+  ES_CA_CERT=/path/to/ca.pem    # Custom CA certificate (optional)
+  ES_CA_FINGERPRINT=abc123...   # ES cert fingerprint (alternative)
+  OTEL_TLS_INSECURE=false       # OTEL collector TLS (default: false)
+  OTEL_CA_FILE=/path/to/ca.pem  # OTEL custom CA (optional)
+  ```
+
+- [ ] **`src/ingest.ts`** - Remove global `NODE_TLS_REJECT_UNAUTHORIZED`, use ES client config only:
+  ```typescript
+  const tlsConfig = process.env.ES_TLS_VERIFY === 'false'
+    ? { rejectUnauthorized: false }
+    : process.env.ES_CA_CERT
+      ? { ca: readFileSync(process.env.ES_CA_CERT) }
+      : {};
+  ```
+
+- [ ] **`src/export-dashboard.ts`** - Use `undici` or Node's `Agent` with per-request TLS config instead of global disable
+
+- [ ] **`otel-collector-config.yml`** - Use environment variable substitution:
+  ```yaml
+  tls:
+    insecure_skip_verify: ${env:OTEL_TLS_INSECURE:-false}
+    ca_file: ${env:OTEL_CA_FILE:-}
+  ```
+
+- [ ] **Update `.env.example`** with TLS variables and secure defaults
+
+- [ ] **Document in README.md** the TLS configuration options
+
 ---
 
 ## Quick Start Commands
