@@ -16,8 +16,8 @@ if (!noOtel) {
 }
 
 import "dotenv/config";
-
-const VERSION = "1.0.0";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const COMMANDS: Record<
   string,
@@ -83,7 +83,10 @@ async function main(): Promise<void> {
 
   // Handle global flags (check version first since it's more specific)
   if (args.includes("--version") || args.includes("-v")) {
-    console.log(`shc2es v${VERSION}`);
+    const { version } = JSON.parse(
+      readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
+    ) as { version: string };
+    console.log(`shc2es v${version}`);
     process.exit(0);
   }
 
