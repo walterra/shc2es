@@ -22,6 +22,8 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - `description` field added
 - `keywords` field added
 - `repository`, `bugs`, `homepage` fields added
+- `engines` field added (node >=20.0.0)
+- `.nvmrc` file added (version 20)
 
 ### Blocking Issues
 
@@ -30,17 +32,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ---
 
 ## npm Publishing Checklist
-
-### High Priority (Discoverability & Usability)
-
-- [ ] **Add engines field** (Node.js version requirement)
-  ```json
-  {
-    "engines": {
-      "node": ">=18.0.0"
-    }
-  }
-  ```
 
 ### Medium Priority (Professional Polish)
 
@@ -65,12 +56,6 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   - NDJSON event logging
   - Elasticsearch ingestion support
   - OpenTelemetry instrumentation
-  ```
-
-- [ ] **Add .nvmrc** (pin Node.js version for contributors)
-
-  ```
-  20
   ```
 
 - [ ] **Add type field** (explicit module system)

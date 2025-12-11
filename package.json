@@ -29,6 +29,9 @@
     "url": "https://github.com/walterra/shc2es/issues"
   },
   "homepage": "https://github.com/walterra/shc2es#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "yarn build && yarn tsc --noEmit",
