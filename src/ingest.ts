@@ -597,16 +597,34 @@ async function batchImport(pattern?: string): Promise<void> {
 }
 
 function watchAndTail(): void {
-  log.info(
-    { watchPattern: `${DATA_DIR}/events-*.ndjson` },
-    "Starting watch mode",
-  );
+  log.info({ dataDir: DATA_DIR }, "Starting watch mode");
 
   const activeTails = new Map<string, Tail>();
 
-  const watcher = chokidar.watch(`${DATA_DIR}/events-*.ndjson`, {
+  // Chokidar v4+ removed glob support - watch directory and filter in handler
+  const watcher = chokidar.watch(DATA_DIR, {
     persistent: true,
     ignoreInitial: false,
+    depth: 0, // Only watch files directly in DATA_DIR, not subdirectories
+    // Only watch .ndjson files matching our pattern
+    ignored: (filePath) => {
+      const basename = path.basename(filePath);
+      // Don't ignore the data directory itself
+      if (filePath === DATA_DIR) return false;
+      // Only process events-YYYY-MM-DD.ndjson files
+      return !/^events-\d{4}-\d{2}-\d{2}\.ndjson$/.test(basename);
+    },
+  });
+
+  watcher.on("ready", () => {
+    log.info(
+      { watchedCount: activeTails.size },
+      "Watcher ready - initial scan complete",
+    );
+  });
+
+  watcher.on("error", (err) => {
+    log.error({ err }, "Watcher error");
   });
 
   watcher.on("add", (filePath) => {
