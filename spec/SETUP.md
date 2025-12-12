@@ -44,6 +44,9 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 - **Trusted Publishing** - OIDC-based npm publishing from CI (no stored tokens)
 - **2FA enabled** on npm account
 - **Granular read-only tokens** for CI installs
+- **Dependabot alerts** enabled (GitHub Settings > Security)
+- **Secret scanning** enabled (GitHub Settings > Security)
+- **OpenSSF Scorecard** GitHub Action + badge added
 
 ### Blocking Issues
 
@@ -92,12 +95,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ---
 
 ## 2025 Security Best Practices
-
-### Repository Security
-
-- [ ] **Enable Dependabot alerts** (GitHub Settings > Security)
-- [ ] **Enable secret scanning** (GitHub Settings > Security)
-- [ ] **Consider OpenSSF Scorecard** badge for trust signal
 
 ### Sensitive Data
 
