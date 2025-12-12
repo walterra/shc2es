@@ -29,7 +29,7 @@ const COMMANDS: Record<
   ingest: {
     description: "Ingest events to Elasticsearch",
     module: "./ingest",
-    usage: "[--setup|--watch]",
+    usage: "[--setup|--watch|--pattern <glob>]",
   },
   registry: {
     description: "Fetch device/room registry from controller",
@@ -63,6 +63,7 @@ Examples:
   shc2es ingest --setup          Setup Elasticsearch indices
   shc2es ingest --watch          Watch and ingest in real-time
   shc2es ingest                  Batch import existing data
+  shc2es ingest --pattern "events-2025-12-*.ndjson"  Import specific files
   shc2es registry                Fetch device registry
   shc2es dashboard --list        List available dashboards
   shc2es dashboard <name>        Export a dashboard

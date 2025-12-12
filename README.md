@@ -206,6 +206,9 @@ yarn ingest:setup
 # 3. Batch import existing NDJSON files
 yarn ingest
 
+# 3b. Or: import specific files using a glob pattern
+yarn ingest --pattern "events-2025-12-*.ndjson"
+
 # 4. Or: watch for new events and ingest in real-time
 yarn ingest:watch
 ```
