@@ -41,6 +41,9 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
   - `otel-collector-config.yml` - Uses `OTEL_TLS_VERIFY` (inverted via docker-compose to `OTEL_TLS_SKIP_VERIFY`)
   - `.env.example` updated with TLS variables (`ES_TLS_VERIFY`, `ES_CA_CERT`, `OTEL_TLS_VERIFY`, `OTEL_CA_FILE`)
   - `README.md` updated with TLS configuration section and Quick Start warning
+- **Trusted Publishing** - OIDC-based npm publishing from CI (no stored tokens)
+- **2FA enabled** on npm account
+- **Granular read-only tokens** for CI installs
 
 ### Blocking Issues
 
@@ -89,12 +92,6 @@ cd /tmp && npm install /path/to/shc2es-1.0.0.tgz
 ---
 
 ## 2025 Security Best Practices
-
-### npm Security
-
-- [ ] **Use Trusted Publishing** - OIDC-based npm publishing from CI (no stored tokens)
-- [ ] **Enable 2FA** on npm account
-- [ ] **Use granular read-only tokens** for CI installs
 
 ### Repository Security
 
