@@ -56,7 +56,7 @@ jobs:
         uses: changesets/action@v1
         with:
           title: ${{ steps.release-version.outputs.title }}
-          publish: yarn release:npm
+          publish: yarn release
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

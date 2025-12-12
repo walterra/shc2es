@@ -45,7 +45,6 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "yarn build && changeset publish",
-    "release:npm": "yarn build && npm publish --provenance --access public",
     "poll": "ts-node src/cli.ts poll",
     "poll:no-otel": "ts-node src/cli.ts poll --no-otel",
     "ingest": "ts-node src/cli.ts ingest",
