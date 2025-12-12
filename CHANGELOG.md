@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- 70377fa: Store config, certs, logs, and data in ~/.shc2es/ directory for global npm installs. Local .env is still supported for development.
+
 ## 0.1.1
 
 ### Patch Changes
