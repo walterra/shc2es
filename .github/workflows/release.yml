@@ -34,11 +34,28 @@ jobs:
       - name: Install Dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Get Release Version
+        id: release-version
+        run: |
+          yarn changeset status --output=release.json 2>/dev/null || true
+          if [ -f release.json ]; then
+            VERSION=$(jq -r '.releases[0].newVersion // empty' release.json)
+            rm release.json
+            if [ -n "$VERSION" ]; then
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+              echo "title=release v$VERSION" >> $GITHUB_OUTPUT
+            else
+              echo "title=chore: release" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "title=chore: release" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          title: "chore: release"
+          title: ${{ steps.release-version.outputs.title }}
           publish: yarn build && npm publish --provenance --access public
           createGithubReleases: true
         env:
