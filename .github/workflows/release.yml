@@ -34,33 +34,12 @@ jobs:
       - name: Install Dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Create Release Pull Request
+      - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
           title: "chore: release"
+          publish: yarn build && npm publish --provenance --access public
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check if version is published
-        id: version-check
-        if: steps.changesets.outputs.hasChangesets == 'false'
-        run: |
-          LOCAL_VERSION=$(node -p "require('./package.json').version")
-          NPM_VERSION=$(npm view shc2es version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL_VERSION" >> $GITHUB_OUTPUT
-          echo "npm=$NPM_VERSION" >> $GITHUB_OUTPUT
-          if [ "$LOCAL_VERSION" != "$NPM_VERSION" ]; then
-            echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "Local version $LOCAL_VERSION differs from npm version $NPM_VERSION"
-          else
-            echo "should_publish=false" >> $GITHUB_OUTPUT
-            echo "Version $LOCAL_VERSION already published"
-          fi
-
-      - name: Publish to npm with OIDC provenance
-        if: steps.version-check.outputs.should_publish == 'true'
-        run: |
-          yarn build
-          npm publish --provenance --access public
