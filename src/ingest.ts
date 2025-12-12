@@ -569,10 +569,16 @@ async function bulkImportFile(filePath: string): Promise<number> {
   });
 }
 
-async function batchImport(): Promise<void> {
-  log.info("Starting batch import");
+async function batchImport(pattern?: string): Promise<void> {
+  const globPattern = pattern
+    ? pattern.includes("/")
+      ? pattern
+      : `${DATA_DIR}/${pattern}`
+    : `${DATA_DIR}/events-*.ndjson`;
 
-  const files = await glob(`${DATA_DIR}/events-*.ndjson`);
+  log.info({ pattern: globPattern }, "Starting batch import");
+
+  const files = await glob(globPattern);
 
   if (files.length === 0) {
     log.info({ dataDir: DATA_DIR }, "No NDJSON files found in data directory");
@@ -683,7 +689,13 @@ async function main(): Promise<void> {
   } else if (args.includes("--watch")) {
     watchAndTail();
   } else {
-    await batchImport();
+    // Parse --pattern option
+    const patternIndex = args.indexOf("--pattern");
+    const pattern =
+      patternIndex !== -1 && args[patternIndex + 1]
+        ? args[patternIndex + 1]
+        : undefined;
+    await batchImport(pattern);
   }
 }
 

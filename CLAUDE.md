@@ -45,6 +45,8 @@ Based on the [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at
 ```bash
 yarn install          # Install dependencies
 yarn poll             # Start long polling CLI (USER RUNS THIS, NOT AGENT)
+yarn ingest           # Batch import all NDJSON files to Elasticsearch
+yarn ingest --pattern "events-2025-12-*.ndjson"  # Import specific files
 yarn tsc --noEmit     # Type check without emitting
 ```
 
