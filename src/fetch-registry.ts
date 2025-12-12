@@ -1,23 +1,14 @@
-import "dotenv/config";
 import * as fs from "fs";
 import * as path from "path";
 import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
 import { firstValueFrom } from "rxjs";
+import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 
 const log = createLogger("registry");
 
 const CONTROLLER_HOST = process.env.BSH_HOST;
-
-const CERT_PATH = path.join(__dirname, "..", "certs");
-const CERT_FILE = path.join(CERT_PATH, "client-cert.pem");
-const KEY_FILE = path.join(CERT_PATH, "client-key.pem");
-const REGISTRY_FILE = path.join(
-  __dirname,
-  "..",
-  "data",
-  "device-registry.json",
-);
+const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
 
 interface BshRoom {
   id: string;
@@ -50,7 +41,7 @@ async function main(): Promise<void> {
   );
 
   if (!CONTROLLER_HOST) {
-    log.fatal("BSH_HOST is required. Set it in .env file.");
+    log.fatal("BSH_HOST is required. Set it in ~/.shc2es/.env");
     process.exit(1);
   }
 

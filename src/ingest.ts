@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { Client } from "@elastic/elasticsearch";
 import { Agent, fetch as undiciFetch } from "undici";
 import { createReadStream, existsSync, readFileSync } from "fs";
@@ -8,6 +6,7 @@ import split from "split2";
 import chokidar from "chokidar";
 import { Tail } from "tail";
 import * as path from "path";
+import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 
 const log = createLogger("ingest");
@@ -69,7 +68,7 @@ const tlsFetch = createTlsFetch();
 
 // Environment validation
 if (!process.env.ES_NODE || !process.env.ES_PASSWORD) {
-  log.fatal("ES_NODE and ES_PASSWORD must be set in .env");
+  log.fatal("ES_NODE and ES_PASSWORD must be set in ~/.shc2es/.env");
   process.exit(1);
 }
 
@@ -86,7 +85,6 @@ const INDEX_PREFIX = process.env.ES_INDEX_PREFIX ?? "smart-home-events";
 const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
 const PIPELINE_NAME = `${INDEX_PREFIX}-pipeline`;
 const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
-const DATA_DIR = path.join(__dirname, "..", "data");
 const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
 
 // Kibana dashboard import

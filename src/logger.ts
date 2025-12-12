@@ -1,10 +1,11 @@
 import pino from "pino";
-import * as fs from "fs";
 import * as path from "path";
+import { DATA_DIR, LOGS_DIR, ensureConfigDirs } from "./config";
+
+// Ensure config directories exist before creating file loggers
+ensureConfigDirs();
 
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
-const DATA_DIR = path.join(__dirname, "..", "data");
-const LOGS_DIR = path.join(__dirname, "..", "logs");
 
 // Service name from OTEL_SERVICE_NAME (set per-script in package.json)
 // Falls back to 'shc2es' if not set
@@ -17,13 +18,6 @@ const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== "true";
 // and appends component for sub-loggers (e.g., shc2es-poll:data)
 function buildLoggerName(component?: string): string {
   return component ? `${SERVICE_NAME}:${component}` : SERVICE_NAME;
-}
-
-// Ensure directories exist
-for (const dir of [DATA_DIR, LOGS_DIR]) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
 }
 
 const dateStamp = new Date().toISOString().split("T")[0];

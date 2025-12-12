@@ -1,11 +1,10 @@
-import "dotenv/config";
 import * as fs from "fs";
-import * as path from "path";
 import {
   BoschSmartHomeBridge,
   BoschSmartHomeBridgeBuilder,
   BshbUtils,
 } from "bosch-smart-home-bridge";
+import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
 import { appLogger, dataLogger, BshbLogger } from "./logger";
 
 // Configuration via .env file or environment variables
@@ -14,10 +13,6 @@ const CLIENT_NAME = process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll";
 const CLIENT_ID =
   process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client";
 const SYSTEM_PASSWORD = process.env.BSH_PASSWORD ?? "";
-
-const CERT_PATH = path.join(__dirname, "..", "certs");
-const CERT_FILE = path.join(CERT_PATH, "client-cert.pem");
-const KEY_FILE = path.join(CERT_PATH, "client-key.pem");
 
 function loadOrGenerateCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
@@ -31,13 +26,10 @@ function loadOrGenerateCertificate(): { cert: string; key: string } {
   appLogger.info("Generating new client certificate");
   const generated = BshbUtils.generateClientCertificate();
 
-  if (!fs.existsSync(CERT_PATH)) {
-    fs.mkdirSync(CERT_PATH, { recursive: true });
-  }
-
+  // CERTS_DIR is already created by ensureConfigDirs()
   fs.writeFileSync(CERT_FILE, generated.cert);
   fs.writeFileSync(KEY_FILE, generated.private);
-  appLogger.info({ certPath: CERT_PATH }, "Certificate saved");
+  appLogger.info({ certPath: CERTS_DIR }, "Certificate saved");
 
   return { cert: generated.cert, key: generated.private };
 }
@@ -98,17 +90,18 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
 
 function main(): void {
   appLogger.info("Bosch Smart Home Long Polling Client");
+  appLogger.info(getConfigPaths(), "Configuration");
 
   if (!CONTROLLER_HOST) {
     appLogger.fatal(
-      "BSH_HOST is required. Set it in .env file or environment.",
+      "BSH_HOST is required. Set it in ~/.shc2es/.env or local .env file.",
     );
     process.exit(1);
   }
 
   if (!SYSTEM_PASSWORD) {
     appLogger.fatal(
-      "BSH_PASSWORD is required for initial pairing. Set it in .env file.",
+      "BSH_PASSWORD is required for initial pairing. Set it in ~/.shc2es/.env",
     );
     process.exit(1);
   }

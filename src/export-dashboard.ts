@@ -1,7 +1,7 @@
-import "dotenv/config";
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { Agent, fetch as undiciFetch } from "undici";
+import "./config"; // Load env vars from ~/.shc2es/.env
 import { createLogger } from "./logger";
 
 const log = createLogger("export-dashboard");
@@ -63,12 +63,12 @@ const tlsFetch = createTlsFetch();
 
 // Environment validation
 if (!process.env.KIBANA_NODE) {
-  log.fatal("KIBANA_NODE must be set in .env");
+  log.fatal("KIBANA_NODE must be set in ~/.shc2es/.env");
   process.exit(1);
 }
 
 if (!process.env.ES_PASSWORD) {
-  log.fatal("ES_PASSWORD must be set in .env (used for Kibana auth)");
+  log.fatal("ES_PASSWORD must be set in ~/.shc2es/.env (used for Kibana auth)");
   process.exit(1);
 }
 

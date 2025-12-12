@@ -83,7 +83,7 @@ yarn data:tail        # Follow events in real-time
 
 ### Environment Variables
 
-Set in `.env` file:
+Set in `~/.shc2es/.env` file (or local `.env` for development):
 
 ```bash
 BSH_HOST=192.168.x.x      # Controller IP address (required)
@@ -118,15 +118,19 @@ See `spec/OPEN-TELEMETRY.md` for detailed configuration, APM UI requirements, an
 
 ```
 src/
+  config.ts            # Centralized config - paths, env loading
   poll.ts              # Main CLI script - long polling logic
   logger.ts            # Pino logger setup (app + data loggers)
-logs/
-  poll-YYYY-MM-DD.log  # App logs (JSON) - for debugging
-data/
-  events-YYYY-MM-DD.ndjson  # Smart home events - collected data
-certs/
-  client-cert.pem      # Generated client certificate
-  client-key.pem       # Generated private key
+
+~/.shc2es/             # User config directory
+  .env                 # Configuration file
+  certs/
+    client-cert.pem    # Generated client certificate
+    client-key.pem     # Generated private key
+  logs/
+    poll-YYYY-MM-DD.log  # App logs (JSON) - for debugging
+  data/
+    events-YYYY-MM-DD.ndjson  # Smart home events - collected data
 ```
 
 ### Logging Architecture
@@ -135,8 +139,8 @@ Two separate log streams:
 
 | Logger | File | Format | Purpose |
 |--------|------|--------|---------|
-| `appLogger` | `logs/poll-*.log` | JSON | Debug the polling tool |
-| `dataLogger` | `data/events-*.ndjson` | NDJSON | Smart home event data |
+| `appLogger` | `~/.shc2es/logs/poll-*.log` | JSON | Debug the polling tool |
+| `dataLogger` | `~/.shc2es/data/events-*.ndjson` | NDJSON | Smart home event data |
 
 ### Dependencies
 

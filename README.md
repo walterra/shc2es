@@ -14,13 +14,15 @@ Get up and running in 5 minutes:
 # 1. Install
 npm install -g shc2es
 
-# 2. Configure (create .env in your working directory)
-
+# 2. Configure (create ~/.shc2es/.env)
+mkdir -p ~/.shc2es
+cat > ~/.shc2es/.env << 'EOF'
 # Your controller's IP (find in Bosch app or router)
 BSH_HOST=192.168.x.x
 
 # System password from Bosch Smart Home app
 BSH_PASSWORD=your_password
+EOF
 
 # 3. Start collecting data
 
@@ -32,7 +34,8 @@ shc2es poll
 # Use start-local to set up ES/Kibana dev environments
 curl -fsSL https://elastic.co/start-local | sh
 
-# Populate your .env with the information provided by the start-local script
+# Add ES config to ~/.shc2es/.env (use info from start-local output)
+cat >> ~/.shc2es/.env << 'EOF'
 ES_NODE=http://localhost:9200
 ES_PASSWORD=your_es_password
 KIBANA_NODE=http://localhost:5601
@@ -42,6 +45,7 @@ ELASTIC_API_KEY=your_es_api_key
 # For local development, don't set to false in production!
 ES_TLS_VERIFY=false
 OTEL_TLS_VERIFY=false
+EOF
 
 # Set up and ingest
 shc2es registry          # Fetch device/room names
@@ -85,13 +89,13 @@ When running from source, use `yarn poll`, `yarn ingest`, etc. instead of `shc2e
 
 ## Configuration
 
-Copy the example environment file and edit it:
+Configuration is stored in `~/.shc2es/.env`. Create the directory and file:
 
 ```bash
-cp .env.example .env
+mkdir -p ~/.shc2es
 ```
 
-Edit `.env` with your settings:
+Edit `~/.shc2es/.env` with your settings:
 
 ```bash
 # Bosch Smart Home Controller (required for yarn poll)
@@ -247,12 +251,20 @@ Each document includes:
 
 ## Output Files
 
-| Directory     | Contents                                                                                 |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `data/`       | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
-| `logs/`       | Application logs for debugging (`poll-YYYY-MM-DD.log`)                                   |
-| `certs/`      | Generated client certificates (`client-cert.pem`, `client-key.pem`)                      |
-| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`)                                         |
+All user data is stored in `~/.shc2es/`:
+
+| Directory           | Contents                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `~/.shc2es/data/`   | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
+| `~/.shc2es/logs/`   | Application logs for debugging (`poll-YYYY-MM-DD.log`)                                   |
+| `~/.shc2es/certs/`  | Generated client certificates (`client-cert.pem`, `client-key.pem`)                      |
+| `~/.shc2es/.env`    | Configuration file                                                                       |
+
+Bundled with package:
+
+| Directory     | Contents                                          |
+| ------------- | ------------------------------------------------- |
+| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`)  |
 
 ## Hardware
 
