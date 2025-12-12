@@ -1,5 +1,9 @@
 # shc2es
 
+[![npm version](https://img.shields.io/npm/v/shc2es)](https://www.npmjs.com/package/shc2es)
+[![CI](https://github.com/walterra/shc2es/actions/workflows/ci.yml/badge.svg)](https://github.com/walterra/shc2es/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/walterra/shc2es/badge)](https://scorecard.dev/viewer/?uri=github.com/walterra/shc2es)
+
 CLI tools to collect, store, and visualize Bosch Smart Home Controller II data via long polling. Data gets collected as NDJSON and can be passed on to Elasticsearch for Kibana dashboards and time series visualization.
 
 ![Kibana Dashboard](docs/images/dashboard.png)
