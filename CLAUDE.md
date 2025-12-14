@@ -12,6 +12,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Note:** First-time pairing requires physical button press on Controller II - agent cannot complete this step.
 
+## Package Manager
+
+**ALWAYS use `yarn` for package management**, never `npm`. This project uses Yarn 1.x (classic).
+
+```bash
+# ✅ Correct
+yarn add <package>
+yarn add --dev <package>
+yarn install
+
+# ❌ Incorrect
+npm install <package>
+npm install --save-dev <package>
+```
+
 ## Project Overview
 
 **shc2es** (Smart Home Controller to Elasticsearch) - Collects device data from Bosch Smart Home Controller II via long polling, stores as NDJSON, and ingests into Elasticsearch for Kibana dashboards.
@@ -19,10 +34,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Naming & Trademarks
 
 The project name `shc2es` uses abbreviations to avoid trademark issues:
+
 - **SHC** = Smart Home Controller (from official Bosch API docs naming: `bosch-shc-api-docs`)
 - **ES** = Elasticsearch (common community abbreviation)
 
 **Trademark restrictions** (do not use these in package/project names):
+
 - "Elasticsearch", "Elastic", "Kibana" - [Elastic Trademark Policy](https://www.elastic.co/legal/trademarks)
 - "Bosch" with claims suggesting involvement - [Bosch SHC API License](https://github.com/BoschSmartHome/bosch-shc-api-docs)
 
@@ -42,12 +59,24 @@ Based on the [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at
 
 ## Commands
 
+### Core Commands
+
 ```bash
 yarn install          # Install dependencies
+yarn build            # Compile TypeScript to dist/
+yarn test             # Run all tests
+yarn test:coverage    # Run tests with coverage report
+yarn lint             # Check code for issues
+yarn format           # Format code with Prettier
+```
+
+### Application Commands
+
+```bash
 yarn poll             # Start long polling CLI (USER RUNS THIS, NOT AGENT)
 yarn ingest           # Batch import all NDJSON files to Elasticsearch
 yarn ingest --pattern "events-2025-12-*.ndjson"  # Import specific files
-yarn tsc --noEmit     # Type check without emitting
+yarn registry         # Fetch device registry from controller
 ```
 
 ### Debugging Commands (Agent should use these)
@@ -65,6 +94,17 @@ yarn data             # Show last 20 events
 yarn data:tail        # Follow events in real-time
 ```
 
+### Testing Commands (Agent should use these)
+
+```bash
+yarn test             # Run all tests
+yarn test:watch       # Run tests in watch mode (for TDD)
+yarn test:coverage    # Generate coverage report
+yarn test:unit        # Run only unit tests
+yarn test:integration # Run only integration tests
+yarn test:ci          # Run tests in CI mode (used by GitHub Actions)
+```
+
 ### Debugging Workflow
 
 1. User reports an issue with `yarn poll`
@@ -75,13 +115,13 @@ yarn data:tail        # Follow events in real-time
 
 ### Pino Log Levels
 
-| Level | Value | Use |
-|-------|-------|-----|
-| fatal | 60 | App crash |
-| error | 50 | Errors |
-| warn | 40 | Warnings |
-| info | 30 | Normal operation |
-| debug | 20 | Verbose debugging |
+| Level | Value | Use               |
+| ----- | ----- | ----------------- |
+| fatal | 60    | App crash         |
+| error | 50    | Errors            |
+| warn  | 40    | Warnings          |
+| info  | 30    | Normal operation  |
+| debug | 20    | Verbose debugging |
 
 ### Environment Variables
 
@@ -108,6 +148,7 @@ ELASTIC_API_KEY=your_api_key_here
 All scripts include automatic OpenTelemetry instrumentation via `@elastic/opentelemetry-node`. Telemetry is sent to the local EDOT Collector (localhost:4318) by default.
 
 **EDOT Collector commands:**
+
 - `yarn otel:collector:start` - Start the collector (Docker)
 - `yarn otel:collector:stop` - Stop the collector
 - `yarn otel:collector:logs` - View collector logs
@@ -123,6 +164,18 @@ src/
   config.ts            # Centralized config - paths, env loading
   poll.ts              # Main CLI script - long polling logic
   logger.ts            # Pino logger setup (app + data loggers)
+  ingest.ts            # Elasticsearch data ingestion
+  fetch-registry.ts    # Device registry fetching
+  export-dashboard.ts  # Kibana dashboard export/import
+  cli.ts               # CLI command router
+
+tests/
+  unit/                # Unit tests for individual modules
+  integration/         # Integration tests
+  mocks/               # Mock implementations
+  fixtures/            # Test data
+  utils/               # Test helpers
+  setup.ts             # Global test setup
 
 ~/.shc2es/             # User config directory
   .env                 # Configuration file
@@ -139,18 +192,32 @@ src/
 
 Two separate log streams:
 
-| Logger | File | Format | Purpose |
-|--------|------|--------|---------|
-| `appLogger` | `~/.shc2es/logs/poll-*.log` | JSON | Debug the polling tool |
-| `dataLogger` | `~/.shc2es/data/events-*.ndjson` | NDJSON | Smart home event data |
+| Logger       | File                             | Format | Purpose                |
+| ------------ | -------------------------------- | ------ | ---------------------- |
+| `appLogger`  | `~/.shc2es/logs/poll-*.log`      | JSON   | Debug the polling tool |
+| `dataLogger` | `~/.shc2es/data/events-*.ndjson` | NDJSON | Smart home event data  |
 
 ### Dependencies
+
+#### Production Dependencies
 
 - `bosch-smart-home-bridge` - Controller API communication
 - `pino` - Structured JSON logging
 - `dotenv` - Environment variable loading
 - `@elastic/opentelemetry-node` - Auto-instrumentation for Elastic APM
 - `@elastic/elasticsearch` - Elasticsearch client for data ingestion
+- `glob` - File pattern matching
+- `chokidar` - File watching for live ingestion
+
+#### Development Dependencies
+
+- `jest` - Testing framework
+- `ts-jest` - TypeScript support for Jest
+- `@types/jest` - TypeScript types for Jest
+- `typescript` - TypeScript compiler
+- `eslint` - Code linting
+- `prettier` - Code formatting
+- `@changesets/cli` - Version management
 
 ## Changesets
 
@@ -158,17 +225,51 @@ Two separate log streams:
 
 ```markdown
 # .changeset/<descriptive-name>.md
----
-"shc2es": patch|minor|major
+
 ---
 
-Description for CHANGELOG.md
+"shc2es": patch|minor|major
+
+---
+
+Concise single-line description for CHANGELOG.md (not implementation details)
 ```
 
-## Planned Features
+**Guidelines for changeset messages:**
+- ✅ **Good**: "Add Jest testing infrastructure with 70% coverage thresholds and automated CI testing"
+- ❌ **Bad**: Listing every file changed, configuration option, or implementation detail
+- Focus on **user-facing value** or **high-level feature addition**
+- Keep it **one line** when possible (two max)
+- Think: "What would a user want to see in release notes?"
 
-- **Visualization**: Time series charts/graphs
+## Testing
+
+The project has test coverage using Jest for core modules.
+
+### Test Guidelines
+
+1. **Run tests before committing**: `yarn test`
+2. **Maintain coverage thresholds**: 
+   - 70% minimum for statements, functions, and lines
+   - 60% minimum for branches
+3. **Write tests for new features**: Add to `tests/unit/` or `tests/integration/`
+4. **Use test utilities**: Import from `tests/utils/test-helpers.ts`
+5. **Mock external services**: Use mocks from `tests/mocks/`
+6. **Isolate tests**: Use `createTempDir()` for file operations
+
+### Coverage Scope
+
+Currently testing core modules (`config.ts`, `logger.ts`). CLI scripts (`poll.ts`, `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`) are excluded from coverage as they are primarily orchestration code best tested via integration/E2E tests.
 
 ## Documentation Maintenance
 
 Keep `README.md` up to date when making changes. The README is end-user focused (installation, usage, configuration) while CLAUDE.md is agent-focused (debugging, restrictions, architecture).
+
+### Key Documentation Files
+
+- `README.md` - User-facing documentation
+- `CLAUDE.md` - Agent guidance (this file)
+- `spec/TESTING-INFRASTRUCTURE.md` - Testing details
+- `spec/OPEN-TELEMETRY.md` - Observability setup
+- `spec/REVIEW-2025-12-14.md` - Project assessment and roadmap
+- `tests/README.md` - Developer test guide

@@ -5,3 +5,8 @@ data/
 logs/
 .env
 elastic-start-local/
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
