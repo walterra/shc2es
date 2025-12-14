@@ -597,30 +597,26 @@ async function batchImport(pattern?: string): Promise<void> {
 }
 
 function watchAndTail(): void {
-  log.info({ dataDir: DATA_DIR }, "Starting watch mode");
+  // Get current day's file
+  const today = new Date().toISOString().split("T")[0];
+  const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
+  const indexName = getIndexName(today);
 
-  const activeTails = new Map<string, Tail>();
+  log.info(
+    { filePath: todayFile, indexName },
+    "Starting watch mode for current day's file",
+  );
 
-  // Chokidar v4+ removed glob support - watch directory and filter in handler
-  const watcher = chokidar.watch(DATA_DIR, {
+  let tail: Tail | null = null;
+
+  // Watch specifically for today's file
+  const watcher = chokidar.watch(todayFile, {
     persistent: true,
     ignoreInitial: false,
-    depth: 0, // Only watch files directly in DATA_DIR, not subdirectories
-    // Only watch .ndjson files matching our pattern
-    ignored: (filePath) => {
-      const basename = path.basename(filePath);
-      // Don't ignore the data directory itself
-      if (filePath === DATA_DIR) return false;
-      // Only process events-YYYY-MM-DD.ndjson files
-      return !/^events-\d{4}-\d{2}-\d{2}\.ndjson$/.test(basename);
-    },
   });
 
   watcher.on("ready", () => {
-    log.info(
-      { watchedCount: activeTails.size },
-      "Watcher ready - initial scan complete",
-    );
+    log.info("Watcher ready");
   });
 
   watcher.on("error", (err) => {
@@ -628,11 +624,9 @@ function watchAndTail(): void {
   });
 
   watcher.on("add", (filePath) => {
-    const dateStr = extractDateFromFilename(filePath);
-    const indexName = getIndexName(dateStr);
     log.info({ filePath, indexName }, "Tailing file");
 
-    const tail = new Tail(filePath, { fromBeginning: false, follow: true });
+    tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
     tail.on("line", (line: string) => {
       const doc = parseLine(line);
@@ -659,15 +653,12 @@ function watchAndTail(): void {
     tail.on("error", (err) => {
       log.error({ err, filePath }, "Tail error");
     });
-
-    activeTails.set(filePath, tail);
   });
 
   watcher.on("unlink", (filePath) => {
-    const tail = activeTails.get(filePath);
     if (tail) {
       tail.unwatch();
-      activeTails.delete(filePath);
+      tail = null;
       log.info({ filePath }, "Stopped tailing file");
     }
   });
@@ -676,9 +667,9 @@ function watchAndTail(): void {
   process.on("SIGINT", () => {
     log.info("Shutting down");
     void watcher.close();
-    activeTails.forEach((tail) => {
+    if (tail) {
       tail.unwatch();
-    });
+    }
     process.exit(0);
   });
 
