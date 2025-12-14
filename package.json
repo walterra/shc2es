@@ -16,6 +16,8 @@
   },
   "files": [
     "dist",
+    "docs",
+    "dashboards",
     "README.md",
     "LICENSE"
   ],
@@ -45,6 +47,7 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
+    "mermaid:validate": "node scripts/validate-mermaid.js",
     "prepublishOnly": "yarn build && yarn tsc --noEmit",
     "changeset": "changeset",
     "version": "changeset version",

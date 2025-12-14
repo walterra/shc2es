@@ -36,6 +36,9 @@ jobs:
       - name: Check formatting
         run: yarn format:check
 
+      - name: Validate Mermaid diagrams
+        run: yarn mermaid:validate
+
       - name: Type check
         run: yarn tsc --noEmit
 
