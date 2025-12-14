@@ -4,10 +4,23 @@ import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
 import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger } from "./logger";
+import { validateRegistryConfig, ValidationError } from "./validation";
 
 const log = createLogger("registry");
 
-const CONTROLLER_HOST = process.env.BSH_HOST;
+// Validate configuration early
+let config;
+try {
+  config = validateRegistryConfig();
+} catch (err) {
+  if (err instanceof ValidationError) {
+    log.fatal(err.message);
+    process.exit(1);
+  }
+  throw err;
+}
+
+const CONTROLLER_HOST = config.bshHost;
 const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
 
 interface BshRoom {
@@ -39,11 +52,6 @@ async function main(): Promise<void> {
   log.info(
     "Fetching device and room registry from Bosch Smart Home Controller",
   );
-
-  if (!CONTROLLER_HOST) {
-    log.fatal("BSH_HOST is required. Set it in ~/.shc2es/.env");
-    process.exit(1);
-  }
 
   const { cert, key } = loadCertificate();
 

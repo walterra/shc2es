@@ -8,8 +8,21 @@ import { Tail } from "tail";
 import * as path from "path";
 import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
+import { validateIngestConfig, ValidationError } from "./validation";
 
 const log = createLogger("ingest");
+
+// Validate configuration early (will check KIBANA_NODE later if --setup flag is used)
+let config: ReturnType<typeof validateIngestConfig>;
+try {
+  config = validateIngestConfig({ requireKibana: false });
+} catch (err) {
+  if (err instanceof ValidationError) {
+    log.fatal(err.message);
+    process.exit(1);
+  }
+  throw err;
+}
 
 // TLS configuration for ES client and fetch requests
 interface TlsConfig {
@@ -17,25 +30,16 @@ interface TlsConfig {
   ca?: Buffer;
 }
 
-// Build TLS config based on environment variables
-// ES_TLS_VERIFY=false disables verification (for self-signed certs in development)
-// ES_CA_CERT=/path/to/ca.pem provides custom CA certificate
+// Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
-  if (process.env.ES_TLS_VERIFY === "false") {
+  if (!config.esTlsVerify) {
     log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
     return { rejectUnauthorized: false };
   }
 
-  if (process.env.ES_CA_CERT) {
-    if (!existsSync(process.env.ES_CA_CERT)) {
-      log.warn(
-        { path: process.env.ES_CA_CERT },
-        "ES_CA_CERT file not found, using default CA",
-      );
-      return {};
-    }
-    log.debug({ path: process.env.ES_CA_CERT }, "Using custom CA certificate");
-    return { ca: readFileSync(process.env.ES_CA_CERT) };
+  if (config.esCaCert) {
+    log.debug({ path: config.esCaCert }, "Using custom CA certificate");
+    return { ca: readFileSync(config.esCaCert) };
   }
 
   return {};
@@ -66,29 +70,23 @@ function createTlsFetch(): typeof globalThis.fetch {
 
 const tlsFetch = createTlsFetch();
 
-// Environment validation
-if (!process.env.ES_NODE || !process.env.ES_PASSWORD) {
-  log.fatal("ES_NODE and ES_PASSWORD must be set in ~/.shc2es/.env");
-  process.exit(1);
-}
-
 const client = new Client({
-  node: process.env.ES_NODE,
+  node: config.esNode,
   auth: {
-    username: process.env.ES_USER ?? "elastic",
-    password: process.env.ES_PASSWORD,
+    username: config.esUser,
+    password: config.esPassword,
   },
   tls: buildTlsConfig(),
 });
 
-const INDEX_PREFIX = process.env.ES_INDEX_PREFIX ?? "smart-home-events";
+const INDEX_PREFIX = config.esIndexPrefix;
 const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
 const PIPELINE_NAME = `${INDEX_PREFIX}-pipeline`;
 const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
 const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
 
 // Kibana dashboard import
-const KIBANA_NODE = process.env.KIBANA_NODE;
+const KIBANA_NODE = config.kibanaNode;
 const DASHBOARDS_DIR = path.join(__dirname, "..", "dashboards");
 const DASHBOARD_FILE = path.join(DASHBOARDS_DIR, "smart-home.ndjson");
 
@@ -369,7 +367,7 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 
 async function importDashboard(): Promise<void> {
   if (!KIBANA_NODE) {
-    log.info("KIBANA_NODE not set, skipping dashboard import");
+    log.info("KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.");
     return;
   }
 
@@ -398,7 +396,7 @@ async function importDashboard(): Promise<void> {
   formData.append("file", new Blob([prefixedContent]), "dashboard.ndjson");
 
   const auth = Buffer.from(
-    `${process.env.ES_USER ?? "elastic"}:${process.env.ES_PASSWORD ?? ""}`,
+    `${config.esUser}:${config.esPassword}`,
   ).toString("base64");
 
   const response = await tlsFetch(
@@ -687,7 +685,7 @@ async function main(): Promise<void> {
   try {
     // Test connection
     await client.ping();
-    log.info({ esNode: process.env.ES_NODE }, "Connected to Elasticsearch");
+    log.info({ esNode: config.esNode }, "Connected to Elasticsearch");
   } catch (err) {
     log.fatal({ err }, "Failed to connect to Elasticsearch");
     process.exit(1);
