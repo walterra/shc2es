@@ -5,6 +5,7 @@ import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 import { validateRegistryConfig } from "./validation";
+import { withSpan, SpanAttributes } from "./instrumentation";
 
 const log = createLogger("registry");
 
@@ -60,60 +61,83 @@ async function main(): Promise<void> {
   const client = bshb.getBshcClient();
 
   // Fetch devices
-  log.info("Fetching devices...");
-  const devicesResponse = await firstValueFrom(client.getDevices());
-  const devices = devicesResponse.parsedResponse as BshDevice[];
-  log.info({ count: devices.length }, "Devices fetched");
+  const devices = await withSpan(
+    "fetch_devices",
+    {},
+    async () => {
+      log.info("Fetching devices...");
+      const devicesResponse = await firstValueFrom(client.getDevices());
+      const devices = devicesResponse.parsedResponse as BshDevice[];
+      log.info({ count: devices.length }, "Devices fetched");
+      return devices;
+    },
+  );
 
   // Fetch rooms
-  log.info("Fetching rooms...");
-  const roomsResponse = await firstValueFrom(client.getRooms());
-  const rooms = roomsResponse.parsedResponse as BshRoom[];
-  log.info({ count: rooms.length }, "Rooms fetched");
+  const rooms = await withSpan(
+    "fetch_rooms",
+    {},
+    async () => {
+      log.info("Fetching rooms...");
+      const roomsResponse = await firstValueFrom(client.getRooms());
+      const rooms = roomsResponse.parsedResponse as BshRoom[];
+      log.info({ count: rooms.length }, "Rooms fetched");
+      return rooms;
+    },
+  );
 
   // Build registry
-  const registry = {
-    fetchedAt: new Date().toISOString(),
-    devices: {} as Record<
-      string,
-      { name: string; roomId?: string; type?: string }
-    >,
-    rooms: {} as Record<string, { name: string; iconId?: string }>,
-  };
+  await withSpan(
+    "build_registry",
+    {
+      "devices.count": devices.length,
+      "rooms.count": rooms.length,
+    },
+    () => {
+      const registry = {
+        fetchedAt: new Date().toISOString(),
+        devices: {} as Record<
+          string,
+          { name: string; roomId?: string; type?: string }
+        >,
+        rooms: {} as Record<string, { name: string; iconId?: string }>,
+      };
 
-  // Map rooms
-  for (const room of rooms) {
-    registry.rooms[room.id] = {
-      name: room.name,
-      iconId: room.iconId,
-    };
-    log.debug({ roomId: room.id, roomName: room.name }, "Room mapped");
-  }
+      // Map rooms
+      for (const room of rooms) {
+        registry.rooms[room.id] = {
+          name: room.name,
+          iconId: room.iconId,
+        };
+        log.debug({ roomId: room.id, roomName: room.name }, "Room mapped");
+      }
 
-  // Map devices
-  for (const device of devices) {
-    registry.devices[device.id] = {
-      name: device.name,
-      roomId: device.roomId,
-      type: device.deviceModel,
-    };
-    const roomName = device.roomId
-      ? registry.rooms[device.roomId].name
-      : "no room";
-    log.debug(
-      {
-        deviceId: device.id,
-        deviceName: device.name,
-        roomName,
-        deviceType: device.deviceModel,
-      },
-      "Device mapped",
-    );
-  }
+      // Map devices
+      for (const device of devices) {
+        registry.devices[device.id] = {
+          name: device.name,
+          roomId: device.roomId,
+          type: device.deviceModel,
+        };
+        const roomName = device.roomId
+          ? registry.rooms[device.roomId].name
+          : "no room";
+        log.debug(
+          {
+            deviceId: device.id,
+            deviceName: device.name,
+            roomName,
+            deviceType: device.deviceModel,
+          },
+          "Device mapped",
+        );
+      }
 
-  // Save registry
-  fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-  log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
+      // Save registry
+      fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
+      log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
+    },
+  );
 }
 
 main().catch((err: unknown) => {

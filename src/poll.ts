@@ -7,6 +7,7 @@ import {
 import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
 import { appLogger, dataLogger, BshbLogger } from "./logger";
 import { validatePollConfig } from "./validation";
+import { withSpan, SpanAttributes } from "./instrumentation";
 
 // Validate configuration early
 const validatedConfig = validatePollConfig();
@@ -47,11 +48,12 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
 
   const client = bshb.getBshcClient();
 
-  client.subscribe().subscribe({
-    next: (response) => {
-      const subscriptionId = response.parsedResponse.result;
-      appLogger.info({ subscriptionId }, "Subscribed successfully");
-      appLogger.info("Starting long polling (Ctrl+C to stop)");
+  withSpan("subscribe", {}, () => {
+    client.subscribe().subscribe({
+      next: (response) => {
+        const subscriptionId = response.parsedResponse.result;
+        appLogger.info({ subscriptionId }, "Subscribed successfully");
+        appLogger.info("Starting long polling (Ctrl+C to stop)");
 
       const poll = (): void => {
         client.longPolling(subscriptionId).subscribe({
@@ -59,17 +61,34 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
             const events = pollResponse.parsedResponse.result as unknown[];
 
             if (events.length > 0) {
-              for (const event of events) {
-                // Log to data file (NDJSON)
-                dataLogger.info(event);
-                // Also log summary to app logger
-                const eventObj = event as Record<string, unknown>;
-                appLogger.debug(
-                  { eventType: eventObj["@type"], deviceId: eventObj.deviceId },
-                  "Event received",
-                );
-              }
-              appLogger.info({ count: events.length }, "Events processed");
+              withSpan(
+                "process_events",
+                { [SpanAttributes.EVENT_COUNT]: events.length },
+                () => {
+                  for (const event of events) {
+                    const eventObj = event as Record<string, unknown>;
+                    
+                    // Process individual event in its own span
+                    withSpan(
+                      "process_event",
+                      {
+                        [SpanAttributes.EVENT_TYPE]: String(eventObj["@type"] ?? "unknown"),
+                        [SpanAttributes.DEVICE_ID]: String(eventObj.deviceId ?? ""),
+                      },
+                      () => {
+                        // Log to data file (NDJSON)
+                        dataLogger.info(event);
+                        // Also log summary to app logger
+                        appLogger.debug(
+                          { eventType: eventObj["@type"], deviceId: eventObj.deviceId },
+                          "Event received",
+                        );
+                      },
+                    );
+                  }
+                  appLogger.info({ count: events.length }, "Events processed");
+                },
+              );
             }
 
             // Continue polling
@@ -87,12 +106,13 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
       };
 
       poll();
-    },
-    error: (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      appLogger.fatal({ err: message }, "Subscription error");
-      process.exit(1);
-    },
+      },
+      error: (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        appLogger.fatal({ err: message }, "Subscription error");
+        process.exit(1);
+      },
+    });
   });
 }
 
