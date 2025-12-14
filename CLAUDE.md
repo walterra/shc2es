@@ -244,16 +244,22 @@ Concise single-line description for CHANGELOG.md (not implementation details)
 
 ## Testing
 
-The project has comprehensive test coverage using Jest. See `spec/TESTING-INFRASTRUCTURE.md` for details.
+The project has test coverage using Jest for core modules.
 
 ### Test Guidelines
 
 1. **Run tests before committing**: `yarn test`
-2. **Maintain coverage thresholds**: 70% minimum for all metrics
+2. **Maintain coverage thresholds**: 
+   - 70% minimum for statements, functions, and lines
+   - 60% minimum for branches
 3. **Write tests for new features**: Add to `tests/unit/` or `tests/integration/`
 4. **Use test utilities**: Import from `tests/utils/test-helpers.ts`
 5. **Mock external services**: Use mocks from `tests/mocks/`
 6. **Isolate tests**: Use `createTempDir()` for file operations
+
+### Coverage Scope
+
+Currently testing core modules (`config.ts`, `logger.ts`). CLI scripts (`poll.ts`, `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`) are excluded from coverage as they are primarily orchestration code best tested via integration/E2E tests.
 
 ## Documentation Maintenance
 
