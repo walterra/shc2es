@@ -1,31 +1,4 @@
-# OpenTelemetry Implementation Status
-
-This document tracks what's left to implement for complete OpenTelemetry observability.
-
-## ✅ Completed
-
-- EDOT Node.js SDK installed and configured (`@elastic/opentelemetry-node`)
-- Pino logger with OpenTelemetry transport (`pino-opentelemetry-transport`)
-- EDOT Collector Docker setup with elasticapm processor and spanmetrics connector
-- Yarn scripts for collector management (`otel:collector:start`, `otel:collector:stop`, `otel:collector:logs`)
-- Environment variable configuration (`.env` with `OTEL_*` vars)
-- Service name per-command (e.g., `shc2es-poll`, `shc2es-ingest`)
-- Zero-code auto-instrumentation via CLI entry point
-- Basic documentation in README
-
-## ⏳ Optional Enhancements (Tracked in TODO.md)
-
-The following items are tracked in `spec/TODO.md` as optional enhancements:
-
-1. **Manual Instrumentation Examples** - Custom spans for business logic
-2. **Testing Infrastructure** - MockOTLPServer integration tests
-3. **Kibana Integration Guide** - Detailed setup steps for APM UI
-4. **Performance Tuning** - Production batch/sampling configuration
-5. **Docker Healthchecks** - Collector readiness checks
-
-See `spec/TODO.md` for full descriptions.
-
-## 📚 Reference Documentation
+# OpenTelemetry Reference Documentation
 
 For implementation details and best practices, see the comprehensive [OpenTelemetry Best Practices Guide](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup) maintained by Elastic.
 
