@@ -6,19 +6,15 @@ import {
 } from "bosch-smart-home-bridge";
 import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
 import { appLogger, dataLogger, BshbLogger } from "./logger";
-import { validatePollConfig, ValidationError } from "./validation";
+import { validatePollConfig } from "./validation";
 
 // Validate configuration early
-let config;
-try {
-  config = validatePollConfig();
-} catch (err) {
-  if (err instanceof ValidationError) {
-    appLogger.fatal(err.message);
-    process.exit(1);
-  }
-  throw err;
+const validatedConfig = validatePollConfig();
+if (!validatedConfig) {
+  process.exit(1);
 }
+// TypeScript now knows config is defined
+const config = validatedConfig;
 
 // Configuration from validated config
 const CONTROLLER_HOST = config.bshHost;

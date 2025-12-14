@@ -35,10 +35,7 @@ export function validateRequired(
   value: string | undefined,
 ): string {
   if (!value || value.trim() === "") {
-    throw new ValidationError(
-      `${name} is required. ${getEnvFileHint()}`,
-      name,
-    );
+    throw new ValidationError(`${name} is required. ${getEnvFileHint()}`, name);
   }
   return value;
 }
@@ -65,7 +62,8 @@ export function validateUrl(
   const trimmed = value.trim();
 
   // Check for protocol
-  if (!trimmed.match(/^https?:\/\//)) {
+  const protocolRegex = /^https?:\/\//;
+  if (!protocolRegex.exec(trimmed)) {
     throw new ValidationError(
       `${name} must start with http:// or https:// (got: ${trimmed}). ${getEnvFileHint()}`,
       name,
@@ -79,7 +77,8 @@ export function validateUrl(
     // Warn about trailing slashes (common mistake)
     // Note: We check the original trimmed string, not url.pathname
     // because URL parsing changes the path
-    if (trimmed.endsWith("/") && !trimmed.match(/^https?:\/\/[^/]+\/$/)) {
+    const trailingSlashRegex = /^https?:\/\/[^/]+\/$/;
+    if (trimmed.endsWith("/") && !trailingSlashRegex.exec(trimmed)) {
       throw new ValidationError(
         `${name} should not have a trailing slash (got: ${trimmed}). ${getEnvFileHint()}`,
         name,
@@ -219,81 +218,139 @@ export interface DashboardConfig {
 
 /**
  * Validate configuration for poll command
+ * Returns undefined if validation fails (error message logged to console.error)
  */
-export function validatePollConfig(): PollConfig {
-  return {
-    bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
-    bshPassword: validateRequired("BSH_PASSWORD", process.env.BSH_PASSWORD),
-    bshClientName:
-      process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll",
-    bshClientId:
-      process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client",
-    logLevel: validateLogLevel("LOG_LEVEL", process.env.LOG_LEVEL, "info"),
-  };
+export function validatePollConfig(): PollConfig | undefined {
+  try {
+    return {
+      bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
+      bshPassword: validateRequired("BSH_PASSWORD", process.env.BSH_PASSWORD),
+      bshClientName: process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll",
+      bshClientId:
+        process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client",
+      logLevel: validateLogLevel("LOG_LEVEL", process.env.LOG_LEVEL, "info"),
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      console.error(err.message);
+      return undefined;
+    }
+    throw err;
+  }
 }
 
 /**
  * Validate configuration for ingest command
+ * Returns undefined if validation fails (error message logged to console.error)
  */
-export function validateIngestConfig(options: {
-  requireKibana?: boolean;
-} = {}): IngestConfig {
-  const esNode = validateUrl("ES_NODE", process.env.ES_NODE, {
-    required: true,
-  })!;
-  const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
-  const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
-    required: false,
-  });
-  const kibanaNode = options.requireKibana
-    ? validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, { required: true })!
-    : validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, { required: false });
+export function validateIngestConfig(
+  options: {
+    requireKibana?: boolean;
+  } = {},
+): IngestConfig | undefined {
+  try {
+    const esNode = validateUrl("ES_NODE", process.env.ES_NODE, {
+      required: true,
+    });
+    if (!esNode) {
+      // Should never happen as validateUrl throws, but makes TypeScript happy
+      return undefined;
+    }
 
-  return {
-    esNode,
-    esPassword,
-    esUser: process.env.ES_USER ?? "elastic",
-    esCaCert,
-    esTlsVerify: validateBoolean(
-      "ES_TLS_VERIFY",
-      process.env.ES_TLS_VERIFY,
-      true,
-    ),
-    esIndexPrefix: process.env.ES_INDEX_PREFIX ?? "smart-home-events",
-    kibanaNode,
-  };
+    const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
+    const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
+      required: false,
+    });
+
+    let kibanaNode: string | undefined;
+    if (options.requireKibana) {
+      kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+        required: true,
+      });
+      if (!kibanaNode) {
+        return undefined;
+      }
+    } else {
+      kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+        required: false,
+      });
+    }
+
+    return {
+      esNode,
+      esPassword,
+      esUser: process.env.ES_USER ?? "elastic",
+      esCaCert,
+      esTlsVerify: validateBoolean(
+        "ES_TLS_VERIFY",
+        process.env.ES_TLS_VERIFY,
+        true,
+      ),
+      esIndexPrefix: process.env.ES_INDEX_PREFIX ?? "smart-home-events",
+      kibanaNode,
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      console.error(err.message);
+      return undefined;
+    }
+    throw err;
+  }
 }
 
 /**
  * Validate configuration for fetch-registry command
+ * Returns undefined if validation fails (error message logged to console.error)
  */
-export function validateRegistryConfig(): RegistryConfig {
-  return {
-    bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
-  };
+export function validateRegistryConfig(): RegistryConfig | undefined {
+  try {
+    return {
+      bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      console.error(err.message);
+      return undefined;
+    }
+    throw err;
+  }
 }
 
 /**
  * Validate configuration for export-dashboard command
+ * Returns undefined if validation fails (error message logged to console.error)
  */
-export function validateDashboardConfig(): DashboardConfig {
-  const kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
-    required: true,
-  })!;
-  const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
-  const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
-    required: false,
-  });
+export function validateDashboardConfig(): DashboardConfig | undefined {
+  try {
+    const kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+      required: true,
+    });
+    if (!kibanaNode) {
+      // Should never happen as validateUrl throws, but makes TypeScript happy
+      return undefined;
+    }
 
-  return {
-    kibanaNode,
-    esPassword,
-    esUser: process.env.ES_USER ?? "elastic",
-    esCaCert,
-    esTlsVerify: validateBoolean(
-      "ES_TLS_VERIFY",
-      process.env.ES_TLS_VERIFY,
-      true,
-    ),
-  };
+    const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
+    const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
+      required: false,
+    });
+
+    return {
+      kibanaNode,
+      esPassword,
+      esUser: process.env.ES_USER ?? "elastic",
+      esCaCert,
+      esTlsVerify: validateBoolean(
+        "ES_TLS_VERIFY",
+        process.env.ES_TLS_VERIFY,
+        true,
+      ),
+    };
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      console.error(err.message);
+      return undefined;
+    }
+    throw err;
+  }
 }

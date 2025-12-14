@@ -241,14 +241,17 @@ describe("validation module", () => {
 
   describe("validatePollConfig", () => {
     const originalEnv = process.env;
+    const originalConsoleError = console.error;
 
     beforeEach(() => {
       jest.resetModules();
       process.env = {};
+      console.error = jest.fn();
     });
 
     afterEach(() => {
       process.env = originalEnv;
+      console.error = originalConsoleError;
     });
 
     it("should validate complete poll config", () => {
@@ -260,11 +263,12 @@ describe("validation module", () => {
 
       const config = validatePollConfig();
 
-      expect(config.bshHost).toBe("192.168.1.100");
-      expect(config.bshPassword).toBe("password123");
-      expect(config.bshClientName).toBe("custom-client");
-      expect(config.bshClientId).toBe("custom-id");
-      expect(config.logLevel).toBe("debug");
+      expect(config).toBeDefined();
+      expect(config!.bshHost).toBe("192.168.1.100");
+      expect(config!.bshPassword).toBe("password123");
+      expect(config!.bshClientName).toBe("custom-client");
+      expect(config!.bshClientId).toBe("custom-id");
+      expect(config!.logLevel).toBe("debug");
     });
 
     it("should use defaults for optional values", () => {
@@ -273,36 +277,44 @@ describe("validation module", () => {
 
       const config = validatePollConfig();
 
-      expect(config.bshClientName).toBe("oss_bosch_smart_home_poll");
-      expect(config.bshClientId).toBe("oss_bosch_smart_home_poll_client");
-      expect(config.logLevel).toBe("info");
+      expect(config).toBeDefined();
+      expect(config!.bshClientName).toBe("oss_bosch_smart_home_poll");
+      expect(config!.bshClientId).toBe("oss_bosch_smart_home_poll_client");
+      expect(config!.logLevel).toBe("info");
     });
 
-    it("should throw when BSH_HOST is missing", () => {
+    it("should return undefined when BSH_HOST is missing", () => {
       process.env.BSH_PASSWORD = "password123";
 
-      expect(() => validatePollConfig()).toThrow(ValidationError);
-      expect(() => validatePollConfig()).toThrow(/BSH_HOST is required/);
+      const config = validatePollConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/BSH_HOST is required/));
     });
 
-    it("should throw when BSH_PASSWORD is missing", () => {
+    it("should return undefined when BSH_PASSWORD is missing", () => {
       process.env.BSH_HOST = "192.168.1.100";
 
-      expect(() => validatePollConfig()).toThrow(ValidationError);
-      expect(() => validatePollConfig()).toThrow(/BSH_PASSWORD is required/);
+      const config = validatePollConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/BSH_PASSWORD is required/));
     });
   });
 
   describe("validateIngestConfig", () => {
     const originalEnv = process.env;
+    const originalConsoleError = console.error;
 
     beforeEach(() => {
       jest.resetModules();
       process.env = {};
+      console.error = jest.fn();
     });
 
     afterEach(() => {
       process.env = originalEnv;
+      console.error = originalConsoleError;
     });
 
     it("should validate complete ingest config", () => {
@@ -316,13 +328,14 @@ describe("validation module", () => {
 
       const config = validateIngestConfig();
 
-      expect(config.esNode).toBe("https://localhost:9200");
-      expect(config.esPassword).toBe("elastic123");
-      expect(config.esUser).toBe("admin");
-      expect(config.esCaCert).toBe(testFilePath);
-      expect(config.esTlsVerify).toBe(false);
-      expect(config.esIndexPrefix).toBe("custom-events");
-      expect(config.kibanaNode).toBe("https://localhost:5601");
+      expect(config).toBeDefined();
+      expect(config!.esNode).toBe("https://localhost:9200");
+      expect(config!.esPassword).toBe("elastic123");
+      expect(config!.esUser).toBe("admin");
+      expect(config!.esCaCert).toBe(testFilePath);
+      expect(config!.esTlsVerify).toBe(false);
+      expect(config!.esIndexPrefix).toBe("custom-events");
+      expect(config!.kibanaNode).toBe("https://localhost:5601");
     });
 
     it("should use defaults for optional values", () => {
@@ -337,60 +350,68 @@ describe("validation module", () => {
 
       const config = validateIngestConfig();
 
-      expect(config.esUser).toBe("elastic");
-      expect(config.esCaCert).toBeUndefined();
-      expect(config.esTlsVerify).toBe(true);
-      expect(config.esIndexPrefix).toBe("smart-home-events");
-      expect(config.kibanaNode).toBeUndefined();
+      expect(config).toBeDefined();
+      expect(config!.esUser).toBe("elastic");
+      expect(config!.esCaCert).toBeUndefined();
+      expect(config!.esTlsVerify).toBe(true);
+      expect(config!.esIndexPrefix).toBe("smart-home-events");
+      expect(config!.kibanaNode).toBeUndefined();
     });
 
-    it("should throw when ES_NODE is missing", () => {
+    it("should return undefined when ES_NODE is missing", () => {
       process.env.ES_PASSWORD = "elastic123";
 
-      expect(() => validateIngestConfig()).toThrow(ValidationError);
-      expect(() => validateIngestConfig()).toThrow(/ES_NODE is required/);
+      const config = validateIngestConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/ES_NODE is required/));
     });
 
-    it("should throw when ES_NODE is invalid URL", () => {
+    it("should return undefined when ES_NODE is invalid URL", () => {
       process.env.ES_NODE = "not-a-url";
       process.env.ES_PASSWORD = "elastic123";
 
-      expect(() => validateIngestConfig()).toThrow(ValidationError);
-      expect(() => validateIngestConfig()).toThrow(/ES_NODE/);
+      const config = validateIngestConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/ES_NODE/));
     });
 
-    it("should throw when ES_CA_CERT file does not exist", () => {
+    it("should return undefined when ES_CA_CERT file does not exist", () => {
       process.env.ES_NODE = "https://localhost:9200";
       process.env.ES_PASSWORD = "elastic123";
       process.env.ES_CA_CERT = "/nonexistent/file.pem";
 
-      expect(() => validateIngestConfig()).toThrow(ValidationError);
-      expect(() => validateIngestConfig()).toThrow(/ES_CA_CERT/);
+      const config = validateIngestConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/ES_CA_CERT/));
     });
 
-    it("should require KIBANA_NODE when requireKibana is true", () => {
+    it("should return undefined when KIBANA_NODE is required but missing", () => {
       process.env.ES_NODE = "https://localhost:9200";
       process.env.ES_PASSWORD = "elastic123";
 
-      expect(() => validateIngestConfig({ requireKibana: true })).toThrow(
-        ValidationError,
-      );
-      expect(() => validateIngestConfig({ requireKibana: true })).toThrow(
-        /KIBANA_NODE is required/,
-      );
+      const config = validateIngestConfig({ requireKibana: true });
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/KIBANA_NODE is required/));
     });
   });
 
   describe("validateRegistryConfig", () => {
     const originalEnv = process.env;
+    const originalConsoleError = console.error;
 
     beforeEach(() => {
       jest.resetModules();
       process.env = {};
+      console.error = jest.fn();
     });
 
     afterEach(() => {
       process.env = originalEnv;
+      console.error = originalConsoleError;
     });
 
     it("should validate registry config", () => {
@@ -398,25 +419,31 @@ describe("validation module", () => {
 
       const config = validateRegistryConfig();
 
-      expect(config.bshHost).toBe("192.168.1.100");
+      expect(config).toBeDefined();
+      expect(config!.bshHost).toBe("192.168.1.100");
     });
 
-    it("should throw when BSH_HOST is missing", () => {
-      expect(() => validateRegistryConfig()).toThrow(ValidationError);
-      expect(() => validateRegistryConfig()).toThrow(/BSH_HOST is required/);
+    it("should return undefined when BSH_HOST is missing", () => {
+      const config = validateRegistryConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/BSH_HOST is required/));
     });
   });
 
   describe("validateDashboardConfig", () => {
     const originalEnv = process.env;
+    const originalConsoleError = console.error;
 
     beforeEach(() => {
       jest.resetModules();
       process.env = {};
+      console.error = jest.fn();
     });
 
     afterEach(() => {
       process.env = originalEnv;
+      console.error = originalConsoleError;
     });
 
     it("should validate complete dashboard config", () => {
@@ -428,33 +455,40 @@ describe("validation module", () => {
 
       const config = validateDashboardConfig();
 
-      expect(config.kibanaNode).toBe("https://localhost:5601");
-      expect(config.esPassword).toBe("elastic123");
-      expect(config.esUser).toBe("admin");
-      expect(config.esCaCert).toBe(testFilePath);
-      expect(config.esTlsVerify).toBe(false);
+      expect(config).toBeDefined();
+      expect(config!.kibanaNode).toBe("https://localhost:5601");
+      expect(config!.esPassword).toBe("elastic123");
+      expect(config!.esUser).toBe("admin");
+      expect(config!.esCaCert).toBe(testFilePath);
+      expect(config!.esTlsVerify).toBe(false);
     });
 
-    it("should throw when KIBANA_NODE is missing", () => {
+    it("should return undefined when KIBANA_NODE is missing", () => {
       process.env.ES_PASSWORD = "elastic123";
 
-      expect(() => validateDashboardConfig()).toThrow(ValidationError);
-      expect(() => validateDashboardConfig()).toThrow(/KIBANA_NODE is required/);
+      const config = validateDashboardConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/KIBANA_NODE is required/));
     });
 
-    it("should throw when KIBANA_NODE is invalid URL", () => {
+    it("should return undefined when KIBANA_NODE is invalid URL", () => {
       process.env.KIBANA_NODE = "not-a-url";
       process.env.ES_PASSWORD = "elastic123";
 
-      expect(() => validateDashboardConfig()).toThrow(ValidationError);
-      expect(() => validateDashboardConfig()).toThrow(/KIBANA_NODE/);
+      const config = validateDashboardConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/KIBANA_NODE/));
     });
 
-    it("should throw when ES_PASSWORD is missing", () => {
+    it("should return undefined when ES_PASSWORD is missing", () => {
       process.env.KIBANA_NODE = "https://localhost:5601";
 
-      expect(() => validateDashboardConfig()).toThrow(ValidationError);
-      expect(() => validateDashboardConfig()).toThrow(/ES_PASSWORD is required/);
+      const config = validateDashboardConfig();
+
+      expect(config).toBeUndefined();
+      expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/ES_PASSWORD is required/));
     });
   });
 });

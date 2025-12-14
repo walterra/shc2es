@@ -4,21 +4,17 @@ import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
 import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger } from "./logger";
-import { validateRegistryConfig, ValidationError } from "./validation";
+import { validateRegistryConfig } from "./validation";
 
 const log = createLogger("registry");
 
 // Validate configuration early
-let config;
-try {
-  config = validateRegistryConfig();
-} catch (err) {
-  if (err instanceof ValidationError) {
-    log.fatal(err.message);
-    process.exit(1);
-  }
-  throw err;
+const validatedConfig = validateRegistryConfig();
+if (!validatedConfig) {
+  process.exit(1);
 }
+// TypeScript now knows config is defined
+const config = validatedConfig;
 
 const CONTROLLER_HOST = config.bshHost;
 const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");

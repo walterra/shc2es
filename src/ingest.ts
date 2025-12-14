@@ -8,21 +8,17 @@ import { Tail } from "tail";
 import * as path from "path";
 import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
-import { validateIngestConfig, ValidationError } from "./validation";
+import { validateIngestConfig } from "./validation";
 
 const log = createLogger("ingest");
 
-// Validate configuration early (will check KIBANA_NODE later if --setup flag is used)
-let config: ReturnType<typeof validateIngestConfig>;
-try {
-  config = validateIngestConfig({ requireKibana: false });
-} catch (err) {
-  if (err instanceof ValidationError) {
-    log.fatal(err.message);
-    process.exit(1);
-  }
-  throw err;
+// Validate configuration early
+const validatedConfig = validateIngestConfig({ requireKibana: false });
+if (!validatedConfig) {
+  process.exit(1);
 }
+// TypeScript now knows config is defined
+const config = validatedConfig;
 
 // TLS configuration for ES client and fetch requests
 interface TlsConfig {
@@ -367,7 +363,9 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 
 async function importDashboard(): Promise<void> {
   if (!KIBANA_NODE) {
-    log.info("KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.");
+    log.info(
+      "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
+    );
     return;
   }
 
@@ -395,9 +393,9 @@ async function importDashboard(): Promise<void> {
   const formData = new FormData();
   formData.append("file", new Blob([prefixedContent]), "dashboard.ndjson");
 
-  const auth = Buffer.from(
-    `${config.esUser}:${config.esPassword}`,
-  ).toString("base64");
+  const auth = Buffer.from(`${config.esUser}:${config.esPassword}`).toString(
+    "base64",
+  );
 
   const response = await tlsFetch(
     `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,

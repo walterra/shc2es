@@ -3,21 +3,17 @@ import * as path from "path";
 import { Agent, fetch as undiciFetch } from "undici";
 import "./config"; // Load env vars from ~/.shc2es/.env
 import { createLogger } from "./logger";
-import { validateDashboardConfig, ValidationError } from "./validation";
+import { validateDashboardConfig } from "./validation";
 
 const log = createLogger("export-dashboard");
 
 // Validate configuration early
-let config: ReturnType<typeof validateDashboardConfig>;
-try {
-  config = validateDashboardConfig();
-} catch (err) {
-  if (err instanceof ValidationError) {
-    log.fatal(err.message);
-    process.exit(1);
-  }
-  throw err;
+const validatedConfig = validateDashboardConfig();
+if (!validatedConfig) {
+  process.exit(1);
 }
+// TypeScript now knows config is defined
+const config = validatedConfig;
 
 // TLS configuration for fetch requests
 interface TlsConfig {
