@@ -228,10 +228,19 @@ Two separate log streams:
 
 ---
 
-## "shc2es": patch|minor|major
+"shc2es": patch|minor|major
 
-Description for CHANGELOG.md
+---
+
+Concise single-line description for CHANGELOG.md (not implementation details)
 ```
+
+**Guidelines for changeset messages:**
+- ✅ **Good**: "Add Jest testing infrastructure with 70% coverage thresholds and automated CI testing"
+- ❌ **Bad**: Listing every file changed, configuration option, or implementation detail
+- Focus on **user-facing value** or **high-level feature addition**
+- Keep it **one line** when possible (two max)
+- Think: "What would a user want to see in release notes?"
 
 ## Testing
 
