@@ -1,44 +1,4 @@
-# Kibana Dashboard Integration Status
-
-This document tracks what's implemented for Kibana dashboard management and what remains to be done.
-
-## ✅ Completed
-
-- **Dashboard Export Script** (`src/export-dashboard.ts`) - Full implementation with:
-  - Search dashboards by name with fuzzy matching
-  - List all available dashboards (`--list` flag)
-  - Export with deep reference inclusion (visualizations, data views, etc.)
-  - Sensitive metadata stripping (created_by, updated_by, version, etc.)
-  - TLS configuration support (custom CA cert, skip verification)
-  - TypeScript validation for config
-  
-- **Dashboard Import** (`src/ingest.ts`) - Automatic import during setup with:
-  - Index prefix support (prefixes all saved object IDs for multi-environment support)
-  - Automatic import during `yarn ingest:setup`
-  - Graceful fallback if KIBANA_NODE not configured
-  - Error handling and logging
-  
-- **Yarn Commands** - User-friendly CLI:
-  - `yarn dashboard:export --list` - List available dashboards
-  - `yarn dashboard:export "<name>"` - Export by name
-  - `yarn ingest:setup` - Auto-imports dashboard if present
-  
-- **Environment Configuration** - `.env` support:
-  - `KIBANA_NODE` - Kibana URL
-  - `ES_TLS_VERIFY` - TLS verification toggle
-  - `ES_CA_CERT` - Custom CA certificate path
-  
-- **Documentation** - README covers basic usage
-
-## ⏳ Optional Enhancements (Tracked in TODO.md)
-
-The following item is tracked in `spec/TODO.md` as an optional enhancement:
-
-1. **API Key Authentication** - Support for Elasticsearch API keys as an alternative to basic auth
-
-See `spec/TODO.md` for full description.
-
-## 📚 Reference Documentation
+# Kibana Dashboard Reference Documentation
 
 ### Architecture
 
@@ -98,14 +58,14 @@ The last line contains export metadata (counts, missing references).
 
 When exporting a dashboard with `includeReferencesDeep: true`, the export includes:
 
-| Type | Description |
-|------|-------------|
-| `dashboard` | The dashboard itself |
-| `visualization` | Charts, gauges, tables |
-| `lens` | Lens visualizations |
-| `search` | Saved searches |
-| `index-pattern` / `data-view` | Data view definitions |
-| `map` | Map visualizations |
+| Type                          | Description            |
+| ----------------------------- | ---------------------- |
+| `dashboard`                   | The dashboard itself   |
+| `visualization`               | Charts, gauges, tables |
+| `lens`                        | Lens visualizations    |
+| `search`                      | Saved searches         |
+| `index-pattern` / `data-view` | Data view definitions  |
+| `map`                         | Map visualizations     |
 
 ### Sensitive Metadata Stripping
 
@@ -151,10 +111,12 @@ kbn-xsrf: true
 ```
 
 **Required Headers:**
+
 - `kbn-xsrf: true` - CSRF protection
 - `Authorization: Basic <base64>` - Basic auth
 
 **Parameters:**
+
 - `includeReferencesDeep: true` - Include all dependencies (always required)
 
 #### Import API
@@ -171,6 +133,7 @@ Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"
 ```
 
 **Query Parameters:**
+
 - `overwrite=true` - Replace existing objects with same IDs
 
 #### Find API
@@ -231,12 +194,12 @@ project/
 
 Kibana saved objects have strict version compatibility:
 
-| Import Into | Supported Export Versions |
-|-------------|--------------------------|
-| Same version | ✅ Yes |
-| Newer minor (same major) | ✅ Yes |
-| Next major version | ✅ Yes |
-| Older version | ❌ No |
+| Import Into              | Supported Export Versions |
+| ------------------------ | ------------------------- |
+| Same version             | ✅ Yes                    |
+| Newer minor (same major) | ✅ Yes                    |
+| Next major version       | ✅ Yes                    |
+| Older version            | ❌ No                     |
 
 **Example:** Dashboard exported from 8.10 can import into 8.10, 8.11, 8.12, or 9.0, but **not** into 8.9.
 
@@ -244,12 +207,12 @@ Kibana saved objects have strict version compatibility:
 
 Common import errors and solutions:
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `409 Conflict` | Object exists, `overwrite=false` | Automatically handled (we use `?overwrite=true`) |
-| `400 Bad Request` | Malformed NDJSON | Re-export dashboard |
-| `missing_references` | Data view doesn't exist | Import runs after index template creation |
-| `413 Payload Too Large` | File exceeds limit | Increase `savedObjects.maxImportPayloadBytes` in Kibana config |
+| Error                   | Cause                            | Solution                                                       |
+| ----------------------- | -------------------------------- | -------------------------------------------------------------- |
+| `409 Conflict`          | Object exists, `overwrite=false` | Automatically handled (we use `?overwrite=true`)               |
+| `400 Bad Request`       | Malformed NDJSON                 | Re-export dashboard                                            |
+| `missing_references`    | Data view doesn't exist          | Import runs after index template creation                      |
+| `413 Payload Too Large` | File exceeds limit               | Increase `savedObjects.maxImportPayloadBytes` in Kibana config |
 
 ### Setup Order
 
