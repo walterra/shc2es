@@ -7,6 +7,7 @@ import {
 import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
 import { appLogger, dataLogger, BshbLogger } from "./logger";
 import { validatePollConfig } from "./validation";
+import { withSpan, SpanAttributes } from "./instrumentation";
 
 // Validate configuration early
 const validatedConfig = validatePollConfig();
@@ -54,22 +55,51 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
       appLogger.info("Starting long polling (Ctrl+C to stop)");
 
       const poll = (): void => {
+        // Don't instrument the polling loop itself - it's recursive and would create nested spans
+        // Auto-instrumentation already traces the HTTP long-poll requests
         client.longPolling(subscriptionId).subscribe({
           next: (pollResponse) => {
             const events = pollResponse.parsedResponse.result as unknown[];
 
             if (events.length > 0) {
-              for (const event of events) {
-                // Log to data file (NDJSON)
-                dataLogger.info(event);
-                // Also log summary to app logger
-                const eventObj = event as Record<string, unknown>;
-                appLogger.debug(
-                  { eventType: eventObj["@type"], deviceId: eventObj.deviceId },
-                  "Event received",
-                );
-              }
-              appLogger.info({ count: events.length }, "Events processed");
+              // Only instrument the actual work: processing events
+              withSpan(
+                "process_events",
+                { [SpanAttributes.EVENT_COUNT]: events.length },
+                () => {
+                  for (const event of events) {
+                    const eventObj = event as Record<string, unknown>;
+
+                    // Process individual event in its own span
+                    withSpan(
+                      "process_event",
+                      {
+                        [SpanAttributes.EVENT_TYPE]:
+                          typeof eventObj["@type"] === "string"
+                            ? eventObj["@type"]
+                            : "unknown",
+                        [SpanAttributes.DEVICE_ID]:
+                          typeof eventObj.deviceId === "string"
+                            ? eventObj.deviceId
+                            : "",
+                      },
+                      () => {
+                        // Log to data file (NDJSON)
+                        dataLogger.info(event);
+                        // Also log summary to app logger
+                        appLogger.debug(
+                          {
+                            eventType: eventObj["@type"],
+                            deviceId: eventObj.deviceId,
+                          },
+                          "Event received",
+                        );
+                      },
+                    );
+                  }
+                  appLogger.info({ count: events.length }, "Events processed");
+                },
+              );
             }
 
             // Continue polling

@@ -12,8 +12,6 @@
 
 ## OpenTelemetry (Optional Enhancements)
 
-- Manual Instrumentation Examples - Add example of custom span creation for key business logic (e.g., wrapping smart home event processing with custom spans to track latency per device/event type). Would provide deeper observability beyond auto-instrumentation.
-
 - Testing Infrastructure - Add `@elastic/mockotlpserver` to dev dependencies and create integration test that verifies telemetry export. Helps validate instrumentation during development without full collector setup.
 
 - Kibana Integration Guide - Document detailed steps to install OTel integrations in Kibana (APM, System OpenTelemetry Assets) and create data views for `traces-*`, `metrics-*`, `logs-*` indices. Add verification steps (APM → Services UI, Dashboards). Could be added to README or separate KIBANA-SETUP.md.

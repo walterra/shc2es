@@ -9,6 +9,7 @@ import * as path from "path";
 import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 import { validateIngestConfig } from "./validation";
+import { withSpan, SpanAttributes } from "./instrumentation";
 
 const log = createLogger("ingest");
 
@@ -120,30 +121,32 @@ interface DeviceRegistry {
 let registry: DeviceRegistry | null = null;
 
 function loadRegistry(): void {
-  if (!existsSync(REGISTRY_FILE)) {
-    log.warn(
-      { registryFile: REGISTRY_FILE },
-      "Registry not found. Run 'yarn registry' to generate it. Events will be indexed without device/room names.",
-    );
-    return;
-  }
+  withSpan("load_registry", {}, () => {
+    if (!existsSync(REGISTRY_FILE)) {
+      log.warn(
+        { registryFile: REGISTRY_FILE },
+        "Registry not found. Run 'yarn registry' to generate it. Events will be indexed without device/room names.",
+      );
+      return;
+    }
 
-  try {
-    const content = readFileSync(REGISTRY_FILE, "utf-8");
-    const parsed = JSON.parse(content) as DeviceRegistry;
-    registry = parsed;
-    const deviceCount = Object.keys(parsed.devices).length;
-    const roomCount = Object.keys(parsed.rooms).length;
-    log.info(
-      { deviceCount, roomCount, fetchedAt: parsed.fetchedAt },
-      "Loaded device registry",
-    );
-  } catch (err) {
-    log.warn(
-      { err },
-      "Failed to load registry. Events will be indexed without device/room names.",
-    );
-  }
+    try {
+      const content = readFileSync(REGISTRY_FILE, "utf-8");
+      const parsed = JSON.parse(content) as DeviceRegistry;
+      registry = parsed;
+      const deviceCount = Object.keys(parsed.devices).length;
+      const roomCount = Object.keys(parsed.rooms).length;
+      log.info(
+        { deviceCount, roomCount, fetchedAt: parsed.fetchedAt },
+        "Loaded device registry",
+      );
+    } catch (err) {
+      log.warn(
+        { err },
+        "Failed to load registry. Events will be indexed without device/room names.",
+      );
+    }
+  });
 }
 
 // Event types from Bosch Smart Home API:
@@ -212,47 +215,56 @@ function extractMetric(doc: SmartHomeEvent): Metric | null {
 }
 
 function transformDoc(doc: SmartHomeEvent): TransformedEvent {
-  const result: TransformedEvent = {
-    "@timestamp": doc.time,
-    "@type": doc["@type"],
-    id: doc.id,
-  };
-
-  // Add type-specific fields
-  if (doc.deviceId) result.deviceId = doc.deviceId;
-  if (doc.path) result.path = doc.path;
-
-  // Enrich with device/room info from registry
-  if (registry) {
-    // For DeviceServiceData events - lookup by deviceId
-    if (doc.deviceId && doc.deviceId in registry.devices) {
-      const deviceInfo = registry.devices[doc.deviceId];
-      result.device = { name: deviceInfo.name };
-      if (deviceInfo.type) result.device.type = deviceInfo.type;
-
-      // Get room from device's roomId
-      if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
-        result.room = {
-          id: deviceInfo.roomId,
-          name: registry.rooms[deviceInfo.roomId].name,
-        };
-      }
-    }
-
-    // For room events - lookup by id
-    if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
-      result.room = {
+  return withSpan(
+    "transform_document",
+    {
+      [SpanAttributes.DOC_TYPE]: doc["@type"] ?? "unknown",
+      [SpanAttributes.DEVICE_ID]: doc.deviceId ?? "",
+    },
+    () => {
+      const result: TransformedEvent = {
+        "@timestamp": doc.time,
+        "@type": doc["@type"],
         id: doc.id,
-        name: registry.rooms[doc.id].name,
       };
-    }
-  }
 
-  // Extract and normalize metric
-  const metric = extractMetric(doc);
-  if (metric) result.metric = metric;
+      // Add type-specific fields
+      if (doc.deviceId) result.deviceId = doc.deviceId;
+      if (doc.path) result.path = doc.path;
 
-  return result;
+      // Enrich with device/room info from registry
+      if (registry) {
+        // For DeviceServiceData events - lookup by deviceId
+        if (doc.deviceId && doc.deviceId in registry.devices) {
+          const deviceInfo = registry.devices[doc.deviceId];
+          result.device = { name: deviceInfo.name };
+          if (deviceInfo.type) result.device.type = deviceInfo.type;
+
+          // Get room from device's roomId
+          if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
+            result.room = {
+              id: deviceInfo.roomId,
+              name: registry.rooms[deviceInfo.roomId].name,
+            };
+          }
+        }
+
+        // For room events - lookup by id
+        if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
+          result.room = {
+            id: doc.id,
+            name: registry.rooms[doc.id].name,
+          };
+        }
+      }
+
+      // Extract and normalize metric
+      const metric = extractMetric(doc);
+      if (metric) result.metric = metric;
+
+      return result;
+    },
+  );
 }
 
 function generateDocId(doc: SmartHomeEvent): string {
@@ -362,207 +374,248 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 }
 
 async function importDashboard(): Promise<void> {
-  if (!KIBANA_NODE) {
-    log.info(
-      "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
-    );
-    return;
-  }
+  return withSpan(
+    "import_dashboard",
+    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
+    async () => {
+      if (!KIBANA_NODE) {
+        log.info(
+          "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
+        );
+        return;
+      }
 
-  if (!existsSync(DASHBOARD_FILE)) {
-    log.info(
-      { dashboardFile: DASHBOARD_FILE },
-      "Dashboard file not found, skipping import",
-    );
-    return;
-  }
+      if (!existsSync(DASHBOARD_FILE)) {
+        log.info(
+          { dashboardFile: DASHBOARD_FILE },
+          "Dashboard file not found, skipping import",
+        );
+        return;
+      }
 
-  log.info(
-    {
-      dashboardFile: DASHBOARD_FILE,
-      kibanaNode: KIBANA_NODE,
-      prefix: INDEX_PREFIX,
+      log.info(
+        {
+          dashboardFile: DASHBOARD_FILE,
+          kibanaNode: KIBANA_NODE,
+          prefix: INDEX_PREFIX,
+        },
+        "Importing Kibana dashboard with prefixed IDs",
+      );
+
+      // Read and prefix all saved object IDs
+      const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
+      const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
+
+      // Create proper multipart/form-data with boundary
+      const boundary = `----FormBoundary${String(Date.now())}`;
+      const formDataBody = [
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
+        `Content-Type: application/ndjson`,
+        ``,
+        prefixedContent,
+        `--${boundary}--`,
+      ].join("\r\n");
+
+      const auth = Buffer.from(
+        `${config.esUser}:${config.esPassword}`,
+      ).toString("base64");
+
+      const response = await tlsFetch(
+        `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
+        {
+          method: "POST",
+          headers: {
+            "kbn-xsrf": "true",
+            Authorization: `Basic ${auth}`,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          },
+          body: formDataBody,
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        log.error(
+          { status: response.status, body: text },
+          "Dashboard import failed",
+        );
+        return;
+      }
+
+      const result = (await response.json()) as ImportResponse;
+
+      if (result.success) {
+        log.info(
+          { successCount: result.successCount, prefix: INDEX_PREFIX },
+          "Dashboard imported successfully",
+        );
+      } else {
+        log.error({ errors: result.errors }, "Dashboard import had errors");
+      }
     },
-    "Importing Kibana dashboard with prefixed IDs",
   );
-
-  // Read and prefix all saved object IDs
-  const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
-  const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
-
-  const formData = new FormData();
-  formData.append("file", new Blob([prefixedContent]), "dashboard.ndjson");
-
-  const auth = Buffer.from(`${config.esUser}:${config.esPassword}`).toString(
-    "base64",
-  );
-
-  const response = await tlsFetch(
-    `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
-    {
-      method: "POST",
-      headers: {
-        "kbn-xsrf": "true",
-        Authorization: `Basic ${auth}`,
-      },
-      body: formData,
-    },
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    log.error(
-      { status: response.status, body: text },
-      "Dashboard import failed",
-    );
-    return;
-  }
-
-  const result = (await response.json()) as ImportResponse;
-
-  if (result.success) {
-    log.info(
-      { successCount: result.successCount, prefix: INDEX_PREFIX },
-      "Dashboard imported successfully",
-    );
-  } else {
-    log.error({ errors: result.errors }, "Dashboard import had errors");
-  }
 }
 
 async function setup(): Promise<void> {
-  log.info("Setting up Elasticsearch pipeline and index template");
+  return withSpan(
+    "setup",
+    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
+    async () => {
+      log.info("Setting up Elasticsearch pipeline and index template");
 
-  // Create ingest pipeline
-  log.info({ pipelineName: PIPELINE_NAME }, "Creating ingest pipeline");
-  await client.ingest.putPipeline({
-    id: PIPELINE_NAME,
-    description: "Add event.ingested timestamp to smart home events",
-    processors: [
-      {
-        set: {
-          field: "event.ingested",
-          value: "{{{_ingest.timestamp}}}",
-        },
-      },
-    ],
-  });
-  log.info("Pipeline created successfully");
-
-  // Create index template (applies to smart-home-events-* indices)
-  log.info(
-    { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
-    "Creating index template",
-  );
-  await client.indices.putIndexTemplate({
-    name: TEMPLATE_NAME,
-    index_patterns: [INDEX_PATTERN],
-    priority: 100,
-    template: {
-      settings: {
-        index: {
-          default_pipeline: PIPELINE_NAME,
-        },
-      },
-      mappings: {
-        properties: {
-          "@timestamp": { type: "date" },
-          event: {
-            properties: {
-              ingested: { type: "date" },
+      // Create ingest pipeline
+      log.info({ pipelineName: PIPELINE_NAME }, "Creating ingest pipeline");
+      await client.ingest.putPipeline({
+        id: PIPELINE_NAME,
+        description: "Add event.ingested timestamp to smart home events",
+        processors: [
+          {
+            set: {
+              field: "event.ingested",
+              value: "{{{_ingest.timestamp}}}",
             },
           },
-          "@type": { type: "keyword" },
-          id: { type: "keyword" },
-          deviceId: { type: "keyword" },
-          path: { type: "keyword" },
-          device: {
-            properties: {
-              name: { type: "keyword" },
-              type: { type: "keyword" },
+        ],
+      });
+      log.info("Pipeline created successfully");
+
+      // Create index template (applies to smart-home-events-* indices)
+      log.info(
+        { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
+        "Creating index template",
+      );
+      await client.indices.putIndexTemplate({
+        name: TEMPLATE_NAME,
+        index_patterns: [INDEX_PATTERN],
+        priority: 100,
+        template: {
+          settings: {
+            index: {
+              default_pipeline: PIPELINE_NAME,
             },
           },
-          room: {
+          mappings: {
             properties: {
+              "@timestamp": { type: "date" },
+              event: {
+                properties: {
+                  ingested: { type: "date" },
+                },
+              },
+              "@type": { type: "keyword" },
               id: { type: "keyword" },
-              name: { type: "keyword" },
-            },
-          },
-          metric: {
-            properties: {
-              name: { type: "keyword" },
-              value: { type: "float" },
+              deviceId: { type: "keyword" },
+              path: { type: "keyword" },
+              device: {
+                properties: {
+                  name: { type: "keyword" },
+                  type: { type: "keyword" },
+                },
+              },
+              room: {
+                properties: {
+                  id: { type: "keyword" },
+                  name: { type: "keyword" },
+                },
+              },
+              metric: {
+                properties: {
+                  name: { type: "keyword" },
+                  value: { type: "float" },
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
-  log.info(
-    { indexPattern: INDEX_PATTERN },
-    "Index template created. New indices will automatically use the template.",
-  );
+      });
+      log.info(
+        { indexPattern: INDEX_PATTERN },
+        "Index template created. New indices will automatically use the template.",
+      );
 
-  // Import Kibana dashboard (if configured)
-  await importDashboard();
+      // Import Kibana dashboard (if configured)
+      await importDashboard();
+    },
+  );
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
-  const dateStr = extractDateFromFilename(filePath);
-  const indexName = getIndexName(dateStr);
-  log.info({ filePath, indexName }, "Importing file");
+  return withSpan(
+    "bulk_import_file",
+    {
+      [SpanAttributes.FILE_PATH]: filePath,
+    },
+    async () => {
+      const dateStr = extractDateFromFilename(filePath);
+      const indexName = getIndexName(dateStr);
+      log.info({ filePath, indexName }, "Importing file");
 
-  const documents: { doc: TransformedEvent; id: string }[] = [];
+      const documents: { doc: TransformedEvent; id: string }[] = [];
 
-  return new Promise((resolve, reject) => {
-    createReadStream(filePath)
-      .pipe(split())
-      .on("data", (line: string) => {
-        const doc = parseLine(line);
-        if (doc) {
-          documents.push({
-            doc: transformDoc(doc),
-            id: generateDocId(doc),
-          });
-        }
-      })
-      .on("end", () => {
-        if (documents.length === 0) {
-          resolve(0);
-          return;
-        }
-
-        const operations = documents.flatMap(({ doc, id }) => [
-          { index: { _index: indexName, _id: id } },
-          doc,
-        ]);
-
-        client
-          .bulk({ operations, refresh: true })
-          .then((result) => {
-            if (result.errors) {
-              const errors = result.items.filter((item) => item.index?.error);
-              log.error(
-                {
-                  errorCount: errors.length,
-                  errors: errors.slice(0, 3).map((item) => item.index?.error),
-                },
-                "Documents failed to index",
-              );
+      return new Promise<number>((resolve, reject) => {
+        createReadStream(filePath)
+          .pipe(split())
+          .on("data", (line: string) => {
+            const doc = parseLine(line);
+            if (doc) {
+              documents.push({
+                doc: transformDoc(doc),
+                id: generateDocId(doc),
+              });
+            }
+          })
+          .on("end", () => {
+            if (documents.length === 0) {
+              resolve(0);
+              return;
             }
 
-            const indexed = result.items.filter(
-              (item) => !item.index?.error,
-            ).length;
-            log.info({ indexed, indexName }, "Indexed documents");
-            resolve(indexed);
+            const operations = documents.flatMap(({ doc, id }) => [
+              { index: { _index: indexName, _id: id } },
+              doc,
+            ]);
+
+            client
+              .bulk({ operations, refresh: true })
+              .then((result) => {
+                if (result.errors) {
+                  const errors = result.items.filter(
+                    (item) => item.index?.error,
+                  );
+                  log.error(
+                    {
+                      errorCount: errors.length,
+                      errors: errors
+                        .slice(0, 3)
+                        .map((item) => item.index?.error),
+                    },
+                    "Documents failed to index",
+                  );
+                }
+
+                const indexed = result.items.filter(
+                  (item) => !item.index?.error,
+                ).length;
+                log.info(
+                  {
+                    indexed,
+                    indexName,
+                    [SpanAttributes.DOCUMENTS_COUNT]: documents.length,
+                    [SpanAttributes.INDEX_NAME]: indexName,
+                  },
+                  "Indexed documents",
+                );
+                resolve(indexed);
+              })
+              .catch((err: unknown) => {
+                reject(err instanceof Error ? err : new Error(String(err)));
+              });
           })
-          .catch((err: unknown) => {
-            reject(err instanceof Error ? err : new Error(String(err)));
-          });
-      })
-      .on("error", reject);
-  });
+          .on("error", reject);
+      });
+    },
+  );
 }
 
 async function batchImport(pattern?: string): Promise<void> {

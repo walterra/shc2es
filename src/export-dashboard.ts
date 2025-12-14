@@ -4,6 +4,7 @@ import { Agent, fetch as undiciFetch } from "undici";
 import "./config"; // Load env vars from ~/.shc2es/.env
 import { createLogger } from "./logger";
 import { validateDashboardConfig } from "./validation";
+import { withSpan, SpanAttributes } from "./instrumentation";
 
 const log = createLogger("export-dashboard");
 
@@ -90,28 +91,34 @@ const SENSITIVE_FIELDS = [
 ];
 
 function stripSensitiveMetadata(ndjson: string): string {
-  const lines = ndjson.trim().split("\n");
-  const strippedLines: string[] = [];
+  return withSpan(
+    "strip_metadata",
+    { "fields.count": SENSITIVE_FIELDS.length },
+    () => {
+      const lines = ndjson.trim().split("\n");
+      const strippedLines: string[] = [];
 
-  for (const line of lines) {
-    const obj = JSON.parse(line) as Record<string, unknown>;
+      for (const line of lines) {
+        const obj = JSON.parse(line) as Record<string, unknown>;
 
-    // Skip export metadata line (has exportedCount)
-    if ("exportedCount" in obj) {
-      strippedLines.push(line);
-      continue;
-    }
+        // Skip export metadata line (has exportedCount)
+        if ("exportedCount" in obj) {
+          strippedLines.push(line);
+          continue;
+        }
 
-    // Remove sensitive fields
-    for (const field of SENSITIVE_FIELDS) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete obj[field];
-    }
+        // Remove sensitive fields
+        for (const field of SENSITIVE_FIELDS) {
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete obj[field];
+        }
 
-    strippedLines.push(JSON.stringify(obj));
-  }
+        strippedLines.push(JSON.stringify(obj));
+      }
 
-  return strippedLines.join("\n");
+      return strippedLines.join("\n");
+    },
+  );
 }
 
 interface FindResponse {
@@ -120,63 +127,72 @@ interface FindResponse {
 }
 
 async function findDashboardByName(name: string): Promise<SavedObject | null> {
-  log.info({ name }, "Searching for dashboard by name");
+  return withSpan(
+    "find_dashboard",
+    { [SpanAttributes.DASHBOARD_NAME]: name },
+    async () => {
+      log.info({ name }, "Searching for dashboard by name");
 
-  const params = new URLSearchParams({
-    type: "dashboard",
-    search: name,
-    search_fields: "title",
-  });
+      const params = new URLSearchParams({
+        type: "dashboard",
+        search: name,
+        search_fields: "title",
+      });
 
-  const response = await tlsFetch(
-    `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        "kbn-xsrf": "true",
-        Authorization: getAuthHeader(),
-      },
+      const response = await tlsFetch(
+        `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            "kbn-xsrf": "true",
+            Authorization: getAuthHeader(),
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        log.fatal({ status: response.status, body: text }, "Search failed");
+        process.exit(1);
+      }
+
+      const result = (await response.json()) as FindResponse;
+
+      if (result.total === 0) {
+        log.warn({ name }, "No dashboards found matching name");
+        return null;
+      }
+
+      // Look for exact match first
+      const exactMatch = result.saved_objects.find(
+        (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase(),
+      );
+
+      if (exactMatch) {
+        log.info(
+          { id: exactMatch.id, title: exactMatch.attributes.title },
+          "Found exact match",
+        );
+        return exactMatch;
+      }
+
+      // If no exact match, show all matches and use first one
+      if (result.total > 1) {
+        const matches = result.saved_objects.map((obj) => ({
+          id: obj.id,
+          title: obj.attributes.title,
+        }));
+        log.warn({ matches }, "Multiple dashboards found, using first match");
+      }
+
+      const match = result.saved_objects[0];
+      log.info(
+        { id: match.id, title: match.attributes.title },
+        "Using dashboard",
+      );
+      return match;
     },
   );
-
-  if (!response.ok) {
-    const text = await response.text();
-    log.fatal({ status: response.status, body: text }, "Search failed");
-    process.exit(1);
-  }
-
-  const result = (await response.json()) as FindResponse;
-
-  if (result.total === 0) {
-    log.warn({ name }, "No dashboards found matching name");
-    return null;
-  }
-
-  // Look for exact match first
-  const exactMatch = result.saved_objects.find(
-    (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase(),
-  );
-
-  if (exactMatch) {
-    log.info(
-      { id: exactMatch.id, title: exactMatch.attributes.title },
-      "Found exact match",
-    );
-    return exactMatch;
-  }
-
-  // If no exact match, show all matches and use first one
-  if (result.total > 1) {
-    const matches = result.saved_objects.map((obj) => ({
-      id: obj.id,
-      title: obj.attributes.title,
-    }));
-    log.warn({ matches }, "Multiple dashboards found, using first match");
-  }
-
-  const match = result.saved_objects[0];
-  log.info({ id: match.id, title: match.attributes.title }, "Using dashboard");
-  return match;
 }
 
 async function listDashboards(): Promise<void> {
@@ -222,88 +238,107 @@ async function exportDashboard(
   dashboardId: string,
   outputName: string,
 ): Promise<void> {
-  // Ensure dashboards directory exists
-  if (!existsSync(DASHBOARDS_DIR)) {
-    mkdirSync(DASHBOARDS_DIR, { recursive: true });
-    log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
-  }
-
-  const body = {
-    objects: [{ type: "dashboard", id: dashboardId }],
-    includeReferencesDeep: true,
-  };
-
-  log.info(
-    { kibanaNode: KIBANA_NODE, dashboardId },
-    "Exporting dashboard from Kibana",
-  );
-
-  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
-    method: "POST",
-    headers: {
-      "kbn-xsrf": "true",
-      "Content-Type": "application/json",
-      Authorization: getAuthHeader(),
+  return withSpan(
+    "export_dashboard",
+    {
+      [SpanAttributes.DASHBOARD_ID]: dashboardId,
+      [SpanAttributes.DASHBOARD_NAME]: outputName,
     },
-    body: JSON.stringify(body),
-  });
+    async () => {
+      // Ensure dashboards directory exists
+      if (!existsSync(DASHBOARDS_DIR)) {
+        mkdirSync(DASHBOARDS_DIR, { recursive: true });
+        log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
+      }
 
-  if (!response.ok) {
-    const text = await response.text();
-    log.fatal({ status: response.status, body: text }, "Export failed");
-    process.exit(1);
-  }
+      const body = {
+        objects: [{ type: "dashboard", id: dashboardId }],
+        includeReferencesDeep: true,
+      };
 
-  const ndjson = await response.text();
+      log.info(
+        { kibanaNode: KIBANA_NODE, dashboardId },
+        "Exporting dashboard from Kibana",
+      );
 
-  // Parse to count objects and validate
-  const lines = ndjson.trim().split("\n");
+      const response = await tlsFetch(
+        `${KIBANA_NODE}/api/saved_objects/_export`,
+        {
+          method: "POST",
+          headers: {
+            "kbn-xsrf": "true",
+            "Content-Type": "application/json",
+            Authorization: getAuthHeader(),
+          },
+          body: JSON.stringify(body),
+        },
+      );
 
-  interface ExportedObject {
-    type: string;
-    [key: string]: unknown;
-  }
+      if (!response.ok) {
+        const text = await response.text();
+        log.fatal({ status: response.status, body: text }, "Export failed");
+        process.exit(1);
+      }
 
-  interface ExportMetadata {
-    exportedCount: number;
-    missingRefCount?: number;
-    missingReferences?: unknown[];
-  }
+      const ndjson = await response.text();
 
-  const objects = lines.map(
-    (line) => JSON.parse(line) as ExportedObject | ExportMetadata,
+      // Parse to count objects and validate
+      const lines = ndjson.trim().split("\n");
+
+      interface ExportedObject {
+        type: string;
+        [key: string]: unknown;
+      }
+
+      interface ExportMetadata {
+        exportedCount: number;
+        missingRefCount?: number;
+        missingReferences?: unknown[];
+      }
+
+      const objects = lines.map(
+        (line) => JSON.parse(line) as ExportedObject | ExportMetadata,
+      );
+
+      // Last line is export metadata
+      const metadata = objects[objects.length - 1] as ExportMetadata;
+      const exportedObjects = objects.slice(0, -1) as ExportedObject[];
+
+      // Group by type for logging
+      const typeCounts: Record<string, number> = {};
+      for (const obj of exportedObjects) {
+        typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
+      }
+
+      log.info(
+        {
+          typeCounts,
+          exportedCount: metadata.exportedCount,
+          [SpanAttributes.OBJECTS_COUNT]: metadata.exportedCount,
+        },
+        "Export summary",
+      );
+
+      if (metadata.missingRefCount && metadata.missingRefCount > 0) {
+        log.warn(
+          { missingReferences: metadata.missingReferences },
+          "Some references could not be resolved",
+        );
+      }
+
+      // Strip sensitive metadata before saving
+      const strippedNdjson = stripSensitiveMetadata(ndjson);
+      log.info(
+        { strippedFields: SENSITIVE_FIELDS },
+        "Stripped sensitive metadata",
+      );
+
+      // Write to file
+      const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
+      writeFileSync(outputFile, strippedNdjson);
+      log.info({ outputFile }, "Dashboard exported successfully");
+    },
   );
-
-  // Last line is export metadata
-  const metadata = objects[objects.length - 1] as ExportMetadata;
-  const exportedObjects = objects.slice(0, -1) as ExportedObject[];
-
-  // Group by type for logging
-  const typeCounts: Record<string, number> = {};
-  for (const obj of exportedObjects) {
-    typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
-  }
-
-  log.info(
-    { typeCounts, exportedCount: metadata.exportedCount },
-    "Export summary",
-  );
-
-  if (metadata.missingRefCount && metadata.missingRefCount > 0) {
-    log.warn(
-      { missingReferences: metadata.missingReferences },
-      "Some references could not be resolved",
-    );
-  }
-
-  // Strip sensitive metadata before saving
-  const strippedNdjson = stripSensitiveMetadata(ndjson);
-  log.info({ strippedFields: SENSITIVE_FIELDS }, "Stripped sensitive metadata");
-
-  // Write to file
-  const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
-  writeFileSync(outputFile, strippedNdjson);
-  log.info({ outputFile }, "Dashboard exported successfully");
 }
 
 function printUsage(): void {
