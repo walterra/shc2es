@@ -3,8 +3,17 @@ import * as path from "path";
 import { Agent, fetch as undiciFetch } from "undici";
 import "./config"; // Load env vars from ~/.shc2es/.env
 import { createLogger } from "./logger";
+import { validateDashboardConfig } from "./validation";
 
 const log = createLogger("export-dashboard");
+
+// Validate configuration early
+const validatedConfig = validateDashboardConfig();
+if (!validatedConfig) {
+  process.exit(1);
+}
+// TypeScript now knows config is defined
+const config = validatedConfig;
 
 // TLS configuration for fetch requests
 interface TlsConfig {
@@ -12,25 +21,16 @@ interface TlsConfig {
   ca?: Buffer;
 }
 
-// Build TLS config based on environment variables
-// ES_TLS_VERIFY=false disables verification (for self-signed certs in development)
-// ES_CA_CERT=/path/to/ca.pem provides custom CA certificate
+// Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
-  if (process.env.ES_TLS_VERIFY === "false") {
+  if (!config.esTlsVerify) {
     log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
     return { rejectUnauthorized: false };
   }
 
-  if (process.env.ES_CA_CERT) {
-    if (!existsSync(process.env.ES_CA_CERT)) {
-      log.warn(
-        { path: process.env.ES_CA_CERT },
-        "ES_CA_CERT file not found, using default CA",
-      );
-      return {};
-    }
-    log.debug({ path: process.env.ES_CA_CERT }, "Using custom CA certificate");
-    return { ca: readFileSync(process.env.ES_CA_CERT) };
+  if (config.esCaCert) {
+    log.debug({ path: config.esCaCert }, "Using custom CA certificate");
+    return { ca: readFileSync(config.esCaCert) };
   }
 
   return {};
@@ -61,20 +61,9 @@ function createTlsFetch(): typeof globalThis.fetch {
 
 const tlsFetch = createTlsFetch();
 
-// Environment validation
-if (!process.env.KIBANA_NODE) {
-  log.fatal("KIBANA_NODE must be set in ~/.shc2es/.env");
-  process.exit(1);
-}
-
-if (!process.env.ES_PASSWORD) {
-  log.fatal("ES_PASSWORD must be set in ~/.shc2es/.env (used for Kibana auth)");
-  process.exit(1);
-}
-
-const KIBANA_NODE = process.env.KIBANA_NODE;
-const ES_USER = process.env.ES_USER ?? "elastic";
-const ES_PASSWORD = process.env.ES_PASSWORD;
+const KIBANA_NODE = config.kibanaNode;
+const ES_USER = config.esUser;
+const ES_PASSWORD = config.esPassword;
 const DASHBOARDS_DIR = path.join(__dirname, "..", "dashboards");
 const DEFAULT_DASHBOARD_NAME = "smart-home";
 

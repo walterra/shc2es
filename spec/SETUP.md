@@ -7,7 +7,7 @@ This document outlines the steps needed to publish shc2es on GitHub and npm foll
 ### Done
 
 - MIT license declared in package.json
-- Comprehensive README.md with usage documentation
+- README.md with usage documentation
 - TypeScript configuration (tsconfig.json)
 - `.env.example` template for environment variables
 - Detailed spec documentation (ELASTICSEARCH.md, KIBANA.md, OPEN-TELEMETRY.md)
@@ -108,10 +108,10 @@ Ensure these are NEVER committed:
 
 **Current State:** TLS certificate verification is now configurable via environment variables, defaulting to **secure** (verification enabled).
 
-| File | Method | Configuration |
-|------|--------|---------------|
-| `src/ingest.ts` | `buildTlsConfig()` + undici Agent | `ES_TLS_VERIFY`, `ES_CA_CERT` |
-| `src/export-dashboard.ts` | `buildTlsConfig()` + undici Agent | `ES_TLS_VERIFY`, `ES_CA_CERT` |
+| File                        | Method                            | Configuration                     |
+| --------------------------- | --------------------------------- | --------------------------------- |
+| `src/ingest.ts`             | `buildTlsConfig()` + undici Agent | `ES_TLS_VERIFY`, `ES_CA_CERT`     |
+| `src/export-dashboard.ts`   | `buildTlsConfig()` + undici Agent | `ES_TLS_VERIFY`, `ES_CA_CERT`     |
 | `otel-collector-config.yml` | Environment variable substitution | `OTEL_TLS_VERIFY`, `OTEL_CA_FILE` |
 
 **Environment Variables:**
@@ -155,10 +155,9 @@ To enable OIDC publishing on npmjs.com (after first manual publish):
 1. Go to package settings on npmjs.com
 2. Add trusted publisher:
 
-
-    - User: walterra
-    - Repo: shc2es
-    - Workflow: release.yml
+   - User: walterra
+   - Repo: shc2es
+   - Workflow: release.yml
 
 ## References
 

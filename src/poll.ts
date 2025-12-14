@@ -6,13 +6,21 @@ import {
 } from "bosch-smart-home-bridge";
 import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
 import { appLogger, dataLogger, BshbLogger } from "./logger";
+import { validatePollConfig } from "./validation";
 
-// Configuration via .env file or environment variables
-const CONTROLLER_HOST = process.env.BSH_HOST;
-const CLIENT_NAME = process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll";
-const CLIENT_ID =
-  process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client";
-const SYSTEM_PASSWORD = process.env.BSH_PASSWORD ?? "";
+// Validate configuration early
+const validatedConfig = validatePollConfig();
+if (!validatedConfig) {
+  process.exit(1);
+}
+// TypeScript now knows config is defined
+const config = validatedConfig;
+
+// Configuration from validated config
+const CONTROLLER_HOST = config.bshHost;
+const CLIENT_NAME = config.bshClientName;
+const CLIENT_ID = config.bshClientId;
+const SYSTEM_PASSWORD = config.bshPassword;
 
 function loadOrGenerateCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
@@ -91,20 +99,6 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
 function main(): void {
   appLogger.info("Bosch Smart Home Long Polling Client");
   appLogger.info(getConfigPaths(), "Configuration");
-
-  if (!CONTROLLER_HOST) {
-    appLogger.fatal(
-      "BSH_HOST is required. Set it in ~/.shc2es/.env or local .env file.",
-    );
-    process.exit(1);
-  }
-
-  if (!SYSTEM_PASSWORD) {
-    appLogger.fatal(
-      "BSH_PASSWORD is required for initial pairing. Set it in ~/.shc2es/.env",
-    );
-    process.exit(1);
-  }
 
   const { cert, key } = loadOrGenerateCertificate();
 

@@ -42,6 +42,7 @@ Kibana (time series visualization)
 ### Storage Locations
 
 **User data** (`~/.shc2es/`):
+
 - `data/events-YYYY-MM-DD.ndjson` - Daily event logs
 - `data/device-registry.json` - Device/room metadata for enrichment
 - `logs/poll-YYYY-MM-DD.log` - Application debug logs
@@ -49,11 +50,13 @@ Kibana (time series visualization)
 - `.env` - User configuration
 
 **Bundled assets**:
+
 - `dashboards/smart-home.ndjson` - Kibana dashboard template
 
 ## Key Features
 
 ### Data Collection (poll.ts)
+
 - Long polling connection to Bosch Smart Home Controller II API
 - Automatic certificate-based authentication (pairing required on first run)
 - Daily log rotation (new NDJSON file each day)
@@ -61,6 +64,7 @@ Kibana (time series visualization)
 - OpenTelemetry instrumentation for APM
 
 ### Data Ingestion (ingest.ts)
+
 - Batch import: Process all or pattern-matched NDJSON files
 - Watch mode: Real-time ingestion with file tailing and daily rotation handling
 - Device registry enrichment: Adds human-readable device/room names
@@ -70,12 +74,14 @@ Kibana (time series visualization)
 - Kibana dashboard import: Auto-setup during `--setup`
 
 ### Configuration (config.ts)
+
 - Environment-based configuration via `~/.shc2es/.env`
 - Defaults for development (e.g., self-signed cert support)
 - TLS verification control for dev/prod
 - Support for multiple Elasticsearch auth methods (password, API key)
 
 ### Observability
+
 - **Application logs**: Pino JSON logs for debugging (`~/.shc2es/logs/`)
 - **Event data**: NDJSON format for raw smart home events (`~/.shc2es/data/`)
 - **APM tracing**: OpenTelemetry instrumentation for performance monitoring
@@ -83,23 +89,25 @@ Kibana (time series visualization)
 
 ## CLI Commands
 
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `shc2es poll` | Collect events from controller | Start long polling |
-| `shc2es registry` | Fetch device/room names | Update enrichment data |
-| `shc2es ingest` | Import NDJSON to Elasticsearch | Batch import |
-| `shc2es ingest --setup` | Create index + import dashboard | One-time setup |
-| `shc2es ingest --watch` | Real-time ingestion | Live monitoring |
-| `shc2es dashboard` | Export Kibana dashboard | Version control |
+| Command                 | Purpose                         | Example                |
+| ----------------------- | ------------------------------- | ---------------------- |
+| `shc2es poll`           | Collect events from controller  | Start long polling     |
+| `shc2es registry`       | Fetch device/room names         | Update enrichment data |
+| `shc2es ingest`         | Import NDJSON to Elasticsearch  | Batch import           |
+| `shc2es ingest --setup` | Create index + import dashboard | One-time setup         |
+| `shc2es ingest --watch` | Real-time ingestion             | Live monitoring        |
+| `shc2es dashboard`      | Export Kibana dashboard         | Version control        |
 
 ## Technical Stack
 
 ### Runtime
+
 - **Node.js**: v20+ (ESM modules)
 - **TypeScript**: Type-safe development
 - **Package Manager**: Yarn 1.x (classic)
 
 ### Core Dependencies
+
 - `bosch-smart-home-bridge`: Controller II API client
 - `@elastic/elasticsearch`: Elasticsearch client
 - `@elastic/opentelemetry-node`: Auto-instrumentation (EDOT)
@@ -108,6 +116,7 @@ Kibana (time series visualization)
 - `glob`: File pattern matching
 
 ### Testing
+
 - `jest`: Test framework with ts-jest
 - Coverage thresholds: 70% statements/functions/lines, 60% branches
 - Unit tests for core modules (config, logger)
@@ -116,12 +125,14 @@ Kibana (time series visualization)
 ## Configuration
 
 ### Required (for data collection)
+
 ```bash
 BSH_HOST=192.168.x.x      # Controller IP
 BSH_PASSWORD=xxxxx        # System password
 ```
 
 ### Optional (Elasticsearch)
+
 ```bash
 ES_NODE=https://localhost:9200
 ES_PASSWORD=changeme
@@ -130,12 +141,14 @@ KIBANA_NODE=https://localhost:5601  # For dashboard import
 ```
 
 ### Optional (OpenTelemetry)
+
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=https://apm.example.com
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer TOKEN
 ```
 
 ### Development Mode
+
 ```bash
 ES_TLS_VERIFY=false       # Disable cert verification (dev only)
 OTEL_TLS_VERIFY=false     # Disable cert verification (dev only)
@@ -163,7 +176,7 @@ OTEL_TLS_VERIFY=false     # Disable cert verification (dev only)
 - **Primary use case**: Educational and personal home automation monitoring
 - **License**: MIT
 - **Testing coverage**: 70%+ on core modules, integration tests in progress
-- **Documentation**: Comprehensive README, spec files for architecture/APIs
+- **Documentation**: README, spec files for architecture/APIs
 
 ## Known Limitations
 
