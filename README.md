@@ -63,6 +63,14 @@ Open Kibana → Dashboards → "Smart Home" to see your data.
 
 ---
 
+## Architecture
+
+For a detailed overview of how shc2es works, see the [Architecture Documentation](docs/architecture.md). It includes:
+- Visual diagram of the complete data flow (Controller II → poll → NDJSON → ingest → Elasticsearch → Kibana)
+- Component descriptions for each CLI command
+- Data flow scenarios (initial setup, continuous operation, batch analysis)
+- Configuration and security considerations
+
 ## Prerequisites
 
 - Node.js (v20+)

@@ -1,9 +1,5 @@
 # TODO
 
-## Documentation
-
-- Architecture Diagram - Add visual diagram to README or spec showing data flow: Controller → poll → NDJSON → ingest → Elasticsearch → Kibana. Show all components and their interactions
-
 ## Code Quality
 
 - Type Safety for Saved Objects - Strengthen TypeScript types for saved objects. Currently using unknown and any in several places. Define proper interfaces for Kibana saved object API responses
