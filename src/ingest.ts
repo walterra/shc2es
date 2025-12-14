@@ -1,5 +1,5 @@
 import { Client } from "@elastic/elasticsearch";
-import { Agent, fetch as undiciFetch } from "undici";
+import { Agent, fetch as undiciFetch, FormData } from "undici";
 import { createReadStream, existsSync, readFileSync } from "fs";
 import { glob } from "glob";
 import split from "split2";
@@ -402,8 +402,16 @@ async function importDashboard(): Promise<void> {
   const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
   const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
 
-  const formData = new FormData();
-  formData.append("file", new Blob([prefixedContent]), "dashboard.ndjson");
+  // Create proper multipart/form-data with boundary
+  const boundary = `----FormBoundary${Date.now()}`;
+  const formDataBody = [
+    `--${boundary}`,
+    `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
+    `Content-Type: application/ndjson`,
+    ``,
+    prefixedContent,
+    `--${boundary}--`,
+  ].join("\r\n");
 
   const auth = Buffer.from(`${config.esUser}:${config.esPassword}`).toString(
     "base64",
@@ -416,8 +424,9 @@ async function importDashboard(): Promise<void> {
       headers: {
         "kbn-xsrf": "true",
         Authorization: `Basic ${auth}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
-      body: formData,
+      body: formDataBody,
     },
   );
 
