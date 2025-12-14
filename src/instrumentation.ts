@@ -53,13 +53,16 @@ export function withSpan<T>(
 
       // If result is a Promise, handle async error cases
       if (result instanceof Promise) {
+        // Type assertion: Promise<unknown> is returned, caller expects Promise in T
         return result
-          .then((value) => {
+          .then((value: unknown) => {
             span.setStatus({ code: SpanStatusCode.OK });
             return value;
           })
           .catch((error: unknown) => {
-            span.recordException(error instanceof Error ? error : new Error(String(error)));
+            span.recordException(
+              error instanceof Error ? error : new Error(String(error)),
+            );
             span.setStatus({ code: SpanStatusCode.ERROR });
             throw error;
           })
@@ -74,7 +77,9 @@ export function withSpan<T>(
       return result;
     } catch (error) {
       // Synchronous error
-      span.recordException(error instanceof Error ? error : new Error(String(error)));
+      span.recordException(
+        error instanceof Error ? error : new Error(String(error)),
+      );
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.end();
       throw error;

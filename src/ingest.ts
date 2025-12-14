@@ -1,5 +1,5 @@
 import { Client } from "@elastic/elasticsearch";
-import { Agent, fetch as undiciFetch, FormData } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import { createReadStream, existsSync, readFileSync } from "fs";
 import { glob } from "glob";
 import split from "split2";
@@ -218,8 +218,8 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
   return withSpan(
     "transform_document",
     {
-      [SpanAttributes.DOC_TYPE]: String(doc["@type"] ?? "unknown"),
-      [SpanAttributes.DEVICE_ID]: String(doc.deviceId ?? ""),
+      [SpanAttributes.DOC_TYPE]: doc["@type"] ?? "unknown",
+      [SpanAttributes.DEVICE_ID]: doc.deviceId ?? "",
     },
     () => {
       const result: TransformedEvent = {
@@ -374,158 +374,170 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 }
 
 async function importDashboard(): Promise<void> {
-  if (!KIBANA_NODE) {
-    log.info(
-      "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
-    );
-    return;
-  }
+  return withSpan(
+    "import_dashboard",
+    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
+    async () => {
+      if (!KIBANA_NODE) {
+        log.info(
+          "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
+        );
+        return;
+      }
 
-  if (!existsSync(DASHBOARD_FILE)) {
-    log.info(
-      { dashboardFile: DASHBOARD_FILE },
-      "Dashboard file not found, skipping import",
-    );
-    return;
-  }
+      if (!existsSync(DASHBOARD_FILE)) {
+        log.info(
+          { dashboardFile: DASHBOARD_FILE },
+          "Dashboard file not found, skipping import",
+        );
+        return;
+      }
 
-  log.info(
-    {
-      dashboardFile: DASHBOARD_FILE,
-      kibanaNode: KIBANA_NODE,
-      prefix: INDEX_PREFIX,
+      log.info(
+        {
+          dashboardFile: DASHBOARD_FILE,
+          kibanaNode: KIBANA_NODE,
+          prefix: INDEX_PREFIX,
+        },
+        "Importing Kibana dashboard with prefixed IDs",
+      );
+
+      // Read and prefix all saved object IDs
+      const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
+      const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
+
+      // Create proper multipart/form-data with boundary
+      const boundary = `----FormBoundary${String(Date.now())}`;
+      const formDataBody = [
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
+        `Content-Type: application/ndjson`,
+        ``,
+        prefixedContent,
+        `--${boundary}--`,
+      ].join("\r\n");
+
+      const auth = Buffer.from(
+        `${config.esUser}:${config.esPassword}`,
+      ).toString("base64");
+
+      const response = await tlsFetch(
+        `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
+        {
+          method: "POST",
+          headers: {
+            "kbn-xsrf": "true",
+            Authorization: `Basic ${auth}`,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          },
+          body: formDataBody,
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        log.error(
+          { status: response.status, body: text },
+          "Dashboard import failed",
+        );
+        return;
+      }
+
+      const result = (await response.json()) as ImportResponse;
+
+      if (result.success) {
+        log.info(
+          { successCount: result.successCount, prefix: INDEX_PREFIX },
+          "Dashboard imported successfully",
+        );
+      } else {
+        log.error({ errors: result.errors }, "Dashboard import had errors");
+      }
     },
-    "Importing Kibana dashboard with prefixed IDs",
   );
-
-  // Read and prefix all saved object IDs
-  const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
-  const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
-
-  // Create proper multipart/form-data with boundary
-  const boundary = `----FormBoundary${Date.now()}`;
-  const formDataBody = [
-    `--${boundary}`,
-    `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
-    `Content-Type: application/ndjson`,
-    ``,
-    prefixedContent,
-    `--${boundary}--`,
-  ].join("\r\n");
-
-  const auth = Buffer.from(`${config.esUser}:${config.esPassword}`).toString(
-    "base64",
-  );
-
-  const response = await tlsFetch(
-    `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
-    {
-      method: "POST",
-      headers: {
-        "kbn-xsrf": "true",
-        Authorization: `Basic ${auth}`,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-      },
-      body: formDataBody,
-    },
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    log.error(
-      { status: response.status, body: text },
-      "Dashboard import failed",
-    );
-    return;
-  }
-
-  const result = (await response.json()) as ImportResponse;
-
-  if (result.success) {
-    log.info(
-      { successCount: result.successCount, prefix: INDEX_PREFIX },
-      "Dashboard imported successfully",
-    );
-  } else {
-    log.error({ errors: result.errors }, "Dashboard import had errors");
-  }
 }
 
 async function setup(): Promise<void> {
-  log.info("Setting up Elasticsearch pipeline and index template");
+  return withSpan(
+    "setup",
+    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
+    async () => {
+      log.info("Setting up Elasticsearch pipeline and index template");
 
-  // Create ingest pipeline
-  log.info({ pipelineName: PIPELINE_NAME }, "Creating ingest pipeline");
-  await client.ingest.putPipeline({
-    id: PIPELINE_NAME,
-    description: "Add event.ingested timestamp to smart home events",
-    processors: [
-      {
-        set: {
-          field: "event.ingested",
-          value: "{{{_ingest.timestamp}}}",
-        },
-      },
-    ],
-  });
-  log.info("Pipeline created successfully");
-
-  // Create index template (applies to smart-home-events-* indices)
-  log.info(
-    { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
-    "Creating index template",
-  );
-  await client.indices.putIndexTemplate({
-    name: TEMPLATE_NAME,
-    index_patterns: [INDEX_PATTERN],
-    priority: 100,
-    template: {
-      settings: {
-        index: {
-          default_pipeline: PIPELINE_NAME,
-        },
-      },
-      mappings: {
-        properties: {
-          "@timestamp": { type: "date" },
-          event: {
-            properties: {
-              ingested: { type: "date" },
+      // Create ingest pipeline
+      log.info({ pipelineName: PIPELINE_NAME }, "Creating ingest pipeline");
+      await client.ingest.putPipeline({
+        id: PIPELINE_NAME,
+        description: "Add event.ingested timestamp to smart home events",
+        processors: [
+          {
+            set: {
+              field: "event.ingested",
+              value: "{{{_ingest.timestamp}}}",
             },
           },
-          "@type": { type: "keyword" },
-          id: { type: "keyword" },
-          deviceId: { type: "keyword" },
-          path: { type: "keyword" },
-          device: {
-            properties: {
-              name: { type: "keyword" },
-              type: { type: "keyword" },
+        ],
+      });
+      log.info("Pipeline created successfully");
+
+      // Create index template (applies to smart-home-events-* indices)
+      log.info(
+        { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
+        "Creating index template",
+      );
+      await client.indices.putIndexTemplate({
+        name: TEMPLATE_NAME,
+        index_patterns: [INDEX_PATTERN],
+        priority: 100,
+        template: {
+          settings: {
+            index: {
+              default_pipeline: PIPELINE_NAME,
             },
           },
-          room: {
+          mappings: {
             properties: {
+              "@timestamp": { type: "date" },
+              event: {
+                properties: {
+                  ingested: { type: "date" },
+                },
+              },
+              "@type": { type: "keyword" },
               id: { type: "keyword" },
-              name: { type: "keyword" },
-            },
-          },
-          metric: {
-            properties: {
-              name: { type: "keyword" },
-              value: { type: "float" },
+              deviceId: { type: "keyword" },
+              path: { type: "keyword" },
+              device: {
+                properties: {
+                  name: { type: "keyword" },
+                  type: { type: "keyword" },
+                },
+              },
+              room: {
+                properties: {
+                  id: { type: "keyword" },
+                  name: { type: "keyword" },
+                },
+              },
+              metric: {
+                properties: {
+                  name: { type: "keyword" },
+                  value: { type: "float" },
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
-  log.info(
-    { indexPattern: INDEX_PATTERN },
-    "Index template created. New indices will automatically use the template.",
-  );
+      });
+      log.info(
+        { indexPattern: INDEX_PATTERN },
+        "Index template created. New indices will automatically use the template.",
+      );
 
-  // Import Kibana dashboard (if configured)
-  await importDashboard();
+      // Import Kibana dashboard (if configured)
+      await importDashboard();
+    },
+  );
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
@@ -568,11 +580,15 @@ async function bulkImportFile(filePath: string): Promise<number> {
               .bulk({ operations, refresh: true })
               .then((result) => {
                 if (result.errors) {
-                  const errors = result.items.filter((item) => item.index?.error);
+                  const errors = result.items.filter(
+                    (item) => item.index?.error,
+                  );
                   log.error(
                     {
                       errorCount: errors.length,
-                      errors: errors.slice(0, 3).map((item) => item.index?.error),
+                      errors: errors
+                        .slice(0, 3)
+                        .map((item) => item.index?.error),
                     },
                     "Documents failed to index",
                   );

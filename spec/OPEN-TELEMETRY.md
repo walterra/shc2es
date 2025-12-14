@@ -275,6 +275,8 @@ To add spans to your own code:
    - Keep spans focused on single logical operations
    - Nest spans for hierarchical operations
    - Don't over-instrument (span creation has overhead)
+   - **Don't instrument control flow** (loops, recursion) - only business logic
+   - For long-running loops: instrument the work, not the loop itself
 
 ### Performance Considerations
 

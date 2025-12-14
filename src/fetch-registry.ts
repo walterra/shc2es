@@ -5,7 +5,7 @@ import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 import { validateRegistryConfig } from "./validation";
-import { withSpan, SpanAttributes } from "./instrumentation";
+import { withSpan } from "./instrumentation";
 
 const log = createLogger("registry");
 
@@ -61,33 +61,25 @@ async function main(): Promise<void> {
   const client = bshb.getBshcClient();
 
   // Fetch devices
-  const devices = await withSpan(
-    "fetch_devices",
-    {},
-    async () => {
-      log.info("Fetching devices...");
-      const devicesResponse = await firstValueFrom(client.getDevices());
-      const devices = devicesResponse.parsedResponse as BshDevice[];
-      log.info({ count: devices.length }, "Devices fetched");
-      return devices;
-    },
-  );
+  const devices = await withSpan("fetch_devices", {}, async () => {
+    log.info("Fetching devices...");
+    const devicesResponse = await firstValueFrom(client.getDevices());
+    const devices = devicesResponse.parsedResponse as BshDevice[];
+    log.info({ count: devices.length }, "Devices fetched");
+    return devices;
+  });
 
   // Fetch rooms
-  const rooms = await withSpan(
-    "fetch_rooms",
-    {},
-    async () => {
-      log.info("Fetching rooms...");
-      const roomsResponse = await firstValueFrom(client.getRooms());
-      const rooms = roomsResponse.parsedResponse as BshRoom[];
-      log.info({ count: rooms.length }, "Rooms fetched");
-      return rooms;
-    },
-  );
+  const rooms = await withSpan("fetch_rooms", {}, async () => {
+    log.info("Fetching rooms...");
+    const roomsResponse = await firstValueFrom(client.getRooms());
+    const rooms = roomsResponse.parsedResponse as BshRoom[];
+    log.info({ count: rooms.length }, "Rooms fetched");
+    return rooms;
+  });
 
   // Build registry
-  await withSpan(
+  withSpan(
     "build_registry",
     {
       "devices.count": devices.length,

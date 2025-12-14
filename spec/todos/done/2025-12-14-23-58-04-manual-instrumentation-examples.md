@@ -1,6 +1,6 @@
 # Manual Instrumentation Examples
 
-**Status:** In Progress  
+**Status:** Done  
 **Created:** 2025-12-14-23-58-04  
 **Started:** 2025-12-15-00-04-23  
 **Agent PID:** 2325
@@ -70,29 +70,44 @@ We're adding manual OpenTelemetry instrumentation examples to provide deeper obs
 
 ### User Tests
 
-- [ ] Test poll.ts spans
+- [x] Test poll.ts spans
   - Start collector: yarn otel:collector:start
   - Run: yarn poll (collect events, Ctrl+C)
   - APM UI → Services → shc2es-poll → Traces
-  - Verify: subscribe, process_event spans with attributes
+  - Verified: process_events, process_event spans ✅
+  - Note: Removed subscribe/poll_cycle spans - recursive loops shouldn't be instrumented
 
-- [ ] Test ingest.ts spans
+- [x] Test ingest.ts spans (setup path)
   - Run: yarn ingest --setup
   - APM UI → Services → shc2es-ingest → Traces
-  - Verify: bulk_import_file, transform_document, load_registry spans
+  - Verified: setup, import_dashboard spans ✅
 
-- [ ] Test fetch-registry.ts spans
+- [x] Test ingest.ts spans (data processing)
+  - Run: yarn ingest
+  - APM UI → Services → shc2es-ingest → Traces
+  - Verified: bulk_import_file, transform_document, load_registry spans ✅
+
+- [x] Test fetch-registry.ts spans
   - Run: yarn registry
   - APM UI → Services → shc2es-registry → Traces
-  - Verify: fetch_devices, fetch_rooms, build_registry spans
+  - Verified: fetch_devices, fetch_rooms, build_registry spans ✅
 
-- [ ] Test export-dashboard.ts spans
-  - Run: yarn dashboard:export shc2es
+- [x] Test export-dashboard.ts spans
+  - Run: yarn dashboard:export smart-home-advent
   - APM UI → Services → shc2es-export-dashboard → Traces
-  - Verify: find_dashboard, export_dashboard, strip_metadata spans
+  - Verified: find_dashboard, export_dashboard, strip_metadata spans ✅
 
 ## Review
-- [ ] Bug/cleanup items if found
+- [x] Fixed linting errors
+  - Removed unused imports (FormData, SpanAttributes)
+  - Fixed type conversions (String() on already-string values)
+  - Fixed template literal type safety (Date.now())
+  - Fixed type guards for event attributes
+  - Fixed async return type assertions
+- [x] Code formatted with Prettier
+- [x] All tests pass (90/90)
+- [x] TypeScript compiles without errors
+- [x] Changeset created (.changeset/manual-otel-instrumentation.md)
 
 ## Notes
 
@@ -122,5 +137,23 @@ We're adding manual OpenTelemetry instrumentation examples to provide deeper obs
 - ✅ All 90 tests pass (including 13 new instrumentation tests)
 - ✅ TypeScript compiles without errors
 - ✅ Code formatted and linted
+
+**Issues fixed during testing:**
+
+1. **Dashboard import HTTP 415 error:**
+   - Issue: FormData with undici wasn't creating proper multipart/form-data
+   - Fix: Manually construct multipart/form-data with boundary and Content-Type header
+   - Verified: `yarn ingest --setup` now works ✅
+
+2. **Long-polling instrumentation anti-pattern:**
+   - Issue: Wrapping recursive poll loop created nested spans lasting entire app lifetime
+   - Best practice learned: Don't instrument control flow (loops/recursion), only business logic
+   - Fix: Removed subscribe/poll_cycle spans, kept only process_events/process_event
+   - Result: Clean, independent spans for each event batch ✅
+
+3. **Setup path not instrumented:**
+   - Issue: `yarn ingest --setup` had no custom spans
+   - Fix: Added `setup` and `import_dashboard` spans
+   - Verified: Setup operations now visible in APM UI ✅
 
 **Next step:** User testing with APM UI to verify spans appear correctly

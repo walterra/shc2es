@@ -186,7 +186,10 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
       }
 
       const match = result.saved_objects[0];
-      log.info({ id: match.id, title: match.attributes.title }, "Using dashboard");
+      log.info(
+        { id: match.id, title: match.attributes.title },
+        "Using dashboard",
+      );
       return match;
     },
   );
@@ -258,15 +261,18 @@ async function exportDashboard(
         "Exporting dashboard from Kibana",
       );
 
-      const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
-        method: "POST",
-        headers: {
-          "kbn-xsrf": "true",
-          "Content-Type": "application/json",
-          Authorization: getAuthHeader(),
+      const response = await tlsFetch(
+        `${KIBANA_NODE}/api/saved_objects/_export`,
+        {
+          method: "POST",
+          headers: {
+            "kbn-xsrf": "true",
+            "Content-Type": "application/json",
+            Authorization: getAuthHeader(),
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
 
       if (!response.ok) {
         const text = await response.text();
@@ -322,7 +328,10 @@ async function exportDashboard(
 
       // Strip sensitive metadata before saving
       const strippedNdjson = stripSensitiveMetadata(ndjson);
-      log.info({ strippedFields: SENSITIVE_FIELDS }, "Stripped sensitive metadata");
+      log.info(
+        { strippedFields: SENSITIVE_FIELDS },
+        "Stripped sensitive metadata",
+      );
 
       // Write to file
       const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
