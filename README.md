@@ -112,6 +112,8 @@ ES_NODE=https://localhost:9200
 ES_USER=elastic           # Optional, defaults to "elastic"
 ES_PASSWORD=<password>
 ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
+                                    # Prefix for indices, pipeline, template, and dashboard IDs
+                                    # Useful for multi-deployment scenarios (dev/prod)
 
 # Kibana (optional, for dashboard import during yarn ingest:setup)
 KIBANA_NODE=https://localhost:5601
@@ -144,6 +146,20 @@ OTEL_CA_FILE=/path/to/ca.pem     # Or: provide custom CA certificate
 ⚠️ **Security warning:** Only disable TLS verification in development environments. For production, use properly signed certificates or provide a custom CA.
 
 **Finding your controller's IP:** Check the Bosch Smart Home app (Settings → System → Smart Home Controller) or your router's DHCP client list.
+
+### Multi-Deployment Scenarios
+
+Use `ES_INDEX_PREFIX` to run multiple environments against the same Elasticsearch cluster without conflicts:
+
+```bash
+# Development environment (~/.shc2es/.env)
+ES_INDEX_PREFIX=dev-smarthome
+
+# Production environment (~/.shc2es/.env)
+ES_INDEX_PREFIX=prod-smarthome
+```
+
+Each prefix creates isolated indices (`dev-smarthome-2025-12-14`, `prod-smarthome-2025-12-14`), pipelines, templates, and Kibana dashboards. Dashboards are automatically prefixed during `yarn ingest:setup` to match your index prefix.
 
 ## Usage
 

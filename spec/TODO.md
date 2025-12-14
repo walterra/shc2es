@@ -2,8 +2,6 @@
 
 ## Elasticsearch/Kibana Integration
 
-- ID Prefixing Documentation - Support for custom ID prefix in dashboard saved objects is implemented but needs documentation. Add ES_INDEX_PREFIX usage examples in README.md and document multi-deployment scenarios (e.g., dev/prod on same Kibana instance)
-
 - Dashboard Export Script - Implement yarn dashboard:export CLI command, add to src/export-dashboard.ts (currently exists but may need updates), validate against spec/KIBANA.md requirements, add error handling for missing KIBANA_NODE and authentication failures, test with actual Kibana instance
 
 - Import Options Enhancement - Add support for createNewCopies and compatibilityMode parameters in dashboard import. Currently only overwrite=true is used. Make these configurable via CLI flags (--create-new-copies, --compatibility-mode) and update importDashboard() function in src/ingest.ts
