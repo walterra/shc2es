@@ -26,34 +26,59 @@ describe('config module', () => {
       jest.isolateModules(() => {
         // Create a mock environment
         const testDir = createTempDir('config-test-');
-        const configDir = path.join(testDir, '.shc2es');
         
-        process.env.HOME = testDir;
+        // Mock os.homedir and process.cwd before importing config
+        const os = require('os');
+        const originalHomedir = os.homedir;
+        os.homedir = jest.fn(() => testDir);
+        
+        const originalCwd = process.cwd;
+        const cwdDir = createTempDir('cwd-test-');
+        process.cwd = jest.fn(() => cwdDir);
         
         const config = require('../../src/config');
+        
+        // Directories shouldn't exist yet
+        expect(fs.existsSync(config.USER_CONFIG_DIR)).toBe(false);
+        
         config.ensureConfigDirs();
         
+        // Now they should exist
         expect(fs.existsSync(config.USER_CONFIG_DIR)).toBe(true);
         expect(fs.existsSync(config.CERTS_DIR)).toBe(true);
         expect(fs.existsSync(config.DATA_DIR)).toBe(true);
         expect(fs.existsSync(config.LOGS_DIR)).toBe(true);
         
+        os.homedir = originalHomedir;
+        process.cwd = originalCwd;
         cleanupTempDir(testDir);
+        cleanupTempDir(cwdDir);
       });
     });
 
     it('should not error if directories already exist', () => {
       jest.isolateModules(() => {
         const testDir = createTempDir('config-test-');
-        process.env.HOME = testDir;
+        
+        // Mock os.homedir and process.cwd before importing config
+        const os = require('os');
+        const originalHomedir = os.homedir;
+        os.homedir = jest.fn(() => testDir);
+        
+        const originalCwd = process.cwd;
+        const cwdDir = createTempDir('cwd-test-');
+        process.cwd = jest.fn(() => cwdDir);
         
         const config = require('../../src/config');
         
-        // Call twice
+        // Call twice to test idempotency
         expect(() => config.ensureConfigDirs()).not.toThrow();
         expect(() => config.ensureConfigDirs()).not.toThrow();
         
+        os.homedir = originalHomedir;
+        process.cwd = originalCwd;
         cleanupTempDir(testDir);
+        cleanupTempDir(cwdDir);
       });
     });
   });
@@ -86,31 +111,61 @@ describe('config module', () => {
     });
 
     it('should return global .env if local does not exist', () => {
-      const testDir = createTempDir('config-test-');
-      const globalEnvPath = path.join(testDir, '.shc2es', '.env');
-      
-      fs.mkdirSync(path.dirname(globalEnvPath), { recursive: true });
-      fs.writeFileSync(globalEnvPath, 'GLOBAL=true');
-      
-      // Check that LOCAL_ENV_FILE (cwd/.env) doesn't exist
-      // but global one does
-      expect(fs.existsSync(globalEnvPath)).toBe(true);
-      
-      cleanupTempDir(testDir);
+      jest.isolateModules(() => {
+        const testDir = createTempDir('config-test-');
+        const globalEnvPath = path.join(testDir, '.shc2es', '.env');
+        
+        // Create the global .env but not the local one
+        fs.mkdirSync(path.dirname(globalEnvPath), { recursive: true });
+        fs.writeFileSync(globalEnvPath, 'GLOBAL=true');
+        
+        // Mock os.homedir and process.cwd before importing config
+        const os = require('os');
+        const originalHomedir = os.homedir;
+        os.homedir = jest.fn(() => testDir);
+        
+        const originalCwd = process.cwd;
+        // Return a different dir for cwd so LOCAL_ENV_FILE doesn't exist
+        const cwdDir = createTempDir('cwd-test-');
+        process.cwd = jest.fn(() => cwdDir);
+        
+        const config = require('../../src/config');
+        const envFile = config.findEnvFile();
+        
+        // Should return the global env file since local doesn't exist
+        expect(envFile).toBe(globalEnvPath);
+        
+        os.homedir = originalHomedir;
+        process.cwd = originalCwd;
+        cleanupTempDir(testDir);
+        cleanupTempDir(cwdDir);
+      });
     });
 
     it('should return null if no .env file exists', () => {
-      const testDir = createTempDir('config-test-');
-      
-      // findEnvFile checks LOCAL_ENV_FILE and ENV_FILE
-      // We can verify that neither exists in our temp dir
-      const localEnv = path.join(testDir, '.env');
-      const globalEnv = path.join(testDir, '.shc2es', '.env');
-      
-      expect(fs.existsSync(localEnv)).toBe(false);
-      expect(fs.existsSync(globalEnv)).toBe(false);
-      
-      cleanupTempDir(testDir);
+      jest.isolateModules(() => {
+        const testDir = createTempDir('config-test-');
+        
+        // Don't create any .env files
+        const os = require('os');
+        const originalHomedir = os.homedir;
+        os.homedir = jest.fn(() => testDir);
+        
+        const originalCwd = process.cwd;
+        const cwdDir = createTempDir('cwd-test-');
+        process.cwd = jest.fn(() => cwdDir);
+        
+        const config = require('../../src/config');
+        const envFile = config.findEnvFile();
+        
+        // Should return null when no env files exist
+        expect(envFile).toBeNull();
+        
+        os.homedir = originalHomedir;
+        process.cwd = originalCwd;
+        cleanupTempDir(testDir);
+        cleanupTempDir(cwdDir);
+      });
     });
   });
 
@@ -118,7 +173,15 @@ describe('config module', () => {
     it('should return all config paths', () => {
       jest.isolateModules(() => {
         const testDir = createTempDir('config-test-');
-        process.env.HOME = testDir;
+        
+        // Mock os.homedir and process.cwd before importing config
+        const os = require('os');
+        const originalHomedir = os.homedir;
+        os.homedir = jest.fn(() => testDir);
+        
+        const originalCwd = process.cwd;
+        const cwdDir = createTempDir('cwd-test-');
+        process.cwd = jest.fn(() => cwdDir);
         
         const config = require('../../src/config');
         const paths = config.getConfigPaths();
@@ -134,7 +197,10 @@ describe('config module', () => {
         expect(paths.dataDir).toContain('data');
         expect(paths.logsDir).toContain('logs');
         
+        os.homedir = originalHomedir;
+        process.cwd = originalCwd;
         cleanupTempDir(testDir);
+        cleanupTempDir(cwdDir);
       });
     });
   });
@@ -160,6 +226,50 @@ describe('config module', () => {
         expect(process.env.ANOTHER_VAR).toBe('another_value');
         
         process.cwd = originalCwd;
+        cleanupTempDir(testDir);
+      });
+    });
+
+    it('should not error when no .env file exists', () => {
+      jest.isolateModules(() => {
+        const testDir = createTempDir('config-test-');
+        
+        const originalCwd = process.cwd;
+        process.cwd = jest.fn(() => testDir);
+        process.env.HOME = testDir;
+        
+        // Require config which auto-loads env
+        // Should not throw when no .env exists
+        expect(() => require('../../src/config')).not.toThrow();
+        
+        process.cwd = originalCwd;
+        cleanupTempDir(testDir);
+      });
+    });
+
+    it('should log config file path in dev mode', () => {
+      jest.isolateModules(() => {
+        const testDir = createTempDir('config-test-');
+        const envPath = path.join(testDir, '.env');
+        
+        fs.writeFileSync(envPath, 'TEST_VAR=dev_test');
+        
+        const originalCwd = process.cwd;
+        const originalArgv = process.argv;
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+        
+        process.cwd = jest.fn(() => testDir);
+        // Simulate dev mode by adding ts-node to argv
+        process.argv = ['node', '/path/to/ts-node', 'script.ts'];
+        
+        // Require config which auto-loads env
+        require('../../src/config');
+        
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Loaded config from:'));
+        
+        consoleSpy.mockRestore();
+        process.cwd = originalCwd;
+        process.argv = originalArgv;
         cleanupTempDir(testDir);
       });
     });
