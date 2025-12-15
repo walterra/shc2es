@@ -260,7 +260,7 @@ data structures, error handling using Result/Either pattern or custom error clas
 Error, dependency injection for testability, single responsibility principle with functions
 under 20 lines, using Pino structured logging with correlation IDs, async/await with proper
 AbortController signal handling, exhaustive union type checking with never fallbacks, Jest
-unit tests with 100% branch coverage using arrange-act-assert pattern, integration tests with
+unit tests with 70% branch coverage using arrange-act-assert pattern, integration tests with
 TestContainers for external dependencies, property-based testing with fast-check for edge
 cases, ESLint strict ruleset with no-explicit-any and no-unsafe-\* rules enabled, Prettier
 formatting with 2-space indent and 100-char line width, semantic versioning with Changesets
