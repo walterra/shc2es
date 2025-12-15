@@ -154,7 +154,7 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
         const text = await response.text();
         log.fatal(
           { status: response.status, body: text },
-          `Search failed: HTTP ${response.status}`,
+          `Search failed: HTTP ${String(response.status)}`,
         );
         process.exit(1);
       }
@@ -221,7 +221,7 @@ async function listDashboards(): Promise<void> {
     const text = await response.text();
     log.fatal(
       { status: response.status, body: text },
-      `List failed: HTTP ${response.status}`,
+      `List failed: HTTP ${String(response.status)}`,
     );
     process.exit(1);
   }
@@ -284,7 +284,7 @@ async function exportDashboard(
         const text = await response.text();
         log.fatal(
           { status: response.status, body: text },
-          `Export failed: HTTP ${response.status}`,
+          `Export failed: HTTP ${String(response.status)}`,
         );
         process.exit(1);
       }

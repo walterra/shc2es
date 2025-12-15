@@ -442,7 +442,7 @@ async function importDashboard(): Promise<void> {
         const text = await response.text();
         log.error(
           { status: response.status, body: text },
-          `Dashboard import failed: HTTP ${response.status}`,
+          `Dashboard import failed: HTTP ${String(response.status)}`,
         );
         return;
       }
@@ -594,7 +594,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
                         .slice(0, 3)
                         .map((item) => item.index?.error),
                     },
-                    `Documents failed to index: ${errors.length} error(s)`,
+                    `Documents failed to index: ${String(errors.length)} error(s)`,
                   );
                 }
 
