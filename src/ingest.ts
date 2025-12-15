@@ -9,7 +9,7 @@ import * as path from "path";
 import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 import { validateIngestConfig } from "./validation";
-import { withSpan, SpanAttributes } from "./instrumentation";
+import { withSpan, SpanAttributes } from "./instrumentation"; // withSpan for high-level operations only
 
 const log = createLogger("ingest");
 
@@ -215,56 +215,48 @@ function extractMetric(doc: SmartHomeEvent): Metric | null {
 }
 
 function transformDoc(doc: SmartHomeEvent): TransformedEvent {
-  return withSpan(
-    "transform_document",
-    {
-      [SpanAttributes.DOC_TYPE]: doc["@type"] ?? "unknown",
-      [SpanAttributes.DEVICE_ID]: doc.deviceId ?? "",
-    },
-    () => {
-      const result: TransformedEvent = {
-        "@timestamp": doc.time,
-        "@type": doc["@type"],
-        id: doc.id,
-      };
+  // Fast in-memory transformation - no span needed to avoid overwhelming OTel queue
+  const result: TransformedEvent = {
+    "@timestamp": doc.time,
+    "@type": doc["@type"],
+    id: doc.id,
+  };
 
-      // Add type-specific fields
-      if (doc.deviceId) result.deviceId = doc.deviceId;
-      if (doc.path) result.path = doc.path;
+  // Add type-specific fields
+  if (doc.deviceId) result.deviceId = doc.deviceId;
+  if (doc.path) result.path = doc.path;
 
-      // Enrich with device/room info from registry
-      if (registry) {
-        // For DeviceServiceData events - lookup by deviceId
-        if (doc.deviceId && doc.deviceId in registry.devices) {
-          const deviceInfo = registry.devices[doc.deviceId];
-          result.device = { name: deviceInfo.name };
-          if (deviceInfo.type) result.device.type = deviceInfo.type;
+  // Enrich with device/room info from registry
+  if (registry) {
+    // For DeviceServiceData events - lookup by deviceId
+    if (doc.deviceId && doc.deviceId in registry.devices) {
+      const deviceInfo = registry.devices[doc.deviceId];
+      result.device = { name: deviceInfo.name };
+      if (deviceInfo.type) result.device.type = deviceInfo.type;
 
-          // Get room from device's roomId
-          if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
-            result.room = {
-              id: deviceInfo.roomId,
-              name: registry.rooms[deviceInfo.roomId].name,
-            };
-          }
-        }
-
-        // For room events - lookup by id
-        if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
-          result.room = {
-            id: doc.id,
-            name: registry.rooms[doc.id].name,
-          };
-        }
+      // Get room from device's roomId
+      if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
+        result.room = {
+          id: deviceInfo.roomId,
+          name: registry.rooms[deviceInfo.roomId].name,
+        };
       }
+    }
 
-      // Extract and normalize metric
-      const metric = extractMetric(doc);
-      if (metric) result.metric = metric;
+    // For room events - lookup by id
+    if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
+      result.room = {
+        id: doc.id,
+        name: registry.rooms[doc.id].name,
+      };
+    }
+  }
 
-      return result;
-    },
-  );
+  // Extract and normalize metric
+  const metric = extractMetric(doc);
+  if (metric) result.metric = metric;
+
+  return result;
 }
 
 function generateDocId(doc: SmartHomeEvent): string {
