@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
+import type { BshcClient } from "bosch-smart-home-bridge/dist/api/bshc-client";
 import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
 import { createLogger, logErrorAndExit } from "./logger";
@@ -36,6 +37,12 @@ interface BshDevice {
   deviceModel?: string;
 }
 
+interface DeviceRegistry {
+  fetchedAt: string;
+  devices: Record<string, { name: string; roomId?: string; type?: string }>;
+  rooms: Record<string, { name: string; iconId?: string }>;
+}
+
 function loadCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
     return {
@@ -48,21 +55,14 @@ function loadCertificate(): { cert: string; key: string } {
   );
 }
 
-async function main(): Promise<void> {
-  log.info(
-    "Fetching device and room registry from Bosch Smart Home Controller",
-  );
-
-  const { cert, key } = loadCertificate();
-
-  const bshb = BoschSmartHomeBridgeBuilder.builder()
-    .withHost(CONTROLLER_HOST)
-    .withClientCert(cert)
-    .withClientPrivateKey(key)
-    .build();
-
-  const client = bshb.getBshcClient();
-
+/**
+ * Fetch devices and rooms from the Bosch Smart Home Controller
+ * @param client - BSHB client instance
+ * @returns Promise resolving to devices and rooms arrays
+ */
+async function fetchDevicesAndRooms(
+  client: BshcClient,
+): Promise<{ devices: BshDevice[]; rooms: BshRoom[] }> {
   // Fetch devices
   const devices = await withSpan("fetch_devices", {}, async () => {
     log.info("Fetching devices...");
@@ -81,21 +81,30 @@ async function main(): Promise<void> {
     return rooms;
   });
 
-  // Build registry
-  withSpan(
+  return { devices, rooms };
+}
+
+/**
+ * Build registry data structure from devices and rooms
+ * @param devices - Array of devices from API
+ * @param rooms - Array of rooms from API
+ * @returns Registry object with mapped devices and rooms
+ */
+function buildRegistryData(
+  devices: BshDevice[],
+  rooms: BshRoom[],
+): DeviceRegistry {
+  return withSpan(
     "build_registry",
     {
       "devices.count": devices.length,
       "rooms.count": rooms.length,
     },
     () => {
-      const registry = {
+      const registry: DeviceRegistry = {
         fetchedAt: new Date().toISOString(),
-        devices: {} as Record<
-          string,
-          { name: string; roomId?: string; type?: string }
-        >,
-        rooms: {} as Record<string, { name: string; iconId?: string }>,
+        devices: {},
+        rooms: {},
       };
 
       // Map rooms
@@ -128,11 +137,42 @@ async function main(): Promise<void> {
         );
       }
 
-      // Save registry
-      fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-      log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
+      return registry;
     },
   );
+}
+
+/**
+ * Save registry to file
+ * @param registry - Registry data to save
+ */
+function saveRegistry(registry: DeviceRegistry): void {
+  fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
+  log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
+}
+
+/**
+ * Main entry point - orchestrates registry fetching and saving
+ * @returns Promise that resolves when registry is saved
+ */
+async function main(): Promise<void> {
+  log.info(
+    "Fetching device and room registry from Bosch Smart Home Controller",
+  );
+
+  const { cert, key } = loadCertificate();
+
+  const bshb = BoschSmartHomeBridgeBuilder.builder()
+    .withHost(CONTROLLER_HOST)
+    .withClientCert(cert)
+    .withClientPrivateKey(key)
+    .build();
+
+  const client = bshb.getBshcClient();
+
+  const { devices, rooms } = await fetchDevicesAndRooms(client);
+  const registry = buildRegistryData(devices, rooms);
+  saveRegistry(registry);
 }
 
 main().catch((err: unknown) => {

@@ -3,7 +3,7 @@ import { Agent, fetch as undiciFetch } from "undici";
 import { createReadStream, existsSync, readFileSync } from "fs";
 import { glob } from "glob";
 import split from "split2";
-import chokidar from "chokidar";
+import chokidar, { type FSWatcher } from "chokidar";
 import { Tail } from "tail";
 import * as path from "path";
 import { DATA_DIR } from "./config";
@@ -594,21 +594,72 @@ async function batchImport(pattern?: string): Promise<void> {
   log.info({ totalIndexed }, "Batch import complete");
 }
 
-function watchAndTail(): void {
-  // Get current day's file
-  const today = new Date().toISOString().split("T")[0] ?? "";
-  const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
-  const indexName = getIndexName(today);
+/**
+ * Index a single event to Elasticsearch
+ * @param doc - Parsed smart home event
+ * @param indexName - Target index name
+ */
+function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
+  const transformed = transformDoc(doc);
+  client
+    .index({
+      index: indexName,
+      id: generateDocId(doc),
+      document: transformed,
+    })
+    .then(() => {
+      const deviceId =
+        doc["@type"] === "DeviceServiceData" ? doc.deviceId : undefined;
+      log.debug(
+        { eventType: doc["@type"], deviceId, indexName },
+        "Indexed event",
+      );
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ err: message }, `Index error: ${message}`);
+    });
+}
 
-  log.info(
-    { filePath: todayFile, indexName },
-    "Starting watch mode for current day's file",
-  );
+/**
+ * Start tailing a file and index new events
+ * @param filePath - Path to file to tail
+ * @param indexName - Target index name
+ * @returns Tail instance
+ */
+function startTailing(filePath: string, indexName: string): Tail {
+  log.info({ filePath, indexName }, "Tailing file");
 
-  let tail: Tail | null = null;
+  const tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
-  // Watch specifically for today's file
-  const watcher = chokidar.watch(todayFile, {
+  tail.on("line", (line: string) => {
+    const doc = parseLine(line);
+    if (doc) {
+      indexSingleEvent(doc, indexName);
+    }
+  });
+
+  tail.on("error", (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, filePath }, `Tail error: ${message}`);
+  });
+
+  return tail;
+}
+
+/**
+ * Start file watcher for current day's events file
+ * @param filePath - Path to file to watch
+ * @param indexName - Target index name
+ * @returns Watcher instance and tail reference
+ */
+function startFileWatcher(
+  filePath: string,
+  indexName: string,
+): { watcher: FSWatcher; tailRef: { current: Tail | null } } {
+  const tailRef = { current: null as Tail | null };
+
+  const watcher = chokidar.watch(filePath, {
     persistent: true,
     ignoreInitial: false,
   });
@@ -622,56 +673,43 @@ function watchAndTail(): void {
     log.error({ err: message }, `Watcher error: ${message}`);
   });
 
-  watcher.on("add", (filePath) => {
-    log.info({ filePath, indexName }, "Tailing file");
-
-    tail = new Tail(filePath, { fromBeginning: false, follow: true });
-
-    tail.on("line", (line: string) => {
-      const doc = parseLine(line);
-      if (!doc) return;
-
-      const transformed = transformDoc(doc);
-      client
-        .index({
-          index: indexName,
-          id: generateDocId(doc),
-          document: transformed,
-        })
-        .then(() => {
-          const deviceId =
-            doc["@type"] === "DeviceServiceData" ? doc.deviceId : undefined;
-          log.debug(
-            { eventType: doc["@type"], deviceId, indexName },
-            "Indexed event",
-          );
-        })
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          log.error({ err: message }, `Index error: ${message}`);
-        });
-    });
-
-    tail.on("error", (err) => {
-      const message = err instanceof Error ? err.message : String(err);
-      log.error({ err: message, filePath }, `Tail error: ${message}`);
-    });
+  watcher.on("add", (addedPath) => {
+    tailRef.current = startTailing(addedPath, indexName);
   });
 
-  watcher.on("unlink", (filePath) => {
-    if (tail) {
-      tail.unwatch();
-      tail = null;
-      log.info({ filePath }, "Stopped tailing file");
+  watcher.on("unlink", (unlinkedPath) => {
+    if (tailRef.current) {
+      tailRef.current.unwatch();
+      tailRef.current = null;
+      log.info({ filePath: unlinkedPath }, "Stopped tailing file");
     }
   });
+
+  return { watcher, tailRef };
+}
+
+/**
+ * Watch current day's file and tail for new events (live ingestion mode)
+ */
+function watchAndTail(): void {
+  // Get current day's file
+  const today = new Date().toISOString().split("T")[0] ?? "";
+  const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
+  const indexName = getIndexName(today);
+
+  log.info(
+    { filePath: todayFile, indexName },
+    "Starting watch mode for current day's file",
+  );
+
+  const { watcher, tailRef } = startFileWatcher(todayFile, indexName);
 
   // Graceful shutdown
   process.on("SIGINT", () => {
     log.info("Shutting down");
     void watcher.close();
-    if (tail) {
-      tail.unwatch();
+    if (tailRef.current) {
+      tailRef.current.unwatch();
     }
     process.exit(0);
   });

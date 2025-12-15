@@ -250,6 +250,120 @@ async function listDashboards(): Promise<void> {
   console.log(`\nTotal: ${String(result.total)} dashboard(s)\n`);
 }
 
+/**
+ * Fetch dashboard export from Kibana API
+ * @param dashboardId - ID of the dashboard to export
+ * @returns Raw NDJSON string from Kibana export API
+ */
+async function fetchDashboardExport(dashboardId: string): Promise<string> {
+  const body = {
+    objects: [{ type: "dashboard", id: dashboardId }],
+    includeReferencesDeep: true,
+  };
+
+  log.info(
+    { kibanaNode: KIBANA_NODE, dashboardId },
+    "Exporting dashboard from Kibana",
+  );
+
+  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
+    method: "POST",
+    headers: {
+      "kbn-xsrf": "true",
+      "Content-Type": "application/json",
+      Authorization: getAuthHeader(),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    log.fatal(
+      { status: response.status, body: text },
+      `Export failed: HTTP ${String(response.status)}`,
+    );
+    process.exit(1);
+  }
+
+  return response.text();
+}
+
+/**
+ * Parse and validate dashboard export NDJSON
+ * @param ndjson - Raw NDJSON from Kibana export
+ * @returns Metadata about the export (object counts, missing refs, etc.)
+ */
+function parseDashboardExport(ndjson: string): ExportMetadata {
+  const lines = ndjson.trim().split("\n");
+  const objects = lines.map((line) => {
+    const parsed: unknown = JSON.parse(line);
+    return parsed as KibanaSavedObject | ExportMetadata;
+  });
+
+  // Last line is export metadata
+  const lastObject = objects[objects.length - 1];
+  if (!lastObject || !isExportMetadata(lastObject)) {
+    log.fatal("Export response missing metadata line");
+    process.exit(1);
+  }
+
+  const metadata = lastObject;
+  const exportedObjects = objects.slice(0, -1) as KibanaSavedObject[];
+
+  // Group by type for logging
+  const typeCounts: Record<string, number> = {};
+  for (const obj of exportedObjects) {
+    const currentCount = typeCounts[obj.type];
+    typeCounts[obj.type] = currentCount !== undefined ? currentCount + 1 : 1;
+  }
+
+  log.info(
+    {
+      typeCounts,
+      exportedCount: metadata.exportedCount,
+      [SpanAttributes.OBJECTS_COUNT]: metadata.exportedCount,
+    },
+    "Export summary",
+  );
+
+  if (metadata.missingRefCount && metadata.missingRefCount > 0) {
+    log.warn(
+      { missingReferences: metadata.missingReferences },
+      "Some references could not be resolved",
+    );
+  }
+
+  return metadata;
+}
+
+/**
+ * Save dashboard NDJSON to file with stripped metadata
+ * @param ndjson - Raw NDJSON to save
+ * @param outputName - Name of the output file (without .ndjson extension)
+ */
+function saveDashboardFile(ndjson: string, outputName: string): void {
+  // Ensure dashboards directory exists
+  if (!existsSync(DASHBOARDS_DIR)) {
+    mkdirSync(DASHBOARDS_DIR, { recursive: true });
+    log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
+  }
+
+  // Strip sensitive metadata before saving
+  const strippedNdjson = stripSensitiveMetadata(ndjson);
+  log.info({ strippedFields: SENSITIVE_FIELDS }, "Stripped sensitive metadata");
+
+  // Write to file
+  const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
+  writeFileSync(outputFile, strippedNdjson);
+  log.info({ outputFile }, "Dashboard exported successfully");
+}
+
+/**
+ * Export a dashboard from Kibana and save to file
+ * @param dashboardId - ID of the dashboard to export
+ * @param outputName - Name for the output file
+ * @returns Promise that resolves when export is complete
+ */
 async function exportDashboard(
   dashboardId: string,
   outputName: string,
@@ -261,102 +375,16 @@ async function exportDashboard(
       [SpanAttributes.DASHBOARD_NAME]: outputName,
     },
     async () => {
-      // Ensure dashboards directory exists
-      if (!existsSync(DASHBOARDS_DIR)) {
-        mkdirSync(DASHBOARDS_DIR, { recursive: true });
-        log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
-      }
-
-      const body = {
-        objects: [{ type: "dashboard", id: dashboardId }],
-        includeReferencesDeep: true,
-      };
-
-      log.info(
-        { kibanaNode: KIBANA_NODE, dashboardId },
-        "Exporting dashboard from Kibana",
-      );
-
-      const response = await tlsFetch(
-        `${KIBANA_NODE}/api/saved_objects/_export`,
-        {
-          method: "POST",
-          headers: {
-            "kbn-xsrf": "true",
-            "Content-Type": "application/json",
-            Authorization: getAuthHeader(),
-          },
-          body: JSON.stringify(body),
-        },
-      );
-
-      if (!response.ok) {
-        const text = await response.text();
-        log.fatal(
-          { status: response.status, body: text },
-          `Export failed: HTTP ${String(response.status)}`,
-        );
-        process.exit(1);
-      }
-
-      const ndjson = await response.text();
-
-      // Parse to count objects and validate
-      const lines = ndjson.trim().split("\n");
-      const objects = lines.map((line) => {
-        const parsed: unknown = JSON.parse(line);
-        return parsed as KibanaSavedObject | ExportMetadata;
-      });
-
-      // Last line is export metadata
-      const lastObject = objects[objects.length - 1];
-      if (!lastObject || !isExportMetadata(lastObject)) {
-        log.fatal("Export response missing metadata line");
-        process.exit(1);
-      }
-
-      const metadata = lastObject;
-      const exportedObjects = objects.slice(0, -1) as KibanaSavedObject[];
-
-      // Group by type for logging
-      const typeCounts: Record<string, number> = {};
-      for (const obj of exportedObjects) {
-        const currentCount = typeCounts[obj.type];
-        typeCounts[obj.type] =
-          currentCount !== undefined ? currentCount + 1 : 1;
-      }
-
-      log.info(
-        {
-          typeCounts,
-          exportedCount: metadata.exportedCount,
-          [SpanAttributes.OBJECTS_COUNT]: metadata.exportedCount,
-        },
-        "Export summary",
-      );
-
-      if (metadata.missingRefCount && metadata.missingRefCount > 0) {
-        log.warn(
-          { missingReferences: metadata.missingReferences },
-          "Some references could not be resolved",
-        );
-      }
-
-      // Strip sensitive metadata before saving
-      const strippedNdjson = stripSensitiveMetadata(ndjson);
-      log.info(
-        { strippedFields: SENSITIVE_FIELDS },
-        "Stripped sensitive metadata",
-      );
-
-      // Write to file
-      const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
-      writeFileSync(outputFile, strippedNdjson);
-      log.info({ outputFile }, "Dashboard exported successfully");
+      const ndjson = await fetchDashboardExport(dashboardId);
+      parseDashboardExport(ndjson);
+      saveDashboardFile(ndjson, outputName);
     },
   );
 }
 
+/**
+ * Print CLI usage information
+ */
 function printUsage(): void {
   // User-facing CLI output
   // eslint-disable-next-line no-console

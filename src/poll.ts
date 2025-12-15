@@ -96,41 +96,63 @@ export function processEvents(events: unknown[]): void {
 }
 
 /**
- * Start long polling for smart home events
- * @param bshb - Bosch Smart Home Bridge instance
+ * Handle transient errors with retry logic
+ * @param error - Error to handle
+ * @param retryCallback - Callback to execute after delay
  */
-export function startPolling(bshb: BoschSmartHomeBridge): void {
-  appLogger.info("Subscribing to events");
+function handleTransientError(error: unknown, retryCallback: () => void): void {
+  const message = error instanceof Error ? error.message : String(error);
+  appLogger.error({ err: message }, `Long polling error: ${message}`);
+  appLogger.info("Reconnecting in 5 seconds");
+  setTimeout(retryCallback, 5000);
+}
 
-  const client = bshb.getBshcClient();
+/**
+ * Handle polling loop - recursively poll for events
+ * @param client - BSHB client instance
+ * @param subscriptionId - Subscription ID from initial subscribe
+ * @param bshb - Bridge instance for reconnection
+ */
+function handlePollingLoop(
+  client: ReturnType<BoschSmartHomeBridge["getBshcClient"]>,
+  subscriptionId: string,
+  bshb: BoschSmartHomeBridge,
+): void {
+  const poll = (): void => {
+    // Don't instrument the polling loop itself - it's recursive and would create nested spans
+    // Auto-instrumentation already traces the HTTP long-poll requests
+    client.longPolling(subscriptionId).subscribe({
+      next: (pollResponse) => {
+        const events = pollResponse.parsedResponse.result as unknown[];
+        processEvents(events);
+        poll(); // Continue polling
+      },
+      error: (err: unknown) => {
+        handleTransientError(err, () => {
+          startPolling(bshb);
+        });
+      },
+    });
+  };
 
+  poll();
+}
+
+/**
+ * Subscribe to events and start polling
+ * @param client - BSHB client instance
+ * @param bshb - Bridge instance for reconnection
+ */
+function subscribeToEvents(
+  client: ReturnType<BoschSmartHomeBridge["getBshcClient"]>,
+  bshb: BoschSmartHomeBridge,
+): void {
   client.subscribe().subscribe({
     next: (response) => {
       const subscriptionId = response.parsedResponse.result;
       appLogger.info({ subscriptionId }, "Subscribed successfully");
       appLogger.info("Starting long polling (Ctrl+C to stop)");
-
-      const poll = (): void => {
-        // Don't instrument the polling loop itself - it's recursive and would create nested spans
-        // Auto-instrumentation already traces the HTTP long-poll requests
-        client.longPolling(subscriptionId).subscribe({
-          next: (pollResponse) => {
-            const events = pollResponse.parsedResponse.result as unknown[];
-            processEvents(events);
-            poll(); // Continue polling
-          },
-          error: (err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            appLogger.error({ err: message }, `Long polling error: ${message}`);
-            appLogger.info("Reconnecting in 5 seconds");
-            setTimeout(() => {
-              startPolling(bshb);
-            }, 5000);
-          },
-        });
-      };
-
-      poll();
+      handlePollingLoop(client, subscriptionId, bshb);
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -140,10 +162,9 @@ export function startPolling(bshb: BoschSmartHomeBridge): void {
           { err: message },
           `Subscription error (transient): ${message}`,
         );
-        appLogger.info("Reconnecting in 5 seconds");
-        setTimeout(() => {
+        handleTransientError(err, () => {
           startPolling(bshb);
-        }, 5000);
+        });
       } else {
         appLogger.fatal(
           { err: message },
@@ -153,6 +174,16 @@ export function startPolling(bshb: BoschSmartHomeBridge): void {
       }
     },
   });
+}
+
+/**
+ * Start long polling for smart home events
+ * @param bshb - Bosch Smart Home Bridge instance
+ */
+export function startPolling(bshb: BoschSmartHomeBridge): void {
+  appLogger.info("Subscribing to events");
+  const client = bshb.getBshcClient();
+  subscribeToEvents(client, bshb);
 }
 
 /**
