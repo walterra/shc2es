@@ -31,20 +31,6 @@ npm install --save-dev <package>
 
 **shc2es** (Smart Home Controller to Elasticsearch) - Collects device data from Bosch Smart Home Controller II via long polling, stores as NDJSON, and ingests into Elasticsearch for Kibana dashboards.
 
-### Naming & Trademarks
-
-The project name `shc2es` uses abbreviations to avoid trademark issues:
-
-- **SHC** = Smart Home Controller (from official Bosch API docs naming: `bosch-shc-api-docs`)
-- **ES** = Elasticsearch (common community abbreviation)
-
-**Trademark restrictions** (do not use these in package/project names):
-
-- "Elasticsearch", "Elastic", "Kibana" - [Elastic Trademark Policy](https://www.elastic.co/legal/trademarks)
-- "Bosch" with claims suggesting involvement - [Bosch SHC API License](https://github.com/BoschSmartHome/bosch-shc-api-docs)
-
-**Allowed**: Use full trademark names in descriptions, README, and GitHub topics for discoverability.
-
 ## Hardware
 
 Based on the [Bosch Smart Home Controller II](https://www.bosch-smarthome.com/at/de/produkte/steuerung-und-zentrale/smart-home-controller/) - the central hub that connects and controls Bosch Smart Home devices.
@@ -236,6 +222,7 @@ Concise single-line description for CHANGELOG.md (not implementation details)
 ```
 
 **Guidelines for changeset messages:**
+
 - ✅ **Good**: "Add Jest testing infrastructure with 70% coverage thresholds and automated CI testing"
 - ❌ **Bad**: Listing every file changed, configuration option, or implementation detail
 - Focus on **user-facing value** or **high-level feature addition**
@@ -249,7 +236,7 @@ The project has test coverage using Jest for core modules.
 ### Test Guidelines
 
 1. **Run tests before committing**: `yarn test`
-2. **Maintain coverage thresholds**: 
+2. **Maintain coverage thresholds**:
    - 70% minimum for statements, functions, and lines
    - 60% minimum for branches
 3. **Write tests for new features**: Add to `tests/unit/` or `tests/integration/`
@@ -264,6 +251,25 @@ Currently testing core modules (`config.ts`, `logger.ts`). CLI scripts (`poll.ts
 ## Documentation Maintenance
 
 Keep `README.md` up to date when making changes. The README is end-user focused (installation, usage, configuration) while CLAUDE.md is agent-focused (debugging, restrictions, architecture).
+
+## Coding style
+
+Production-grade TypeScript module with strict type safety, zero implicit any, comprehensive
+JSDoc comments with @param and @return tags, functional programming patterns with immutable
+data structures, error handling using Result/Either pattern or custom error classes extending
+Error, dependency injection for testability, single responsibility principle with functions
+under 20 lines, using Pino structured logging with correlation IDs, async/await with proper
+AbortController signal handling, exhaustive union type checking with never fallbacks, Jest
+unit tests with 100% branch coverage using arrange-act-assert pattern, integration tests with
+TestContainers for external dependencies, property-based testing with fast-check for edge
+cases, ESLint strict ruleset with no-explicit-any and no-unsafe-\* rules enabled, Prettier
+formatting with 2-space indent and 100-char line width, semantic versioning with Changesets
+following conventional commits, OpenTelemetry spans with proper error recording and semantic
+conventions, graceful shutdown with cleanup hooks, configuration validation using Zod schemas
+with descriptive error messages, meaningful variable names following domain language (no
+abbreviations except widely known acronyms), pure functions with no side effects marked with
+readonly parameters, defensive programming with input validation at boundaries, SOLID
+principles adherence --coverage 70 --strict true --target ES2022 --moduleResolution bundler --isolatedModules true
 
 ### Key Documentation Files
 
