@@ -1,210 +1,306 @@
 /**
  * Unit tests for poll module
- * Tests polling logic with mocked Bosch API
+ * Tests pure functions and business logic with mocked dependencies
  */
 
-import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
-import * as fs from 'fs';
-import * as path from 'path';
+// Mock logger before importing poll to prevent file writes
+jest.mock('../../src/logger', () => {
+  return {
+    appLogger: {
+      info: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      warn: jest.fn(),
+      fatal: jest.fn(),
+    },
+    dataLogger: {
+      info: jest.fn(),
+    },
+    BshbLogger: jest.fn().mockImplementation(() => ({
+      fine: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    })),
+  };
+});
 
-// Mock the bosch-smart-home-bridge before importing poll
+// Mock config to prevent actual config loading
+jest.mock('../../src/config', () => {
+  return {
+    CERTS_DIR: '/mock/certs',
+    CERT_FILE: '/mock/certs/client-cert.pem',
+    KEY_FILE: '/mock/certs/client-key.pem',
+    getConfigPaths: jest.fn(() => ({
+      configDir: '/mock/.shc2es',
+      certsDir: '/mock/certs',
+      dataDir: '/mock/data',
+      logsDir: '/mock/logs',
+    })),
+  };
+});
+
+// Mock bosch-smart-home-bridge using our existing mock
 jest.mock('bosch-smart-home-bridge', () => {
   return require('../mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
 });
 
+// Disable OpenTelemetry
+process.env.OTEL_SDK_DISABLED = 'true';
+
 describe('poll module', () => {
-  let tempDir: string;
-
   beforeEach(() => {
-    tempDir = createTempDir('poll-test-');
-    process.env.HOME = tempDir;
-    process.env.BSH_HOST = '192.168.1.100';
-    process.env.BSH_PASSWORD = 'test-password';
-    process.env.LOG_LEVEL = 'silent';
-    process.env.OTEL_SDK_DISABLED = 'true';
-    
-    // Create config directories
-    fs.mkdirSync(path.join(tempDir, '.shc2es', 'certs'), { recursive: true });
-    fs.mkdirSync(path.join(tempDir, '.shc2es', 'data'), { recursive: true });
-    fs.mkdirSync(path.join(tempDir, '.shc2es', 'logs'), { recursive: true });
+    jest.clearAllMocks();
   });
 
-  afterEach(() => {
-    cleanupTempDir(tempDir);
-    jest.resetModules();
-  });
+  describe('isTransientError', () => {
+    const { isTransientError } = require('../../src/poll');
 
-  describe('configuration validation', () => {
-    it('should require BSH_HOST', () => {
-      delete process.env.BSH_HOST;
-      
-      // Poll module will exit if required config is missing
-      // We test this indirectly by checking the env requirement
-      expect(process.env.BSH_HOST).toBeUndefined();
+    it('should identify TIMEOUT as transient', () => {
+      expect(isTransientError('Request TIMEOUT')).toBe(true);
+      expect(isTransientError('TIMEOUT occurred')).toBe(true);
     });
 
-    it('should require BSH_PASSWORD', () => {
-      delete process.env.BSH_PASSWORD;
-      
-      expect(process.env.BSH_PASSWORD).toBeUndefined();
+    it('should identify ECONNRESET as transient', () => {
+      expect(isTransientError('Error: ECONNRESET')).toBe(true);
     });
 
-    it('should use default CLIENT_NAME if not provided', () => {
-      delete process.env.BSH_CLIENT_NAME;
-      
-      const defaultName = process.env.BSH_CLIENT_NAME ?? 'oss_bosch_smart_home_poll';
-      expect(defaultName).toBe('oss_bosch_smart_home_poll');
+    it('should identify ENOTFOUND as transient', () => {
+      expect(isTransientError('getaddrinfo ENOTFOUND')).toBe(true);
     });
 
-    it('should use default CLIENT_ID if not provided', () => {
-      delete process.env.BSH_CLIENT_ID;
-      
-      const defaultId = process.env.BSH_CLIENT_ID ?? 'oss_bosch_smart_home_poll_client';
-      expect(defaultId).toBe('oss_bosch_smart_home_poll_client');
+    it('should identify EHOSTUNREACH as transient', () => {
+      expect(isTransientError('connect EHOSTUNREACH')).toBe(true);
+    });
+
+    it('should not identify authentication errors as transient', () => {
+      expect(isTransientError('Authentication failed')).toBe(false);
+    });
+
+    it('should not identify authorization errors as transient', () => {
+      expect(isTransientError('Unauthorized')).toBe(false);
+    });
+
+    it('should not identify invalid credentials as transient', () => {
+      expect(isTransientError('Invalid credentials')).toBe(false);
+    });
+
+    it('should not identify generic errors as transient', () => {
+      expect(isTransientError('Something went wrong')).toBe(false);
+    });
+
+    it('should be case-sensitive', () => {
+      expect(isTransientError('timeout')).toBe(false); // lowercase
+      expect(isTransientError('TIMEOUT')).toBe(true);  // uppercase
     });
   });
 
-  describe('certificate management', () => {
-    it('should load existing certificates', () => {
-      const certsDir = path.join(tempDir, '.shc2es', 'certs');
-      const certFile = path.join(certsDir, 'client-cert.pem');
-      const keyFile = path.join(certsDir, 'client-key.pem');
+  describe('isPairingButtonError', () => {
+    const { isPairingButtonError } = require('../../src/poll');
 
-      fs.writeFileSync(certFile, '-----BEGIN CERTIFICATE-----\nEXISTING\n-----END CERTIFICATE-----');
-      fs.writeFileSync(keyFile, '-----BEGIN PRIVATE KEY-----\nEXISTING\n-----END PRIVATE KEY-----');
-
-      expect(fs.existsSync(certFile)).toBe(true);
-      expect(fs.existsSync(keyFile)).toBe(true);
-
-      const cert = fs.readFileSync(certFile, 'utf-8');
-      const key = fs.readFileSync(keyFile, 'utf-8');
-
-      expect(cert).toContain('EXISTING');
-      expect(key).toContain('EXISTING');
+    it('should identify pairing button messages', () => {
+      expect(isPairingButtonError('press the button on Controller II')).toBe(true);
     });
 
-    it('should generate new certificates if missing', () => {
-      jest.isolateModules(() => {
-        const { MockBshbUtils } = require('../mocks/bosch-smart-home-bridge.mock');
-        
-        const generated = MockBshbUtils.generateClientCertificate();
-        
-        expect(generated).toHaveProperty('cert');
-        expect(generated).toHaveProperty('private');
-        expect(generated.cert).toContain('CERTIFICATE');
-        expect(generated.private).toContain('PRIVATE KEY');
-      });
+    it('should identify partial pairing button messages', () => {
+      expect(isPairingButtonError('Please press the button to continue')).toBe(true);
     });
 
-    it('should save generated certificates to correct location', () => {
-      const certsDir = path.join(tempDir, '.shc2es', 'certs');
-      const certFile = path.join(certsDir, 'client-cert.pem');
-      const keyFile = path.join(certsDir, 'client-key.pem');
+    it('should not identify unrelated errors', () => {
+      expect(isPairingButtonError('Connection failed')).toBe(false);
+    });
 
-      const mockCert = '-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----';
-      const mockKey = '-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----';
+    it('should not identify timeout errors', () => {
+      expect(isPairingButtonError('TIMEOUT')).toBe(false);
+    });
 
-      fs.writeFileSync(certFile, mockCert);
-      fs.writeFileSync(keyFile, mockKey);
-
-      expect(fs.existsSync(certFile)).toBe(true);
-      expect(fs.existsSync(keyFile)).toBe(true);
-
-      const savedCert = fs.readFileSync(certFile, 'utf-8');
-      const savedKey = fs.readFileSync(keyFile, 'utf-8');
-
-      expect(savedCert).toBe(mockCert);
-      expect(savedKey).toBe(mockKey);
+    it('should not identify network errors', () => {
+      expect(isPairingButtonError('ECONNRESET')).toBe(false);
     });
   });
 
-  describe('event handling', () => {
-    it('should log events to data file', () => {
-      const dataDir = path.join(tempDir, '.shc2es', 'data');
-      const dateStamp = new Date().toISOString().split('T')[0];
-      const dataFile = path.join(dataDir, `events-${dateStamp}.ndjson`);
+  describe('createBridge', () => {
+    it('should create a bridge with host, cert, and key', () => {
+      const { createBridge } = require('../../src/poll');
+      
+      const host = '192.168.1.100';
+      const cert = 'mock-cert';
+      const key = 'mock-key';
 
-      const mockEvent = {
+      const bridge = createBridge(host, cert, key);
+
+      expect(bridge).toBeDefined();
+      expect(bridge.getBshcClient).toBeDefined();
+      expect(bridge.pairIfNeeded).toBeDefined();
+    });
+
+    it('should return bridge with getBshcClient method', () => {
+      const { createBridge } = require('../../src/poll');
+      
+      const bridge = createBridge('192.168.1.1', 'cert', 'key');
+      const client = bridge.getBshcClient();
+
+      expect(client).toBeDefined();
+      expect(client.subscribe).toBeDefined();
+    });
+  });
+
+  describe('processEvent', () => {
+    const { processEvent } = require('../../src/poll');
+    const { dataLogger, appLogger } = require('../../src/logger');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should log DeviceServiceData event to dataLogger', () => {
+      const event = {
         '@type': 'DeviceServiceData',
-        id: 'test-device',
-        deviceId: 'test-device',
-        state: { temperature: 21.5 }
+        id: 'HumidityLevel',
+        deviceId: 'hdm:ZigBee:001e5e0902b94515',
+        state: { humidity: 42.71 }
       };
 
-      // Write mock event
-      fs.writeFileSync(dataFile, JSON.stringify(mockEvent) + '\n');
+      processEvent(event);
 
-      const content = fs.readFileSync(dataFile, 'utf-8');
-      const parsed = JSON.parse(content.trim());
-
-      expect(parsed).toMatchObject(mockEvent);
+      expect(dataLogger.info).toHaveBeenCalledWith(event);
     });
 
-    it('should append multiple events to data file', () => {
-      const dataDir = path.join(tempDir, '.shc2es', 'data');
-      const dateStamp = new Date().toISOString().split('T')[0];
-      const dataFile = path.join(dataDir, `events-${dateStamp}.ndjson`);
+    it('should log device event to dataLogger', () => {
+      const event = {
+        '@type': 'device',
+        id: 'hdm:ZigBee:f0fd45fffe557345',
+        deviceId: 'hdm:ZigBee:f0fd45fffe557345',
+        name: 'Test Thermostat'
+      };
 
+      processEvent(event);
+
+      expect(dataLogger.info).toHaveBeenCalledWith(event);
+    });
+
+    it('should log room event to dataLogger', () => {
+      const event = {
+        '@type': 'room',
+        id: 'hz_1',
+        name: 'Living Room'
+      };
+
+      processEvent(event);
+
+      expect(dataLogger.info).toHaveBeenCalledWith(event);
+    });
+
+    it('should log debug info to appLogger', () => {
+      const event = {
+        '@type': 'DeviceServiceData',
+        id: 'test',
+        deviceId: 'device-123'
+      };
+
+      processEvent(event);
+
+      expect(appLogger.debug).toHaveBeenCalledWith(
+        {
+          eventType: 'DeviceServiceData',
+          deviceId: 'device-123'
+        },
+        'Event received'
+      );
+    });
+
+    it('should handle events without deviceId', () => {
+      const event = {
+        '@type': 'message',
+        id: 'msg-123'
+      };
+
+      processEvent(event);
+
+      expect(dataLogger.info).toHaveBeenCalledWith(event);
+      expect(appLogger.debug).toHaveBeenCalledWith(
+        {
+          eventType: 'message',
+          deviceId: undefined
+        },
+        'Event received'
+      );
+    });
+  });
+
+  describe('processEvents', () => {
+    const { processEvents } = require('../../src/poll');
+    const { dataLogger, appLogger } = require('../../src/logger');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should process multiple events', () => {
+      const events = [
+        { '@type': 'DeviceServiceData', id: '1', deviceId: 'device1' },
+        { '@type': 'device', id: '2', deviceId: 'device2' },
+        { '@type': 'room', id: '3' },
+      ];
+
+      processEvents(events);
+
+      expect(dataLogger.info).toHaveBeenCalledTimes(3);
+      expect(dataLogger.info).toHaveBeenNthCalledWith(1, events[0]);
+      expect(dataLogger.info).toHaveBeenNthCalledWith(2, events[1]);
+      expect(dataLogger.info).toHaveBeenNthCalledWith(3, events[2]);
+    });
+
+    it('should log summary after processing', () => {
+      const events = [
+        { '@type': 'Event1', id: '1' },
+        { '@type': 'Event2', id: '2' },
+      ];
+
+      processEvents(events);
+
+      expect(appLogger.info).toHaveBeenCalledWith(
+        { count: 2 },
+        'Events processed'
+      );
+    });
+
+    it('should handle empty event array', () => {
+      processEvents([]);
+
+      expect(dataLogger.info).not.toHaveBeenCalled();
+      expect(appLogger.info).not.toHaveBeenCalled();
+    });
+
+    it('should process single event', () => {
+      const events = [
+        { '@type': 'DeviceServiceData', id: 'test' }
+      ];
+
+      processEvents(events);
+
+      expect(dataLogger.info).toHaveBeenCalledTimes(1);
+      expect(appLogger.info).toHaveBeenCalledWith(
+        { count: 1 },
+        'Events processed'
+      );
+    });
+
+    it('should process events in order', () => {
       const events = [
         { '@type': 'Event1', id: '1' },
         { '@type': 'Event2', id: '2' },
         { '@type': 'Event3', id: '3' },
       ];
 
-      // Simulate appending events
-      events.forEach(event => {
-        fs.appendFileSync(dataFile, JSON.stringify(event) + '\n');
-      });
+      processEvents(events);
 
-      const content = fs.readFileSync(dataFile, 'utf-8');
-      const lines = content.trim().split('\n');
-
-      expect(lines).toHaveLength(3);
-      expect(JSON.parse(lines[0])).toMatchObject(events[0]);
-      expect(JSON.parse(lines[1])).toMatchObject(events[1]);
-      expect(JSON.parse(lines[2])).toMatchObject(events[2]);
-    });
-  });
-
-  describe('subscription management', () => {
-    it('should handle subscription ID', () => {
-      const mockSubscriptionId = 'test-subscription-123';
-      
-      // Mock the subscription response
-      expect(mockSubscriptionId).toBeTruthy();
-      expect(typeof mockSubscriptionId).toBe('string');
-    });
-
-    it('should handle subscription errors', () => {
-      const mockError = new Error('Subscription failed');
-      
-      expect(mockError).toBeInstanceOf(Error);
-      expect(mockError.message).toBe('Subscription failed');
-    });
-  });
-
-  describe('reconnection logic', () => {
-    it('should handle pairing button requirement', () => {
-      const mockError = new Error('press the button on Controller II');
-      
-      expect(mockError.message).toContain('press the button');
-    });
-  });
-
-  describe('graceful shutdown', () => {
-    it('should handle SIGINT signal', () => {
-      const mockExit = jest.spyOn(process, 'exit').mockImplementation((() => {
-        return undefined as never;
-      }) as () => never);
-
-      // Simulate SIGINT
-      process.emit('SIGINT', 'SIGINT');
-
-      // In a real scenario, this would trigger shutdown
-      // We just verify the handler can be called
-      expect(true).toBe(true);
-
-      mockExit.mockRestore();
+      // Verify order by checking call sequence
+      const calls = dataLogger.info.mock.calls;
+      expect(calls[0][0]).toBe(events[0]);
+      expect(calls[1][0]).toBe(events[1]);
+      expect(calls[2][0]).toBe(events[2]);
     });
   });
 });
