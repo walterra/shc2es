@@ -1,0 +1,147 @@
+/**
+ * Data transformation functions for smart home events.
+ *
+ * These functions are used during ingestion to transform and normalize
+ * events from the Bosch Smart Home Controller II before indexing to Elasticsearch.
+ */
+
+import { SmartHomeEvent } from "./types/smart-home-events";
+
+/**
+ * Metric extracted from an event (e.g., temperature, humidity)
+ */
+export interface Metric {
+  name: string;
+  value: number;
+}
+
+/**
+ * Extract a numeric metric from a smart home event.
+ *
+ * For DeviceServiceData events, extracts from the state object.
+ * For room events, extracts from extProperties (parsing string values).
+ * Returns null for device and message events.
+ *
+ * @param doc - Smart home event to extract metric from
+ * @returns Metric object with name and value, or null if no metric found
+ *
+ * @example
+ * ```typescript
+ * const event = {
+ *   "@type": "DeviceServiceData",
+ *   state: { humidity: 42.5 }
+ * };
+ * extractMetric(event); // { name: "humidity", value: 42.5 }
+ * ```
+ */
+export function extractMetric(doc: SmartHomeEvent): Metric | null {
+  // Use type narrowing with discriminated union
+  switch (doc["@type"]) {
+    case "DeviceServiceData": {
+      // Extract from state object
+      if (doc.state) {
+        for (const [key, val] of Object.entries(doc.state)) {
+          if (key !== "@type" && typeof val === "number") {
+            return { name: key, value: val };
+          }
+        }
+      }
+      return null;
+    }
+
+    case "room": {
+      // Extract from extProperties (values are strings)
+      if (doc.extProperties) {
+        for (const [key, val] of Object.entries(doc.extProperties)) {
+          const num = parseFloat(String(val));
+          if (!isNaN(num)) {
+            return { name: key, value: num };
+          }
+        }
+      }
+      return null;
+    }
+
+    case "device":
+    case "message":
+    case "client":
+      // These event types don't contain metrics
+      return null;
+
+    default: {
+      // Exhaustiveness check - ensures all event types are handled
+      const _exhaustive: never = doc;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Generate a unique document ID for Elasticsearch indexing.
+ *
+ * Uses event type, entity ID, and timestamp to create a deterministic ID.
+ * This allows for idempotent ingestion (re-ingesting same event won't duplicate).
+ *
+ * @param doc - Smart home event to generate ID for
+ * @returns Unique document ID string
+ *
+ * @example
+ * ```typescript
+ * generateDocId({
+ *   "@type": "DeviceServiceData",
+ *   deviceId: "hdm:ZigBee:001",
+ *   id: "HumidityLevel",
+ *   time: "2025-12-15T10:00:00Z"
+ * });
+ * // Returns: "DeviceServiceData-hdm:ZigBee:001-HumidityLevel-2025-12-15T10:00:00Z"
+ * ```
+ */
+export function generateDocId(doc: SmartHomeEvent): string {
+  // Generate unique document ID based on event type
+  const timestamp = doc.time;
+
+  // Helper to ensure value is a string (not an object)
+  const toString = (val: unknown): string => {
+    if (val === null || val === undefined) {
+      return "unknown";
+    }
+    if (typeof val === "string") {
+      return val;
+    }
+    // If it's an object, use JSON.stringify (shouldn't happen with proper types)
+    return JSON.stringify(val);
+  };
+
+  switch (doc["@type"]) {
+    case "DeviceServiceData":
+      // Format: DeviceServiceData-<deviceId>-<serviceId>-<timestamp>
+      return [
+        doc["@type"],
+        toString(doc.deviceId),
+        toString(doc.id),
+        toString(timestamp),
+      ].join("-");
+
+    case "device":
+      // Format: device-<id>-<timestamp>
+      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+
+    case "room":
+      // Format: room-<id>-<timestamp>
+      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+
+    case "message":
+      // Format: message-<id>-<timestamp>
+      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+
+    case "client":
+      // Format: client-<id>-<timestamp>
+      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+
+    default: {
+      // Exhaustiveness check
+      const _exhaustive: never = doc;
+      return _exhaustive;
+    }
+  }
+}

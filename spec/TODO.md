@@ -4,11 +4,7 @@
 
 ### Type Safety Improvements
 
-- **Smart Home Event Types**
-  - `src/ingest.ts`: `SmartHomeEvent` interface uses `[key: string]: unknown` - replace with exhaustive union types
-  - Define separate types: `DeviceServiceDataEvent`, `RoomEvent`, etc.
-  - Use discriminated union with `@type` field for type narrowing
-  - Add `never` fallbacks in switch statements for exhaustive checking
+
 
 - **Result/Either Pattern for Error Handling**
   - Current: Mix of throwing exceptions, process.exit(), and error logging

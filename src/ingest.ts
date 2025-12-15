@@ -16,6 +16,8 @@ import {
   isExportMetadata,
   KibanaSavedObject,
 } from "./types/kibana-saved-objects";
+import { SmartHomeEvent } from "./types/smart-home-events";
+import { extractMetric, generateDocId, Metric } from "./transforms";
 
 const log = createLogger("ingest");
 
@@ -159,28 +161,10 @@ function loadRegistry(): void {
   });
 }
 
-// Event types from Bosch Smart Home API:
-// - DeviceServiceData: sensor readings with deviceId, path, state
-// - room: room updates with name, iconId, extProperties
-interface SmartHomeEvent {
-  time?: string;
-  "@type"?: string;
-  id?: string;
-  // DeviceServiceData fields
-  deviceId?: string;
-  path?: string;
-  state?: Record<string, unknown>;
-  // room fields
-  name?: string;
-  iconId?: string;
-  extProperties?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-interface Metric {
-  name: string;
-  value: number;
-}
+// SmartHomeEvent types now imported from ./types/smart-home-events
+// Transformation functions imported from ./transforms
+// Provides exhaustive type checking for all event types:
+// - DeviceServiceData, device, room, message
 
 interface DeviceField {
   name: string;
@@ -203,27 +187,6 @@ interface TransformedEvent {
   metric?: Metric;
 }
 
-function extractMetric(doc: SmartHomeEvent): Metric | null {
-  // DeviceServiceData: extract from state object
-  if (doc.state && typeof doc.state === "object") {
-    for (const [key, val] of Object.entries(doc.state)) {
-      if (key !== "@type" && typeof val === "number") {
-        return { name: key, value: val };
-      }
-    }
-  }
-  // room: extract from extProperties (values are strings)
-  if (doc.extProperties && typeof doc.extProperties === "object") {
-    for (const [key, val] of Object.entries(doc.extProperties)) {
-      const num = parseFloat(String(val));
-      if (!isNaN(num)) {
-        return { name: key, value: num };
-      }
-    }
-  }
-  return null;
-}
-
 function transformDoc(doc: SmartHomeEvent): TransformedEvent {
   // Fast in-memory transformation - no span needed to avoid overwhelming OTel queue
   const result: TransformedEvent = {
@@ -232,63 +195,65 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
     id: doc.id,
   };
 
-  // Add type-specific fields
-  if (doc.deviceId) result.deviceId = doc.deviceId;
-  if (doc.path) result.path = doc.path;
+  // Use type narrowing for type-specific field handling
+  switch (doc["@type"]) {
+    case "DeviceServiceData":
+      // Add device service data specific fields
+      result.deviceId = doc.deviceId;
+      result.path = doc.path;
 
-  // Enrich with device/room info from registry
-  if (registry) {
-    // For DeviceServiceData events - lookup by deviceId
-    if (doc.deviceId && doc.deviceId in registry.devices) {
-      const deviceInfo = registry.devices[doc.deviceId];
-      if (deviceInfo) {
-        result.device = { name: deviceInfo.name };
-        if (deviceInfo.type) result.device.type = deviceInfo.type;
+      // Enrich with device/room info from registry
+      if (registry && doc.deviceId in registry.devices) {
+        const deviceInfo = registry.devices[doc.deviceId];
+        if (deviceInfo) {
+          result.device = { name: deviceInfo.name };
+          if (deviceInfo.type) result.device.type = deviceInfo.type;
 
-        // Get room from device's roomId
-        if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
-          const roomInfo = registry.rooms[deviceInfo.roomId];
-          if (roomInfo) {
-            result.room = {
-              id: deviceInfo.roomId,
-              name: roomInfo.name,
-            };
+          // Get room from device's roomId
+          if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
+            const roomInfo = registry.rooms[deviceInfo.roomId];
+            if (roomInfo) {
+              result.room = {
+                id: deviceInfo.roomId,
+                name: roomInfo.name,
+              };
+            }
           }
         }
       }
-    }
+      break;
 
-    // For room events - lookup by id
-    if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
-      const roomInfo = registry.rooms[doc.id];
-      if (roomInfo) {
-        result.room = {
-          id: doc.id,
-          name: roomInfo.name,
-        };
+    case "room":
+      // Enrich room events with registry info
+      if (registry && doc.id in registry.rooms) {
+        const roomInfo = registry.rooms[doc.id];
+        if (roomInfo) {
+          result.room = {
+            id: doc.id,
+            name: roomInfo.name,
+          };
+        }
       }
+      break;
+
+    case "device":
+    case "message":
+    case "client":
+      // These event types don't need special field handling
+      break;
+
+    default: {
+      // Exhaustiveness check - ensures all event types are handled
+      const _exhaustive: never = doc;
+      return _exhaustive;
     }
   }
 
-  // Extract and normalize metric
+  // Extract and normalize metric (works for all types)
   const metric = extractMetric(doc);
   if (metric) result.metric = metric;
 
   return result;
-}
-
-function generateDocId(doc: SmartHomeEvent): string {
-  // Use deviceId for DeviceServiceData, or id (room id like hz_1) for room events
-  const entityId = doc.deviceId ?? doc.id ?? "unknown";
-  // Include service id (e.g., HumidityLevel, TemperatureLevel) for full uniqueness
-  const serviceId = doc.deviceId ? doc.id : undefined;
-  const parts = [
-    doc["@type"],
-    entityId,
-    serviceId,
-    doc.time ?? String(Date.now()),
-  ].filter(Boolean);
-  return parts.join("-");
 }
 
 // Parse NDJSON line, handling pino's leading comma issue
@@ -671,8 +636,10 @@ function watchAndTail(): void {
           document: transformed,
         })
         .then(() => {
+          const deviceId =
+            doc["@type"] === "DeviceServiceData" ? doc.deviceId : undefined;
           log.debug(
-            { eventType: doc["@type"], deviceId: doc.deviceId, indexName },
+            { eventType: doc["@type"], deviceId, indexName },
             "Indexed event",
           );
         })

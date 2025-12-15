@@ -1,0 +1,135 @@
+{
+  "deviceServiceData": {
+    "time": "2025-12-15T09:39:40.003Z",
+    "trace_id": "81bba777c2e6176620726ec69d805efe",
+    "span_id": "4fecb5e4e95d5676",
+    "trace_flags": "01",
+    "path": "/devices/hdm:ZigBee:001e5e0902b94515/services/HumidityLevel",
+    "@type": "DeviceServiceData",
+    "id": "HumidityLevel",
+    "state": {
+      "@type": "humidityLevelState",
+      "humidity": 42.71
+    },
+    "deviceId": "hdm:ZigBee:001e5e0902b94515"
+  },
+  "deviceServiceDataWithFaults": {
+    "time": "2025-12-15T09:39:47.126Z",
+    "trace_id": "a8889eebb48a172503988e3f8e92c073",
+    "span_id": "3361217cb666ce17",
+    "trace_flags": "01",
+    "path": "/devices/hdm:ZigBee:f0fd45fffe51fa08/services/ValveTappet",
+    "@type": "DeviceServiceData",
+    "id": "ValveTappet",
+    "state": {
+      "@type": "valveTappetState",
+      "position": 0,
+      "value": "NO_VALVE_BODY_ERROR",
+      "automaticHydraulicBalanceActive": false
+    },
+    "deviceId": "hdm:ZigBee:f0fd45fffe51fa08",
+    "faults": {
+      "entries": [
+        {
+          "type": "VALVE_NO_BODY_ERROR",
+          "category": "ERROR"
+        }
+      ]
+    }
+  },
+  "device": {
+    "time": "2025-12-15T09:41:15.523Z",
+    "trace_id": "311149e7374460539d454736ea6a1080",
+    "span_id": "ba21679a3d565eda",
+    "trace_flags": "01",
+    "rootDeviceId": "64-da-a0-42-eb-0a",
+    "@type": "device",
+    "supportedProfiles": [],
+    "profile": "GENERIC",
+    "installationTimestamp": 1765390090707,
+    "deviceServiceIds": [
+      "CommunicationQuality",
+      "Thermostat",
+      "BatteryLevel",
+      "ValveTappet"
+    ],
+    "roomId": "hz_1",
+    "manufacturer": "BOSCH",
+    "serial": "F0FD45FFFE557345",
+    "parentDeviceId": "roomClimateControl_hz_1",
+    "name": "EG WZ Thermostat 3",
+    "deviceModel": "TRV_GEN2_DUAL",
+    "id": "hdm:ZigBee:f0fd45fffe557345",
+    "childDeviceIds": [],
+    "status": "UNDEFINED"
+  },
+  "room": {
+    "time": "2025-12-15T09:39:40.038Z",
+    "trace_id": "ca6f2ea8e2cb07c1406dbed102f95b40",
+    "span_id": "8597298e88099c1e",
+    "trace_flags": "01",
+    "iconId": "icon_room_living_room",
+    "extProperties": {
+      "humidity": "39.8"
+    },
+    "@type": "room",
+    "name": "EG Wohnzimmer",
+    "id": "hz_1"
+  },
+  "message": {
+    "time": "2025-12-15T09:39:47.139Z",
+    "trace_id": "f0267d84559becafbf05da353986a3a6",
+    "span_id": "557e08ad14b27787",
+    "trace_flags": "01",
+    "sourceId": "hdm:ZigBee:f0fd45fffe51fa08",
+    "sourceType": "DEVICE",
+    "@type": "message",
+    "flags": [
+      "STATUS",
+      "STICKY"
+    ],
+    "messageCode": {
+      "name": "VALVE_NO_BODY_ERROR",
+      "category": "ERROR"
+    },
+    "arguments": {
+      "deviceModel": "TRV_GEN2_DUAL"
+    },
+    "id": "d88624d2-a2c4-49a9-9169-6591b395a141",
+    "sourceName": "UG Fitness Thermostat",
+    "timestamp": 1765791587147
+  },
+  "client": {
+    "time": "2025-12-12T15:28:40.929Z",
+    "appVersion": "10.31.1",
+    "os": "IOS",
+    "@type": "client",
+    "roles": [
+      "ROLE_CLIENTS_WRITE",
+      "ROLE_CLOUD_CAMERA_RW",
+      "ROLE_CLOUD_EMERGENCY_PLUS_RW",
+      "ROLE_AUTOMATION_RULES_WRITE",
+      "ROLE_MANAGE_CLIENTS",
+      "ROLE_DEVICES_WRITE",
+      "ROLE_VIEW_RESTRICTED_MENU",
+      "ROLE_SCENARIOS_WRITE",
+      "ROLE_CLIENT_USE_TUNNEL",
+      "ROLE_DEFAULT_CLIENT",
+      "ROLE_SYSTEM_PASSWORD_EDIT",
+      "ROLE_CONFIGURE_MULTISWITCH_PIN",
+      "ROLE_MANAGE_DEVICES",
+      "ROLE_UPDATE_CLIENT_ROLE"
+    ],
+    "primaryRole": "ROLE_DEFAULT_CLIENT",
+    "dynamicRoles": [
+      "ROLE_CLIENT_USE_TUNNEL"
+    ],
+    "pushNotificationToken": "352e07eb52cad88b4fddbc44a85ea8d39ceb0811280b60afe1ebb5ff826dd3c9",
+    "clientType": "MOBILE",
+    "createdDate": "2025-12-09T19:01:18.621+00:00",
+    "osVersion": "26.1",
+    "name": "iPhone Walter",
+    "id": "64D3FCCA-7AD5-4786-BDE6-F533EB989C92",
+    "suppressedNotifications": []
+  }
+}
