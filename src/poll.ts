@@ -12,18 +12,15 @@ import { withSpan, SpanAttributes } from "./instrumentation";
 // Import PollConfig type from validation
 import type { PollConfig } from "./validation";
 
-// Validate configuration early (only when run as script, not when imported for tests)
-let config: PollConfig;
-if (require.main === module) {
-  const configResult = validatePollConfig();
-  if (configResult.isErr()) {
-    logErrorAndExit(
-      configResult.error,
-      `Configuration validation failed: ${configResult.error.message}`,
-    );
-  }
-  config = configResult.value;
+// Validate configuration
+const configResult = validatePollConfig();
+if (configResult.isErr()) {
+  logErrorAndExit(
+    configResult.error,
+    `Configuration validation failed: ${configResult.error.message}`,
+  );
 }
+const config: PollConfig = configResult.value;
 
 /**
  * Load existing client certificate or generate a new one
@@ -201,7 +198,7 @@ export function isPairingButtonError(message: string): boolean {
   return message.includes("press the button");
 }
 
-function main(): void {
+export function main(): void {
   appLogger.info("Bosch Smart Home Long Polling Client");
   appLogger.info(getConfigPaths(), "Configuration");
 
@@ -234,13 +231,10 @@ function main(): void {
     });
 }
 
-// Only run main() and setup handlers when executed as script
-if (require.main === module) {
-  // Handle graceful shutdown
-  process.on("SIGINT", () => {
-    appLogger.info("Shutting down");
-    process.exit(0);
-  });
+// Handle graceful shutdown
+process.on("SIGINT", () => {
+  appLogger.info("Shutting down");
+  process.exit(0);
+});
 
-  main();
-}
+main();
