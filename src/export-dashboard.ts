@@ -5,6 +5,14 @@ import "./config"; // Load env vars from ~/.shc2es/.env
 import { createLogger } from "./logger";
 import { validateDashboardConfig } from "./validation";
 import { withSpan, SpanAttributes } from "./instrumentation";
+import {
+  SavedObject,
+  DashboardAttributes,
+  FindResponse,
+  ExportMetadata,
+  isExportMetadata,
+  KibanaSavedObject,
+} from "./types/kibana-saved-objects";
 
 const log = createLogger("export-dashboard");
 
@@ -72,15 +80,6 @@ function getAuthHeader(): string {
   return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString("base64")}`;
 }
 
-interface SavedObject {
-  id: string;
-  type: string;
-  attributes: {
-    title?: string;
-    [key: string]: unknown;
-  };
-}
-
 // Fields to strip from exported objects for privacy
 const SENSITIVE_FIELDS = [
   "created_by",
@@ -99,21 +98,23 @@ function stripSensitiveMetadata(ndjson: string): string {
       const strippedLines: string[] = [];
 
       for (const line of lines) {
-        const obj = JSON.parse(line) as Record<string, unknown>;
+        const obj = JSON.parse(line) as KibanaSavedObject | ExportMetadata;
 
         // Skip export metadata line (has exportedCount)
-        if ("exportedCount" in obj) {
+        if (isExportMetadata(obj)) {
           strippedLines.push(line);
           continue;
         }
 
-        // Remove sensitive fields
-        for (const field of SENSITIVE_FIELDS) {
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-          delete obj[field];
+        // Remove sensitive fields - create new object without them
+        const stripped: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (!SENSITIVE_FIELDS.includes(key)) {
+            stripped[key] = value;
+          }
         }
 
-        strippedLines.push(JSON.stringify(obj));
+        strippedLines.push(JSON.stringify(stripped));
       }
 
       return strippedLines.join("\n");
@@ -121,12 +122,9 @@ function stripSensitiveMetadata(ndjson: string): string {
   );
 }
 
-interface FindResponse {
-  saved_objects: SavedObject[];
-  total: number;
-}
-
-async function findDashboardByName(name: string): Promise<SavedObject | null> {
+async function findDashboardByName(
+  name: string,
+): Promise<SavedObject<DashboardAttributes> | null> {
   return withSpan(
     "find_dashboard",
     { [SpanAttributes.DASHBOARD_NAME]: name },
@@ -159,7 +157,8 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
         process.exit(1);
       }
 
-      const result = (await response.json()) as FindResponse;
+      const result =
+        (await response.json()) as FindResponse<DashboardAttributes>;
 
       if (result.total === 0) {
         log.warn({ name }, "No dashboards found matching name");
@@ -168,7 +167,7 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
 
       // Look for exact match first
       const exactMatch = result.saved_objects.find(
-        (obj) => obj.attributes.title?.toLowerCase() === name.toLowerCase(),
+        (obj) => obj.attributes.title.toLowerCase() === name.toLowerCase(),
       );
 
       if (exactMatch) {
@@ -230,7 +229,7 @@ async function listDashboards(): Promise<void> {
     process.exit(1);
   }
 
-  const result = (await response.json()) as FindResponse;
+  const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
   if (result.total === 0) {
     log.info("No dashboards found");
@@ -239,7 +238,7 @@ async function listDashboards(): Promise<void> {
 
   console.log("\nAvailable dashboards:\n");
   for (const obj of result.saved_objects) {
-    console.log(`  "${obj.attributes.title ?? "Untitled"}" (id: ${obj.id})`);
+    console.log(`  "${obj.attributes.title}" (id: ${obj.id})`);
   }
   console.log(`\nTotal: ${String(result.total)} dashboard(s)\n`);
 }
@@ -297,30 +296,27 @@ async function exportDashboard(
 
       // Parse to count objects and validate
       const lines = ndjson.trim().split("\n");
-
-      interface ExportedObject {
-        type: string;
-        [key: string]: unknown;
-      }
-
-      interface ExportMetadata {
-        exportedCount: number;
-        missingRefCount?: number;
-        missingReferences?: unknown[];
-      }
-
-      const objects = lines.map(
-        (line) => JSON.parse(line) as ExportedObject | ExportMetadata,
-      );
+      const objects = lines.map((line) => {
+        const parsed: unknown = JSON.parse(line);
+        return parsed as KibanaSavedObject | ExportMetadata;
+      });
 
       // Last line is export metadata
-      const metadata = objects[objects.length - 1] as ExportMetadata;
-      const exportedObjects = objects.slice(0, -1) as ExportedObject[];
+      const lastObject = objects[objects.length - 1];
+      if (!lastObject || !isExportMetadata(lastObject)) {
+        log.fatal("Export response missing metadata line");
+        process.exit(1);
+      }
+
+      const metadata = lastObject;
+      const exportedObjects = objects.slice(0, -1) as KibanaSavedObject[];
 
       // Group by type for logging
       const typeCounts: Record<string, number> = {};
       for (const obj of exportedObjects) {
-        typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
+        const currentCount = typeCounts[obj.type];
+        typeCounts[obj.type] =
+          currentCount !== undefined ? currentCount + 1 : 1;
       }
 
       log.info(
