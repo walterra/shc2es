@@ -8,10 +8,36 @@
 import { SmartHomeEvent } from "./types/smart-home-events";
 
 /**
- * Metric extracted from an event (e.g., temperature, humidity)
+ * Normalized sensor reading extracted from a smart home event.
+ *
+ * Represents a numeric measurement from a device (e.g., temperature, humidity,
+ * valve position) in a standardized format for storage and analysis in Elasticsearch.
+ *
+ * @example
+ * ```typescript
+ * // Humidity reading
+ * const humidity: Metric = {
+ *   name: "humidity",
+ *   value: 42.71
+ * };
+ *
+ * // Temperature reading
+ * const temperature: Metric = {
+ *   name: "temperature",
+ *   value: 21.5
+ * };
+ *
+ * // Valve position (percentage)
+ * const valveTappet: Metric = {
+ *   name: "position",
+ *   value: 35
+ * };
+ * ```
  */
 export interface Metric {
+  /** Name of the metric (e.g., 'humidity', 'temperature', 'position') */
   name: string;
+  /** Numeric value of the measurement */
   value: number;
 }
 

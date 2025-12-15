@@ -8,30 +8,6 @@
 
 
 
-### JSDoc Documentation
-
-- **Add comprehensive JSDoc to all exported functions**
-  - Missing JSDoc in: `ingest.ts`, `export-dashboard.ts`, `fetch-registry.ts`, `poll.ts`, `logger.ts` (partial), `cli.ts`
-  - Required format:
-    ````typescript
-    /**
-     * Brief description of what the function does (single line).
-     *
-     * Detailed explanation of behavior, side effects, and business logic.
-     *
-     * @param paramName - Description of parameter, including valid values and constraints
-     * @param optionalParam - Optional parameter (indicate default value)
-     * @returns Description of return value, including possible values and error states
-     * @throws ErrorType - When and why exceptions are thrown
-     *
-     * @example
-     * ```typescript
-     * const result = functionName('example', { option: true });
-     * ```
-     */
-    ````
-  - Priority order: `validation.ts`, `config.ts`, `logger.ts`, `instrumentation.ts`, `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`, `poll.ts`
-
 ### Function Length and Complexity
 
 - **Extract long functions (>20 lines) into smaller units**

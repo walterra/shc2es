@@ -9,7 +9,9 @@ import { ValidationError } from "./types/errors";
  */
 
 /**
- * Get the location hint for where to set environment variables
+ * Get the location hint for where to set environment variables.
+ *
+ * @returns Hint message about where to set environment variables
  */
 function getEnvFileHint(): string {
   const envFile = findEnvFile();
@@ -59,7 +61,8 @@ export function validateRequired(
  *
  * @param name - Environment variable name
  * @param value - URL value to validate
- * @param options - Validation options (required: boolean)
+ * @param options - Validation options
+ * @param options.required - Whether the URL is required (default: true)
  * @returns Result containing the validated URL or undefined (if not required), or a ValidationError
  *
  * @example
@@ -139,7 +142,8 @@ export function validateUrl(
  *
  * @param name - Environment variable name
  * @param value - File path to validate
- * @param options - Validation options (required: boolean)
+ * @param options - Validation options
+ * @param options.required - Whether the file path is required (default: false)
  * @returns Result containing the validated path or undefined (if not required), or a ValidationError
  *
  * @example
@@ -279,36 +283,71 @@ export function validateLogLevel(
 }
 
 /**
- * Configuration schema for different commands
+ * Configuration for the poll command.
+ *
+ * Contains all settings needed to connect to and poll the Bosch Smart Home Controller.
  */
-
 export interface PollConfig {
+  /** Smart Home Controller IP address or hostname */
   bshHost: string;
+  /** System password for controller authentication */
   bshPassword: string;
+  /** Client name for identification (default: 'oss_bosch_smart_home_poll') */
   bshClientName: string;
+  /** Client ID for identification (default: 'oss_bosch_smart_home_poll_client') */
   bshClientId: string;
+  /** Log level for application logging */
   logLevel: LogLevel;
 }
 
+/**
+ * Configuration for the ingest command.
+ *
+ * Contains all settings needed to connect to Elasticsearch and optionally Kibana
+ * for data ingestion and dashboard setup.
+ */
 export interface IngestConfig {
+  /** Elasticsearch node URL (e.g., 'https://localhost:9200') */
   esNode: string;
+  /** Elasticsearch password for authentication */
   esPassword: string;
+  /** Elasticsearch username (default: 'elastic') */
   esUser: string;
+  /** Optional path to CA certificate for TLS verification */
   esCaCert?: string;
+  /** Whether to verify TLS certificates (default: true, disable only for dev) */
   esTlsVerify: boolean;
+  /** Index name prefix (default: 'smart-home-events') */
   esIndexPrefix: string;
+  /** Optional Kibana node URL (required for dashboard import) */
   kibanaNode?: string;
 }
 
+/**
+ * Configuration for the registry command.
+ *
+ * Contains settings needed to fetch device and room metadata from the controller.
+ */
 export interface RegistryConfig {
+  /** Smart Home Controller IP address or hostname */
   bshHost: string;
 }
 
+/**
+ * Configuration for the dashboard export command.
+ *
+ * Contains settings needed to connect to Kibana for exporting dashboards.
+ */
 export interface DashboardConfig {
+  /** Kibana node URL (e.g., 'https://localhost:5601') */
   kibanaNode: string;
+  /** Elasticsearch password for Kibana authentication */
   esPassword: string;
+  /** Elasticsearch username (default: 'elastic') */
   esUser: string;
+  /** Optional path to CA certificate for TLS verification */
   esCaCert?: string;
+  /** Whether to verify TLS certificates (default: true, disable only for dev) */
   esTlsVerify: boolean;
 }
 
@@ -358,7 +397,8 @@ export function validatePollConfig(): Result<PollConfig, ValidationError> {
 /**
  * Validate configuration for ingest command
  *
- * @param options - Validation options (requireKibana: boolean)
+ * @param options - Validation options
+ * @param options.requireKibana - Whether Kibana node is required (default: undefined)
  * @returns Result containing IngestConfig or a ValidationError
  *
  * @example
