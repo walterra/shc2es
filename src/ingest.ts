@@ -10,6 +10,12 @@ import { DATA_DIR } from "./config";
 import { createLogger } from "./logger";
 import { validateIngestConfig } from "./validation";
 import { withSpan, SpanAttributes } from "./instrumentation"; // withSpan for high-level operations only
+import {
+  ImportResponse,
+  ExportMetadata,
+  isExportMetadata,
+  KibanaSavedObject,
+} from "./types/kibana-saved-objects";
 
 const log = createLogger("ingest");
 
@@ -302,80 +308,47 @@ function parseLine(line: string): SmartHomeEvent | null {
   }
 }
 
-interface ImportResponse {
-  success: boolean;
-  successCount: number;
-  errors?: {
-    type: string;
-    id: string;
-    error: { type: string; reason: string };
-  }[];
-}
-
-interface SavedObjectReference {
-  type: string;
-  id: string;
-  name: string;
-}
-
-interface SavedObjectAttributes {
-  title?: string;
-  name?: string;
-  [key: string]: unknown;
-}
-
-interface SavedObject {
-  type: string;
-  id: string;
-  attributes?: SavedObjectAttributes;
-  references?: SavedObjectReference[];
-  // Export metadata line has different structure
-  exportedCount?: number;
-  missingRefCount?: number;
-  [key: string]: unknown;
-}
-
 function prefixSavedObjectIds(ndjson: string, prefix: string): string {
   const lines = ndjson.trim().split("\n");
   const prefixedLines: string[] = [];
 
   for (const line of lines) {
-    const obj = JSON.parse(line) as SavedObject;
+    const obj = JSON.parse(line) as KibanaSavedObject | ExportMetadata;
 
     // Skip export metadata line (last line with exportedCount)
-    if (obj.exportedCount !== undefined) {
+    if (isExportMetadata(obj)) {
       prefixedLines.push(line);
       continue;
     }
 
-    // Prefix the object's own ID
-    if (obj.id) {
-      obj.id = `${prefix}-${obj.id}`;
-    }
-
-    // Prefix all reference IDs
-    if (obj.references && Array.isArray(obj.references)) {
-      for (const ref of obj.references) {
-        ref.id = `${prefix}-${ref.id}`;
-      }
-    }
+    // Create a new object with prefixed values (immutable approach)
+    const prefixedObj: KibanaSavedObject = {
+      ...obj,
+      id: `${prefix}-${obj.id}`,
+      references: obj.references?.map((ref) => ({
+        ...ref,
+        id: `${prefix}-${ref.id}`,
+      })),
+    };
 
     // Prefix dashboard title to distinguish from other deployments
-    if (obj.type === "dashboard" && obj.attributes?.title) {
-      obj.attributes.title = prefix;
+    if (prefixedObj.type === "dashboard") {
+      prefixedObj.attributes = {
+        ...prefixedObj.attributes,
+        title: prefix,
+      };
     }
 
     // Prefix index pattern name/title to match the prefixed indices
-    if (obj.type === "index-pattern" && obj.attributes) {
-      if (obj.attributes.title) {
-        obj.attributes.title = `${prefix}-*`;
-      }
-      if (obj.attributes.name) {
-        obj.attributes.name = prefix;
-      }
+    if (prefixedObj.type === "index-pattern") {
+      prefixedObj.attributes = {
+        ...prefixedObj.attributes,
+        title: `${prefix}-*`,
+        name: prefix,
+      };
     }
 
-    prefixedLines.push(JSON.stringify(obj));
+    prefixedLines.push(JSON.stringify(prefixedObj));
   }
 
   return prefixedLines.join("\n");

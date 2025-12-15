@@ -4,15 +4,6 @@
 
 ### Type Safety Improvements
 
-- **Type Safety for Saved Objects**
-  - `src/ingest.ts`: Remove `unknown` and `any` types in saved object handling (lines using `JSON.parse` return `unknown`)
-  - `src/export-dashboard.ts`: Add proper interfaces for Kibana saved object API responses
-  - Define comprehensive interfaces for:
-    - `SavedObject` with all fields (not just partial)
-    - `ExportedObject` with discriminated unions for different types
-    - `ImportResponse` with proper error structure
-    - Dashboard, Index Pattern, Visualization attribute types
-
 - **Smart Home Event Types**
   - `src/ingest.ts`: `SmartHomeEvent` interface uses `[key: string]: unknown` - replace with exhaustive union types
   - Define separate types: `DeviceServiceDataEvent`, `RoomEvent`, etc.
