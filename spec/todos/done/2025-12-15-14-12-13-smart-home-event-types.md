@@ -1,6 +1,6 @@
 # Smart Home Event Types - Replace [key: string]: unknown with exhaustive union types
 
-**Status:** In Progress  
+**Status:** Done  
 **Created:** 2025-12-15-14-12-13  
 **Started:** 2025-12-15-14:30:00  
 **Agent PID:** 2325
@@ -81,9 +81,9 @@
 - [x] Lint: `yarn lint` ✅ (1.30s, no errors)
 - [x] Format: `yarn format` ✅ (0.34s, all files formatted)
 - [x] Tests: `yarn test` ✅ (163 tests passed, 94.05% coverage)
-- [ ] Integration test: `yarn ingest --pattern "events-2025-12-*.ndjson"` on real data (READY TO RETRY)
-- [ ] Verify: Check Elasticsearch for successfully ingested typed events
-- [ ] Verify: No type errors or runtime errors during ingestion
+- [x] Integration test: `yarn ingest --pattern "events-2025-12-*.ndjson"` ✅ PASSED
+- [x] Verify: Check Elasticsearch for successfully ingested typed events ✅
+- [x] Verify: No type errors or runtime errors during ingestion ✅
 
 ## Review
 - [x] Bug/cleanup items if found (3 bugs fixed during integration testing)

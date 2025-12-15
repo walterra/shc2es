@@ -6,11 +6,7 @@
 
 
 
-- **Result/Either Pattern for Error Handling**
-  - Current: Mix of throwing exceptions, process.exit(), and error logging
-  - Required: Implement Result/Either pattern for validation and I/O operations
-  - Files to update: `validation.ts` (return Result instead of throwing), `config.ts` (file operations), `fetch-registry.ts`, `export-dashboard.ts`
-  - Consider: [`neverthrow`](https://github.com/supermathers/neverthrow) library or custom `Result<T, E>` type
+
 
 ### JSDoc Documentation
 
