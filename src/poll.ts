@@ -198,6 +198,10 @@ export function isPairingButtonError(message: string): boolean {
   return message.includes("press the button");
 }
 
+/**
+ * Main entry point for the polling client
+ * Initializes connection, pairs if needed, and starts long polling loop
+ */
 export function main(): void {
   appLogger.info("Bosch Smart Home Long Polling Client");
   appLogger.info(getConfigPaths(), "Configuration");
