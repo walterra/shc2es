@@ -112,7 +112,7 @@ async function main(): Promise<void> {
           type: device.deviceModel,
         };
         const roomName = device.roomId
-          ? registry.rooms[device.roomId]?.name ?? "unknown room"
+          ? (registry.rooms[device.roomId]?.name ?? "unknown room")
           : "no room";
         log.debug(
           {
