@@ -158,14 +158,16 @@ subscribe
 **Operations:**
 - `load_registry` - Loading device/room enrichment data
 - `bulk_import_file` - Importing NDJSON file to Elasticsearch (tracks file path, document count, index name)
-- `transform_document` - Transforming and enriching individual documents (tracks document type, device ID)
+- `setup` - Creating ES pipeline, index template, and importing Kibana dashboard (tracks index name)
+- `import_dashboard` - Importing dashboard to Kibana (tracks index prefix)
+
+**Note:** Individual document transformations (`transformDoc`) are NOT instrumented to avoid overwhelming the OTel queue during batch operations (thousands of spans per second).
 
 **Example spans in APM UI:**
 ```
-bulk_import_file (file.path: events-2025-12-14.ndjson, documents.count: 150, index.name: smart-home-events-2025-12-14)
-└─ transform_document (doc.type: DeviceServiceData, device.id: hdm:ZigBee:abc123)
-   └─ transform_document (doc.type: room, device.id: hz_1)
-   └─ ...
+setup (index.name: smart-home-events)
+├─ import_dashboard (index.name: smart-home-events)
+└─ bulk_import_file (file.path: events-2025-12-14.ndjson, documents.count: 150, index.name: smart-home-events-2025-12-14)
 ```
 
 #### fetch-registry.ts - Registry Fetching
@@ -277,10 +279,48 @@ To add spans to your own code:
    - Don't over-instrument (span creation has overhead)
    - **Don't instrument control flow** (loops, recursion) - only business logic
    - For long-running loops: instrument the work, not the loop itself
+   - **Don't instrument batch operations per-item** - track the batch, not individual items
+     - ❌ Bad: `for (doc of docs) { withSpan('transform', ...) }` (creates thousands of spans)
+     - ✅ Good: `withSpan('bulk_import', { count: docs.length }, () => { for (doc of docs) ... })` (one span)
 
 ### Performance Considerations
 
 - Span creation adds ~0.1-1ms overhead per span
 - Auto-instrumentation already covers HTTP/DB calls
 - Use manual spans for business logic where latency matters
-- Sampling can reduce overhead in high-volume scenarios (see Performance Tuning below)
+- Sampling can reduce overhead in high-volume scenarios
+
+#### Avoiding Queue Overflow
+
+The OpenTelemetry SDK has a default `maxQueueSize` of **2048 spans**. When this is exceeded, you'll see warnings:
+
+```
+{"name":"elastic-otel-node","level":40,"msg":"Dropped 3630 spans because maxQueueSize reached"}
+```
+
+**Common causes:**
+- Instrumenting batch operations per-item (e.g., transforming 10,000 documents)
+- High-frequency operations (e.g., processing events in tight loops)
+- Slow collector export (network issues, collector overload)
+
+**Solutions:**
+1. **Reduce span volume** (preferred):
+   - Remove per-item spans in batch operations
+   - Track batches instead of individual items
+   - Example: Track `bulk_import_file` (1 span) instead of `transform_document` × 10,000
+
+2. **Increase queue size** (if needed):
+   ```typescript
+   // In src/cli.ts (before importing @elastic/opentelemetry-node)
+   process.env.OTEL_BSP_MAX_QUEUE_SIZE = '8192';  // Increase from default 2048
+   ```
+   Note: This only delays the problem - better to reduce span creation
+
+3. **Use sampling** (for high-volume scenarios):
+   ```bash
+   # Sample 10% of traces
+   OTEL_TRACES_SAMPLER=traceidratio
+   OTEL_TRACES_SAMPLER_ARG=0.1
+   ```
+
+**Best practice:** Instrument at the right level - file/batch operations (coarse-grained), not individual documents/items (fine-grained).
