@@ -184,16 +184,6 @@ describe('poll module', () => {
   });
 
   describe('reconnection logic', () => {
-    it('should implement reconnection delay', async () => {
-      const delay = 5000; // 5 seconds as per current implementation
-      
-      const startTime = Date.now();
-      await new Promise(resolve => setTimeout(resolve, 100)); // Simulate small delay
-      const elapsed = Date.now() - startTime;
-      
-      expect(elapsed).toBeGreaterThanOrEqual(100);
-    });
-
     it('should handle pairing button requirement', () => {
       const mockError = new Error('press the button on Controller II');
       
