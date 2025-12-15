@@ -104,10 +104,11 @@ async function main(): Promise<void> {
 
   // Remove the command and --no-otel from argv so submodules see correct args
   const subArgs = args.filter((arg) => arg !== command && arg !== "--no-otel");
-  process.argv = [process.argv[0], process.argv[1], ...subArgs];
+  process.argv = [process.argv[0] ?? "node", process.argv[1] ?? "", ...subArgs];
 
-  // Dynamic import of the command module
-  const modulePath = COMMANDS[command].module;
+  // Dynamic import of the command module (command is validated above)
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const modulePath = COMMANDS[command]!.module;
   await import(modulePath);
 }
 

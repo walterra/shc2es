@@ -92,7 +92,11 @@ function extractDateFromFilename(filePath: string): string {
   const match = /events-(\d{4}-\d{2}-\d{2})\.ndjson/.exec(
     path.basename(filePath),
   );
-  return match ? match[1] : new Date().toISOString().split("T")[0];
+  if (match?.[1]) {
+    return match[1];
+  }
+  const isoDate = new Date().toISOString().split("T")[0];
+  return isoDate ?? "1970-01-01"; // Fallback should never happen
 }
 
 // Get index name for a specific date
@@ -231,24 +235,32 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
     // For DeviceServiceData events - lookup by deviceId
     if (doc.deviceId && doc.deviceId in registry.devices) {
       const deviceInfo = registry.devices[doc.deviceId];
-      result.device = { name: deviceInfo.name };
-      if (deviceInfo.type) result.device.type = deviceInfo.type;
+      if (deviceInfo) {
+        result.device = { name: deviceInfo.name };
+        if (deviceInfo.type) result.device.type = deviceInfo.type;
 
-      // Get room from device's roomId
-      if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
-        result.room = {
-          id: deviceInfo.roomId,
-          name: registry.rooms[deviceInfo.roomId].name,
-        };
+        // Get room from device's roomId
+        if (deviceInfo.roomId && deviceInfo.roomId in registry.rooms) {
+          const roomInfo = registry.rooms[deviceInfo.roomId];
+          if (roomInfo) {
+            result.room = {
+              id: deviceInfo.roomId,
+              name: roomInfo.name,
+            };
+          }
+        }
       }
     }
 
     // For room events - lookup by id
     if (doc["@type"] === "room" && doc.id && doc.id in registry.rooms) {
-      result.room = {
-        id: doc.id,
-        name: registry.rooms[doc.id].name,
-      };
+      const roomInfo = registry.rooms[doc.id];
+      if (roomInfo) {
+        result.room = {
+          id: doc.id,
+          name: roomInfo.name,
+        };
+      }
     }
   }
 
@@ -643,7 +655,7 @@ async function batchImport(pattern?: string): Promise<void> {
 
 function watchAndTail(): void {
   // Get current day's file
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0] ?? "";
   const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
   const indexName = getIndexName(today);
 

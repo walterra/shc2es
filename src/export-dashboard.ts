@@ -189,6 +189,10 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
       }
 
       const match = result.saved_objects[0];
+      if (!match) {
+        log.warn("No dashboard found in results");
+        return null;
+      }
       log.info(
         { id: match.id, title: match.attributes.title },
         "Using dashboard",

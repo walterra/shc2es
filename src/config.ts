@@ -20,8 +20,9 @@ export const ENV_FILE = path.join(USER_CONFIG_DIR, ".env");
 
 // Check if running in development (ts-node or local)
 const isDev =
-  process.argv[1]?.includes("ts-node") ||
-  process.argv[1]?.includes("node_modules");
+  process.argv[1]?.includes("ts-node") ??
+  process.argv[1]?.includes("node_modules") ??
+  false;
 
 // For development, also check local paths
 export const LOCAL_ENV_FILE = path.join(process.cwd(), ".env");
