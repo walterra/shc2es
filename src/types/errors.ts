@@ -1,6 +1,6 @@
 /**
  * Custom error types for the shc2es application.
- * 
+ *
  * These error classes provide structured error information with error codes
  * for programmatic handling and optional cause chaining.
  */
@@ -24,8 +24,9 @@ export abstract class SHC2ESError extends Error {
     this.name = this.constructor.name;
     this.cause = cause;
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
+    // Maintains proper stack trace for where our error was thrown (V8-specific)
+    // Note: Error.captureStackTrace is defined in @types/node but not standard JavaScript
+    if (typeof Error.captureStackTrace === "function") {
       Error.captureStackTrace(this, this.constructor);
     }
   }
@@ -33,12 +34,12 @@ export abstract class SHC2ESError extends Error {
 
 /**
  * Validation error for environment variables and configuration.
- * 
+ *
  * Thrown when:
  * - Required environment variable is missing
  * - Environment variable has invalid format (e.g., invalid URL)
  * - Configuration value is out of valid range
- * 
+ *
  * @example
  * ```typescript
  * new ValidationError(
@@ -52,7 +53,12 @@ export class ValidationError extends SHC2ESError {
   readonly code: string;
   readonly variable: string;
 
-  constructor(message: string, variable: string, code: string = "VALIDATION_ERROR", cause?: Error) {
+  constructor(
+    message: string,
+    variable: string,
+    code = "VALIDATION_ERROR",
+    cause?: Error,
+  ) {
     super(message, cause);
     this.variable = variable;
     this.code = code;
@@ -61,12 +67,12 @@ export class ValidationError extends SHC2ESError {
 
 /**
  * Configuration error for file system operations.
- * 
+ *
  * Thrown when:
  * - Cannot create configuration directories
  * - Cannot read/write configuration files
  * - Configuration file is malformed
- * 
+ *
  * @example
  * ```typescript
  * new ConfigError(
@@ -81,7 +87,12 @@ export class ConfigError extends SHC2ESError {
   readonly code: string;
   readonly path?: string;
 
-  constructor(message: string, path: string | undefined, code: string = "CONFIG_ERROR", cause?: Error) {
+  constructor(
+    message: string,
+    path: string | undefined,
+    code = "CONFIG_ERROR",
+    cause?: Error,
+  ) {
     super(message, cause);
     this.path = path;
     this.code = code;
@@ -90,12 +101,12 @@ export class ConfigError extends SHC2ESError {
 
 /**
  * File system error for general I/O operations.
- * 
+ *
  * Thrown when:
  * - File read/write fails
  * - Directory operations fail
  * - Permission denied
- * 
+ *
  * @example
  * ```typescript
  * new FileSystemError(
@@ -110,7 +121,7 @@ export class FileSystemError extends SHC2ESError {
   readonly code: string;
   readonly path: string;
 
-  constructor(message: string, path: string, code: string = "FS_ERROR", cause?: Error) {
+  constructor(message: string, path: string, code = "FS_ERROR", cause?: Error) {
     super(message, cause);
     this.path = path;
     this.code = code;

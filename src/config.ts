@@ -60,7 +60,10 @@ export function loadEnv(): void {
   const envFile = findEnvFile();
   if (envFile) {
     dotenv.config({ path: envFile });
+    // Note: Can't use logger here as it depends on config being loaded
+    // Debug output only in dev mode for troubleshooting
     if (isDev) {
+      // eslint-disable-next-line no-console
       console.log(`Loaded config from: ${envFile}`);
     }
   }

@@ -1,20 +1,12 @@
 import { existsSync } from "fs";
+import { Result, ok, err } from "neverthrow";
 import { findEnvFile } from "./config";
+import { ValidationError } from "./types/errors";
 
 /**
  * Configuration validation utilities
  * Provides helpful error messages for invalid/missing environment variables
  */
-
-export class ValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly variable: string,
-  ) {
-    super(message);
-    this.name = "ValidationError";
-  }
-}
 
 /**
  * Get the location hint for where to set environment variables
@@ -29,34 +21,72 @@ function getEnvFileHint(): string {
 
 /**
  * Validate that a required environment variable is set
+ *
+ * @param name - Environment variable name
+ * @param value - Environment variable value
+ * @returns Result containing the validated value or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateRequired("BSH_HOST", process.env.BSH_HOST);
+ * if (result.isOk()) {
+ *   console.log("Host:", result.value);
+ * } else {
+ *   console.error(result.error.message);
+ * }
+ * ```
  */
 export function validateRequired(
   name: string,
   value: string | undefined,
-): string {
+): Result<string, ValidationError> {
   if (!value || value.trim() === "") {
-    throw new ValidationError(`${name} is required. ${getEnvFileHint()}`, name);
+    return err(
+      new ValidationError(
+        `${name} is required. ${getEnvFileHint()}`,
+        name,
+        "MISSING_REQUIRED",
+      ),
+    );
   }
-  return value;
+  return ok(value);
 }
 
 /**
  * Validate URL format
- * Checks for protocol, valid URL structure, and common mistakes
+ *
+ * Checks for protocol, valid URL structure, and common mistakes like trailing slashes.
+ *
+ * @param name - Environment variable name
+ * @param value - URL value to validate
+ * @param options - Validation options (required: boolean)
+ * @returns Result containing the validated URL or undefined (if not required), or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateUrl("ES_NODE", process.env.ES_NODE, { required: true });
+ * result.match(
+ *   (url) => console.log("Valid URL:", url),
+ *   (error) => console.error(error.message)
+ * );
+ * ```
  */
 export function validateUrl(
   name: string,
   value: string | undefined,
   options: { required: boolean } = { required: true },
-): string | undefined {
+): Result<string | undefined, ValidationError> {
   if (!value || value.trim() === "") {
     if (options.required) {
-      throw new ValidationError(
-        `${name} is required and must be a valid URL (e.g., https://localhost:9200). ${getEnvFileHint()}`,
-        name,
+      return err(
+        new ValidationError(
+          `${name} is required and must be a valid URL (e.g., https://localhost:9200). ${getEnvFileHint()}`,
+          name,
+          "MISSING_REQUIRED",
+        ),
       );
     }
-    return undefined;
+    return ok(undefined);
   }
 
   const trimmed = value.trim();
@@ -64,9 +94,12 @@ export function validateUrl(
   // Check for protocol
   const protocolRegex = /^https?:\/\//;
   if (!protocolRegex.exec(trimmed)) {
-    throw new ValidationError(
-      `${name} must start with http:// or https:// (got: ${trimmed}). ${getEnvFileHint()}`,
-      name,
+    return err(
+      new ValidationError(
+        `${name} must start with http:// or https:// (got: ${trimmed}). ${getEnvFileHint()}`,
+        name,
+        "INVALID_URL_PROTOCOL",
+      ),
     );
   }
 
@@ -79,107 +112,170 @@ export function validateUrl(
     // because URL parsing changes the path
     const trailingSlashRegex = /^https?:\/\/[^/]+\/$/;
     if (trimmed.endsWith("/") && !trailingSlashRegex.exec(trimmed)) {
-      throw new ValidationError(
-        `${name} should not have a trailing slash (got: ${trimmed}). ${getEnvFileHint()}`,
-        name,
+      return err(
+        new ValidationError(
+          `${name} should not have a trailing slash (got: ${trimmed}). ${getEnvFileHint()}`,
+          name,
+          "INVALID_URL_TRAILING_SLASH",
+        ),
       );
     }
 
-    return trimmed;
-  } catch (err) {
-    // If the error was our validation error, re-throw it
-    if (err instanceof ValidationError) {
-      throw err;
-    }
-    // Otherwise it's a URL parsing error
-    throw new ValidationError(
-      `${name} is not a valid URL (got: ${trimmed}). ${getEnvFileHint()}`,
-      name,
+    return ok(trimmed);
+  } catch (parseErr) {
+    return err(
+      new ValidationError(
+        `${name} is not a valid URL (got: ${trimmed}). ${getEnvFileHint()}`,
+        name,
+        "INVALID_URL_FORMAT",
+        parseErr instanceof Error ? parseErr : undefined,
+      ),
     );
   }
 }
 
 /**
  * Validate file path exists
+ *
+ * @param name - Environment variable name
+ * @param value - File path to validate
+ * @param options - Validation options (required: boolean)
+ * @returns Result containing the validated path or undefined (if not required), or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, { required: false });
+ * if (result.isOk()) {
+ *   const path = result.value; // string | undefined
+ * }
+ * ```
  */
 export function validateFilePath(
   name: string,
   value: string | undefined,
   options: { required: boolean } = { required: false },
-): string | undefined {
+): Result<string | undefined, ValidationError> {
   if (!value || value.trim() === "") {
     if (options.required) {
-      throw new ValidationError(
-        `${name} is required. ${getEnvFileHint()}`,
-        name,
+      return err(
+        new ValidationError(
+          `${name} is required. ${getEnvFileHint()}`,
+          name,
+          "MISSING_REQUIRED",
+        ),
       );
     }
-    return undefined;
+    return ok(undefined);
   }
 
   const trimmed = value.trim();
 
   if (!existsSync(trimmed)) {
-    throw new ValidationError(
-      `${name} file not found: ${trimmed}. ${getEnvFileHint()}`,
-      name,
+    return err(
+      new ValidationError(
+        `${name} file not found: ${trimmed}. ${getEnvFileHint()}`,
+        name,
+        "FILE_NOT_FOUND",
+      ),
     );
   }
 
-  return trimmed;
+  return ok(trimmed);
 }
 
 /**
  * Parse and validate boolean environment variable
+ *
+ * Accepts: 'true', '1', 'yes' for true; 'false', '0', 'no' for false (case-insensitive)
+ *
+ * @param name - Environment variable name
+ * @param value - Value to parse
+ * @param defaultValue - Default value if not set (default: false)
+ * @returns Result containing the boolean value or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateBoolean("ES_TLS_VERIFY", process.env.ES_TLS_VERIFY, true);
+ * const verify = result.unwrapOr(true); // Use default on error
+ * ```
  */
 export function validateBoolean(
   name: string,
   value: string | undefined,
   defaultValue = false,
-): boolean {
+): Result<boolean, ValidationError> {
   if (!value || value.trim() === "") {
-    return defaultValue;
+    return ok(defaultValue);
   }
 
   const trimmed = value.trim().toLowerCase();
 
   if (trimmed === "true" || trimmed === "1" || trimmed === "yes") {
-    return true;
+    return ok(true);
   }
 
   if (trimmed === "false" || trimmed === "0" || trimmed === "no") {
-    return false;
+    return ok(false);
   }
 
-  throw new ValidationError(
-    `${name} must be 'true' or 'false' (got: ${value}). ${getEnvFileHint()}`,
-    name,
+  return err(
+    new ValidationError(
+      `${name} must be 'true' or 'false' (got: ${value}). ${getEnvFileHint()}`,
+      name,
+      "INVALID_BOOLEAN",
+    ),
   );
 }
 
 /**
+ * Log level type
+ */
+export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+
+/**
  * Validate log level
+ *
+ * @param name - Environment variable name
+ * @param value - Log level value
+ * @param defaultValue - Default log level (default: "info")
+ * @returns Result containing the validated log level or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateLogLevel("LOG_LEVEL", process.env.LOG_LEVEL, "info");
+ * const level = result.unwrapOr("info");
+ * ```
  */
 export function validateLogLevel(
   name: string,
   value: string | undefined,
-  defaultValue = "info",
-): string {
+  defaultValue: LogLevel = "info",
+): Result<LogLevel, ValidationError> {
   if (!value || value.trim() === "") {
-    return defaultValue;
+    return ok(defaultValue);
   }
 
   const trimmed = value.trim().toLowerCase();
-  const validLevels = ["trace", "debug", "info", "warn", "error", "fatal"];
+  const validLevels: LogLevel[] = [
+    "trace",
+    "debug",
+    "info",
+    "warn",
+    "error",
+    "fatal",
+  ];
 
-  if (!validLevels.includes(trimmed)) {
-    throw new ValidationError(
-      `${name} must be one of: ${validLevels.join(", ")} (got: ${value}). ${getEnvFileHint()}`,
-      name,
+  if (!validLevels.includes(trimmed as LogLevel)) {
+    return err(
+      new ValidationError(
+        `${name} must be one of: ${validLevels.join(", ")} (got: ${value}). ${getEnvFileHint()}`,
+        name,
+        "INVALID_LOG_LEVEL",
+      ),
     );
   }
 
-  return trimmed;
+  return ok(trimmed as LogLevel);
 }
 
 /**
@@ -191,7 +287,7 @@ export interface PollConfig {
   bshPassword: string;
   bshClientName: string;
   bshClientId: string;
-  logLevel: string;
+  logLevel: LogLevel;
 }
 
 export interface IngestConfig {
@@ -218,139 +314,195 @@ export interface DashboardConfig {
 
 /**
  * Validate configuration for poll command
- * Returns undefined if validation fails (error message logged to console.error)
+ *
+ * @returns Result containing PollConfig or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validatePollConfig();
+ * if (result.isErr()) {
+ *   console.error(result.error.message);
+ *   process.exit(1);
+ * }
+ * const config = result.value;
+ * ```
  */
-export function validatePollConfig(): PollConfig | undefined {
-  try {
-    return {
-      bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
-      bshPassword: validateRequired("BSH_PASSWORD", process.env.BSH_PASSWORD),
-      bshClientName: process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll",
-      bshClientId:
-        process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client",
-      logLevel: validateLogLevel("LOG_LEVEL", process.env.LOG_LEVEL, "info"),
-    };
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      console.error(err.message);
-      return undefined;
-    }
-    throw err;
-  }
+export function validatePollConfig(): Result<PollConfig, ValidationError> {
+  const bshHostResult = validateRequired("BSH_HOST", process.env.BSH_HOST);
+  const bshPasswordResult = validateRequired(
+    "BSH_PASSWORD",
+    process.env.BSH_PASSWORD,
+  );
+  const logLevelResult = validateLogLevel(
+    "LOG_LEVEL",
+    process.env.LOG_LEVEL,
+    "info",
+  );
+
+  // Combine all results - fail on first error
+  return bshHostResult.andThen((bshHost) =>
+    bshPasswordResult.andThen((bshPassword) =>
+      logLevelResult.map((logLevel) => ({
+        bshHost,
+        bshPassword,
+        bshClientName:
+          process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll",
+        bshClientId:
+          process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client",
+        logLevel,
+      })),
+    ),
+  );
 }
 
 /**
  * Validate configuration for ingest command
- * Returns undefined if validation fails (error message logged to console.error)
+ *
+ * @param options - Validation options (requireKibana: boolean)
+ * @returns Result containing IngestConfig or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateIngestConfig({ requireKibana: true });
+ * result.match(
+ *   (config) => startIngestion(config),
+ *   (error) => {
+ *     console.error(error.message);
+ *     process.exit(1);
+ *   }
+ * );
+ * ```
  */
 export function validateIngestConfig(
   options: {
     requireKibana?: boolean;
   } = {},
-): IngestConfig | undefined {
-  try {
-    const esNode = validateUrl("ES_NODE", process.env.ES_NODE, {
-      required: true,
-    });
-    if (!esNode) {
-      // Should never happen as validateUrl throws, but makes TypeScript happy
-      return undefined;
-    }
-
-    const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
-    const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
+): Result<IngestConfig, ValidationError> {
+  const esNodeResult = validateUrl("ES_NODE", process.env.ES_NODE, {
+    required: true,
+  });
+  const esPasswordResult = validateRequired(
+    "ES_PASSWORD",
+    process.env.ES_PASSWORD,
+  );
+  const esCaCertResult = validateFilePath(
+    "ES_CA_CERT",
+    process.env.ES_CA_CERT,
+    {
       required: false,
-    });
+    },
+  );
+  const esTlsVerifyResult = validateBoolean(
+    "ES_TLS_VERIFY",
+    process.env.ES_TLS_VERIFY,
+    true,
+  );
 
-    let kibanaNode: string | undefined;
-    if (options.requireKibana) {
-      kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
-        required: true,
-      });
-      if (!kibanaNode) {
-        return undefined;
-      }
-    } else {
-      kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
-        required: false,
-      });
-    }
+  const kibanaNodeResult = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+    required: !!options.requireKibana,
+  });
 
-    return {
-      esNode,
-      esPassword,
-      esUser: process.env.ES_USER ?? "elastic",
-      esCaCert,
-      esTlsVerify: validateBoolean(
-        "ES_TLS_VERIFY",
-        process.env.ES_TLS_VERIFY,
-        true,
+  // Combine all results - fail on first error
+  return esNodeResult.andThen((esNode) =>
+    esPasswordResult.andThen((esPassword) =>
+      esCaCertResult.andThen((esCaCert) =>
+        esTlsVerifyResult.andThen((esTlsVerify) =>
+          kibanaNodeResult.map((kibanaNode) => ({
+            // esNode is guaranteed to be string (not undefined) because required=true
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            esNode: esNode!,
+            esPassword,
+            esUser: process.env.ES_USER ?? "elastic",
+            esCaCert,
+            esTlsVerify,
+            esIndexPrefix: process.env.ES_INDEX_PREFIX ?? "smart-home-events",
+            kibanaNode,
+          })),
+        ),
       ),
-      esIndexPrefix: process.env.ES_INDEX_PREFIX ?? "smart-home-events",
-      kibanaNode,
-    };
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      console.error(err.message);
-      return undefined;
-    }
-    throw err;
-  }
+    ),
+  );
 }
 
 /**
  * Validate configuration for fetch-registry command
- * Returns undefined if validation fails (error message logged to console.error)
+ *
+ * @returns Result containing RegistryConfig or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateRegistryConfig();
+ * if (result.isErr()) {
+ *   console.error(result.error.message);
+ *   process.exit(1);
+ * }
+ * const config = result.value;
+ * ```
  */
-export function validateRegistryConfig(): RegistryConfig | undefined {
-  try {
-    return {
-      bshHost: validateRequired("BSH_HOST", process.env.BSH_HOST),
-    };
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      console.error(err.message);
-      return undefined;
-    }
-    throw err;
-  }
+export function validateRegistryConfig(): Result<
+  RegistryConfig,
+  ValidationError
+> {
+  return validateRequired("BSH_HOST", process.env.BSH_HOST).map((bshHost) => ({
+    bshHost,
+  }));
 }
 
 /**
  * Validate configuration for export-dashboard command
- * Returns undefined if validation fails (error message logged to console.error)
+ *
+ * @returns Result containing DashboardConfig or a ValidationError
+ *
+ * @example
+ * ```typescript
+ * const result = validateDashboardConfig();
+ * result.match(
+ *   (config) => exportDashboard(config),
+ *   (error) => {
+ *     console.error(error.message);
+ *     process.exit(1);
+ *   }
+ * );
+ * ```
  */
-export function validateDashboardConfig(): DashboardConfig | undefined {
-  try {
-    const kibanaNode = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
-      required: true,
-    });
-    if (!kibanaNode) {
-      // Should never happen as validateUrl throws, but makes TypeScript happy
-      return undefined;
-    }
-
-    const esPassword = validateRequired("ES_PASSWORD", process.env.ES_PASSWORD);
-    const esCaCert = validateFilePath("ES_CA_CERT", process.env.ES_CA_CERT, {
+export function validateDashboardConfig(): Result<
+  DashboardConfig,
+  ValidationError
+> {
+  const kibanaNodeResult = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+    required: true,
+  });
+  const esPasswordResult = validateRequired(
+    "ES_PASSWORD",
+    process.env.ES_PASSWORD,
+  );
+  const esCaCertResult = validateFilePath(
+    "ES_CA_CERT",
+    process.env.ES_CA_CERT,
+    {
       required: false,
-    });
+    },
+  );
+  const esTlsVerifyResult = validateBoolean(
+    "ES_TLS_VERIFY",
+    process.env.ES_TLS_VERIFY,
+    true,
+  );
 
-    return {
-      kibanaNode,
-      esPassword,
-      esUser: process.env.ES_USER ?? "elastic",
-      esCaCert,
-      esTlsVerify: validateBoolean(
-        "ES_TLS_VERIFY",
-        process.env.ES_TLS_VERIFY,
-        true,
+  // Combine all results - fail on first error
+  return kibanaNodeResult.andThen((kibanaNode) =>
+    esPasswordResult.andThen((esPassword) =>
+      esCaCertResult.andThen((esCaCert) =>
+        esTlsVerifyResult.map((esTlsVerify) => ({
+          // kibanaNode is guaranteed to be string (not undefined) because required=true
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          kibanaNode: kibanaNode!,
+          esPassword,
+          esUser: process.env.ES_USER ?? "elastic",
+          esCaCert,
+          esTlsVerify,
+        })),
       ),
-    };
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      console.error(err.message);
-      return undefined;
-    }
-    throw err;
-  }
+    ),
+  );
 }

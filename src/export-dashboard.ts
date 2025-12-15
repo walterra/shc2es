@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { Agent, fetch as undiciFetch } from "undici";
 import "./config"; // Load env vars from ~/.shc2es/.env
-import { createLogger } from "./logger";
+import { createLogger, logErrorAndExit } from "./logger";
 import { validateDashboardConfig } from "./validation";
 import { withSpan, SpanAttributes } from "./instrumentation";
 import {
@@ -17,12 +17,15 @@ import {
 const log = createLogger("export-dashboard");
 
 // Validate configuration early
-const validatedConfig = validateDashboardConfig();
-if (!validatedConfig) {
-  process.exit(1);
+const configResult = validateDashboardConfig();
+if (configResult.isErr()) {
+  logErrorAndExit(
+    configResult.error,
+    `Configuration validation failed: ${configResult.error.message}`,
+  );
 }
-// TypeScript now knows config is defined
-const config = validatedConfig;
+// TypeScript now knows config is Ok
+const config = configResult.value;
 
 // TLS configuration for fetch requests
 interface TlsConfig {
@@ -236,10 +239,14 @@ async function listDashboards(): Promise<void> {
     return;
   }
 
+  // User-facing CLI output
+  // eslint-disable-next-line no-console
   console.log("\nAvailable dashboards:\n");
   for (const obj of result.saved_objects) {
+    // eslint-disable-next-line no-console
     console.log(`  "${obj.attributes.title}" (id: ${obj.id})`);
   }
+  // eslint-disable-next-line no-console
   console.log(`\nTotal: ${String(result.total)} dashboard(s)\n`);
 }
 
@@ -351,6 +358,8 @@ async function exportDashboard(
 }
 
 function printUsage(): void {
+  // User-facing CLI output
+  // eslint-disable-next-line no-console
   console.log(`
 Usage: yarn dashboard:export <dashboard-name>
 

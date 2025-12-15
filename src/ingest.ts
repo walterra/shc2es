@@ -7,7 +7,7 @@ import chokidar from "chokidar";
 import { Tail } from "tail";
 import * as path from "path";
 import { DATA_DIR } from "./config";
-import { createLogger } from "./logger";
+import { createLogger, logErrorAndExit } from "./logger";
 import { validateIngestConfig } from "./validation";
 import { withSpan, SpanAttributes } from "./instrumentation"; // withSpan for high-level operations only
 import {
@@ -22,12 +22,15 @@ import { extractMetric, generateDocId, Metric } from "./transforms";
 const log = createLogger("ingest");
 
 // Validate configuration early
-const validatedConfig = validateIngestConfig({ requireKibana: false });
-if (!validatedConfig) {
-  process.exit(1);
+const configResult = validateIngestConfig({ requireKibana: false });
+if (configResult.isErr()) {
+  logErrorAndExit(
+    configResult.error,
+    `Configuration validation failed: ${configResult.error.message}`,
+  );
 }
-// TypeScript now knows config is defined
-const config = validatedConfig;
+// TypeScript now knows config is Ok
+const config = configResult.value;
 
 // TLS configuration for ES client and fetch requests
 interface TlsConfig {
