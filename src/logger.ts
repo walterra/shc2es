@@ -23,9 +23,29 @@ function buildLoggerName(component?: string): string {
 
 const dateStamp = new Date().toISOString().split("T")[0] ?? "1970-01-01";
 
-// Factory function to create script-specific loggers
-// Writes to console (pretty), file (JSON), and OTel (if enabled)
-// Uses OTEL_SERVICE_NAME as the logger name (set per-script in package.json)
+/**
+ * Create a script-specific logger with multiple transports.
+ *
+ * Creates a pino logger that writes to:
+ * - Console (pretty-printed with colors for development)
+ * - File (JSON format for parsing by tools like Claude Code)
+ * - OpenTelemetry (if enabled via OTEL_SDK_DISABLED !== 'true')
+ *
+ * The logger name is derived from OTEL_SERVICE_NAME environment variable,
+ * which should be set per-script in package.json (e.g., 'shc2es-poll').
+ *
+ * @param logFilePrefix - Prefix for the log file name (e.g., 'poll' -> 'poll-2025-12-14.log')
+ * @returns Configured pino logger instance
+ *
+ * @example
+ * ```typescript
+ * import { createLogger } from './logger';
+ *
+ * const log = createLogger('ingest');
+ * log.info({ esNode: 'https://localhost:9200' }, 'Starting ingestion');
+ * log.error({ err }, 'Failed to connect to Elasticsearch');
+ * ```
+ */
 export function createLogger(logFilePrefix: string): pino.Logger {
   const logFile = path.join(LOGS_DIR, `${logFilePrefix}-${dateStamp}.log`);
   const loggerName = buildLoggerName(); // Uses SERVICE_NAME directly
@@ -68,7 +88,26 @@ export function createLogger(logFilePrefix: string): pino.Logger {
   return logger;
 }
 
-// App logger - for debugging the polling tool itself
+/**
+ * Application logger for debugging the polling tool.
+ *
+ * This is the primary logger used by poll.ts for application-level logging
+ * (errors, status updates, debugging information). Writes to:
+ * - Console (pretty-printed)
+ * - File: ~/.shc2es/logs/poll-YYYY-MM-DD.log (JSON)
+ * - OpenTelemetry (if enabled)
+ *
+ * **Do not use for smart home event data** - use dataLogger for that.
+ *
+ * @example
+ * ```typescript
+ * import { appLogger } from './logger';
+ *
+ * appLogger.info({ controller: '192.168.1.10' }, 'Connected to controller');
+ * appLogger.warn({ retries: 3 }, 'Retrying failed request');
+ * appLogger.error({ err }, 'Fatal error occurred');
+ * ```
+ */
 const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
 
 // Build transport targets array
@@ -106,8 +145,34 @@ export const appLogger = pino({
   },
 });
 
-// Data logger - for smart home events (NDJSON file)
-// Always structured JSON, writes to timestamped file
+/**
+ * Data logger for smart home events.
+ *
+ * This logger is specifically for recording smart home event data in NDJSON format
+ * for ingestion into Elasticsearch. Each log line is a complete JSON document
+ * representing a smart home event (device readings, room updates, messages, etc.).
+ *
+ * **Differences from appLogger:**
+ * - Writes only to file (no console or OpenTelemetry)
+ * - Minimal formatting (no level, no bindings like pid/hostname)
+ * - NDJSON format (newline-delimited JSON)
+ * - File location: ~/.shc2es/data/events-YYYY-MM-DD.ndjson
+ *
+ * **Do not use for debugging** - use appLogger for that.
+ *
+ * @example
+ * ```typescript
+ * import { dataLogger } from './logger';
+ *
+ * // Log a device service data event
+ * dataLogger.info({
+ *   '@type': 'DeviceServiceData',
+ *   time: new Date().toISOString(),
+ *   deviceId: 'hdm:ZigBee:001e5e0902b94515',
+ *   state: { humidity: 42.71 }
+ * });
+ * ```
+ */
 const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
 
 export const dataLogger = pino(
@@ -146,11 +211,39 @@ const errorLogger = pino(
 );
 
 /**
- * Log an error and exit immediately
- * Uses synchronous writes to avoid "sonic boom is not ready yet" error
+ * Log a fatal error and exit the process immediately.
  *
- * @param errorObj - Error object to include in log
- * @param message - Error message to display
+ * This function is used for unrecoverable errors during application startup
+ * (e.g., configuration validation failures, missing required files). It uses
+ * synchronous writes to ensure the error is logged before the process exits.
+ *
+ * **Why synchronous?** Pino's default async writes may not complete before
+ * process.exit() terminates the process, resulting in "sonic boom is not ready yet"
+ * warnings and lost logs. This function uses a separate synchronous logger to
+ * guarantee the error is written to disk.
+ *
+ * **Side effects:**
+ * - Writes error to log file synchronously
+ * - Writes error to stderr for immediate visibility
+ * - Calls process.exit(1) - **does not return**
+ *
+ * @param errorObj - Error object or value to log (will be serialized)
+ * @param message - Human-readable error message
+ * @returns Never returns - exits the process with code 1
+ *
+ * @example
+ * ```typescript
+ * import { logErrorAndExit } from './logger';
+ *
+ * const configResult = validateConfig();
+ * if (configResult.isErr()) {
+ *   logErrorAndExit(
+ *     configResult.error,
+ *     `Configuration validation failed: ${configResult.error.message}`
+ *   );
+ *   // Process exits here - code below never runs
+ * }
+ * ```
  */
 export function logErrorAndExit(errorObj: unknown, message: string): never {
   // Log to file synchronously
@@ -191,6 +284,29 @@ function serializeParams(params: unknown[]): unknown[] {
   });
 }
 
+/**
+ * Bridge logger adapter for the bosch-smart-home-bridge library.
+ *
+ * The bosch-smart-home-bridge library expects a logger with a console-like interface
+ * (fine, debug, info, warn, error methods). This class implements that interface
+ * and forwards all log calls to the pino-based appLogger with proper formatting.
+ *
+ * **Features:**
+ * - Serializes Error objects properly (extracts name, message, stack, cause, code)
+ * - Adds `bshb: true` field to distinguish library logs from app logs
+ * - Maps library log levels to pino levels (fine -> trace)
+ *
+ * @example
+ * ```typescript
+ * import { BshbLogger } from './logger';
+ * import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
+ *
+ * const bshb = BoschSmartHomeBridgeBuilder.builder()
+ *   .withHost(host)
+ *   .withLogger(new BshbLogger())
+ *   .build();
+ * ```
+ */
 export class BshbLogger implements BshbLoggerInterface {
   fine(message?: unknown, ...optionalParams: unknown[]): void {
     appLogger.trace(
