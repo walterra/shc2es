@@ -288,8 +288,12 @@ function parseLine(line: string): SmartHomeEvent | null {
     // Handle pino's leading comma in output
     const cleanLine = line.startsWith("{,") ? "{" + line.slice(2) : line;
     return JSON.parse(cleanLine) as SmartHomeEvent;
-  } catch {
-    log.error({ linePreview: line.slice(0, 100) }, "Failed to parse line");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(
+      { linePreview: line.slice(0, 100), err: message },
+      `Failed to parse line: ${message}`,
+    );
     return null;
   }
 }
@@ -438,7 +442,7 @@ async function importDashboard(): Promise<void> {
         const text = await response.text();
         log.error(
           { status: response.status, body: text },
-          "Dashboard import failed",
+          `Dashboard import failed: HTTP ${String(response.status)}`,
         );
         return;
       }
@@ -590,7 +594,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
                         .slice(0, 3)
                         .map((item) => item.index?.error),
                     },
-                    "Documents failed to index",
+                    `Documents failed to index: ${String(errors.length)} error(s)`,
                   );
                 }
 
@@ -669,7 +673,8 @@ function watchAndTail(): void {
   });
 
   watcher.on("error", (err) => {
-    log.error({ err }, "Watcher error");
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message }, `Watcher error: ${message}`);
   });
 
   watcher.on("add", (filePath) => {
@@ -695,12 +700,14 @@ function watchAndTail(): void {
           );
         })
         .catch((err: unknown) => {
-          log.error({ err }, "Index error");
+          const message = err instanceof Error ? err.message : String(err);
+          log.error({ err: message }, `Index error: ${message}`);
         });
     });
 
     tail.on("error", (err) => {
-      log.error({ err, filePath }, "Tail error");
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ err: message, filePath }, `Tail error: ${message}`);
     });
   });
 
@@ -738,7 +745,11 @@ async function main(): Promise<void> {
     await client.ping();
     log.info({ esNode: config.esNode }, "Connected to Elasticsearch");
   } catch (err) {
-    log.fatal({ err }, "Failed to connect to Elasticsearch");
+    const message = err instanceof Error ? err.message : String(err);
+    log.fatal(
+      { err: message },
+      `Failed to connect to Elasticsearch: ${message}`,
+    );
     process.exit(1);
   }
 
@@ -758,6 +769,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  log.fatal({ err }, "Fatal error");
+  const message = err instanceof Error ? err.message : String(err);
+  log.fatal({ err: message }, `Fatal error: ${message}`);
   process.exit(1);
 });

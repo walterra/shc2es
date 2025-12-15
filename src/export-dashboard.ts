@@ -152,7 +152,10 @@ async function findDashboardByName(name: string): Promise<SavedObject | null> {
 
       if (!response.ok) {
         const text = await response.text();
-        log.fatal({ status: response.status, body: text }, "Search failed");
+        log.fatal(
+          { status: response.status, body: text },
+          `Search failed: HTTP ${String(response.status)}`,
+        );
         process.exit(1);
       }
 
@@ -216,7 +219,10 @@ async function listDashboards(): Promise<void> {
 
   if (!response.ok) {
     const text = await response.text();
-    log.fatal({ status: response.status, body: text }, "List failed");
+    log.fatal(
+      { status: response.status, body: text },
+      `List failed: HTTP ${String(response.status)}`,
+    );
     process.exit(1);
   }
 
@@ -276,7 +282,10 @@ async function exportDashboard(
 
       if (!response.ok) {
         const text = await response.text();
-        log.fatal({ status: response.status, body: text }, "Export failed");
+        log.fatal(
+          { status: response.status, body: text },
+          `Export failed: HTTP ${String(response.status)}`,
+        );
         process.exit(1);
       }
 
@@ -384,12 +393,14 @@ async function main(): Promise<void> {
     // Use hardcoded filename (template can be reused with different prefixes)
     await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME);
   } catch (err) {
-    log.fatal({ err }, "Export failed");
+    const message = err instanceof Error ? err.message : String(err);
+    log.fatal({ err: message }, `Export failed: ${message}`);
     process.exit(1);
   }
 }
 
 main().catch((err: unknown) => {
-  log.fatal({ err }, "Fatal error");
+  const message = err instanceof Error ? err.message : String(err);
+  log.fatal({ err: message }, `Fatal error: ${message}`);
   process.exit(1);
 });
