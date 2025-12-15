@@ -20,7 +20,7 @@ function buildLoggerName(component?: string): string {
   return component ? `${SERVICE_NAME}:${component}` : SERVICE_NAME;
 }
 
-const dateStamp = new Date().toISOString().split("T")[0];
+const dateStamp = new Date().toISOString().split("T")[0] ?? "1970-01-01";
 
 // Factory function to create script-specific loggers
 // Writes to console (pretty), file (JSON), and OTel (if enabled)

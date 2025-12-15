@@ -4,11 +4,6 @@
 
 ### Type Safety Improvements
 
-- **TSConfig: Update to ES2022 and stricter settings**
-  - Current: `target: ES2020`, missing strict flags
-  - Required: `target: ES2022`, `moduleResolution: bundler`, `isolatedModules: true`, `noImplicitAny: true` (implied by strict but explicit), `noUncheckedIndexedAccess: true`
-  - Impact: Better type safety, especially for array/object access patterns
-
 - **Type Safety for Saved Objects**
   - `src/ingest.ts`: Remove `unknown` and `any` types in saved object handling (lines using `JSON.parse` return `unknown`)
   - `src/export-dashboard.ts`: Add proper interfaces for Kibana saved object API responses
