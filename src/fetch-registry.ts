@@ -134,6 +134,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
-  log.fatal({ err: message }, "Error fetching registry");
+  log.fatal({ err: message }, `Error fetching registry: ${message}`);
   process.exit(1);
 });

@@ -107,7 +107,7 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
           },
           error: (err: unknown) => {
             const message = err instanceof Error ? err.message : String(err);
-            appLogger.error({ err: message }, "Long polling error");
+            appLogger.error({ err: message }, `Long polling error: ${message}`);
             appLogger.info("Reconnecting in 5 seconds");
             setTimeout(() => {
               startPolling(bshb);
@@ -120,8 +120,29 @@ function startPolling(bshb: BoschSmartHomeBridge): void {
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
-      appLogger.fatal({ err: message }, "Subscription error");
-      process.exit(1);
+      // Treat timeouts and connection errors as transient - retry instead of exiting
+      const isTransient =
+        message.includes("TIMEOUT") ||
+        message.includes("ECONNRESET") ||
+        message.includes("ENOTFOUND") ||
+        message.includes("EHOSTUNREACH");
+
+      if (isTransient) {
+        appLogger.error(
+          { err: message },
+          `Subscription error (transient): ${message}`,
+        );
+        appLogger.info("Reconnecting in 5 seconds");
+        setTimeout(() => {
+          startPolling(bshb);
+        }, 5000);
+      } else {
+        appLogger.fatal(
+          { err: message },
+          `Subscription error (fatal): ${message}`,
+        );
+        process.exit(1);
+      }
     },
   });
 }
@@ -155,7 +176,7 @@ function main(): void {
           "Press the pairing button on Controller II, then run again",
         );
       } else {
-        appLogger.fatal({ err: message }, "Pairing error");
+        appLogger.fatal({ err: message }, `Pairing error: ${message}`);
       }
       process.exit(1);
     },
