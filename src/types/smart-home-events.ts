@@ -199,9 +199,9 @@ export interface MessageEvent extends BaseEvent {
 
 /**
  * Client event - represents connected client applications (mobile apps, etc.)
- * 
+ *
  * Contains information about client devices that have paired with the controller.
- * 
+ *
  * @example
  * ```json
  * {
