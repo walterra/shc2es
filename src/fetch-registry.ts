@@ -3,19 +3,22 @@ import * as path from "path";
 import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
 import { firstValueFrom } from "rxjs";
 import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
-import { createLogger } from "./logger";
+import { createLogger, logErrorAndExit } from "./logger";
 import { validateRegistryConfig } from "./validation";
 import { withSpan } from "./instrumentation";
 
 const log = createLogger("registry");
 
 // Validate configuration early
-const validatedConfig = validateRegistryConfig();
-if (!validatedConfig) {
-  process.exit(1);
+const configResult = validateRegistryConfig();
+if (configResult.isErr()) {
+  logErrorAndExit(
+    configResult.error,
+    `Configuration validation failed: ${configResult.error.message}`,
+  );
 }
-// TypeScript now knows config is defined
-const config = validatedConfig;
+// TypeScript now knows config is Ok
+const config = configResult.value;
 
 const CONTROLLER_HOST = config.bshHost;
 const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");

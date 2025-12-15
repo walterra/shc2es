@@ -13,6 +13,17 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    rules: {
+      // Disallow console.* methods - use structured logging (pino) instead
+      'no-console': 'error',
+    },
+  },
+  {
+    // Allow console.* in CLI entry point - needed for user-facing output
+    files: ['src/cli.ts'],
+    rules: {
+      'no-console': 'off',
+    },
   },
   {
     ignores: ['dist/', 'node_modules/', '*.js', '*.mjs'],

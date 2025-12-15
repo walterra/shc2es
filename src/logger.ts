@@ -1,5 +1,6 @@
 import pino from "pino";
 import * as path from "path";
+import * as fs from "fs";
 import { DATA_DIR, LOGS_DIR, ensureConfigDirs } from "./config";
 
 // Ensure config directories exist before creating file loggers
@@ -125,6 +126,41 @@ export const dataLogger = pino(
 
 // Log file locations for reference
 appLogger.info({ appLogFile, dataLogFile }, "Logging initialized");
+
+// Note: If validation fails immediately, you may see "Fatal error: sonic boom is not ready yet"
+// This is a harmless internal pino message - the error was already written via errorLogger
+// See: https://github.com/pinojs/pino/issues/871
+
+/**
+ * Synchronous logger for fatal errors before exit
+ * Uses fs.openSync to avoid "sonic boom is not ready yet" error
+ * See: https://github.com/pinojs/pino/issues/871
+ */
+const errorLogFd = fs.openSync(appLogFile, "a");
+const errorLogger = pino(
+  {
+    name: buildLoggerName(),
+    level: "error",
+  },
+  pino.destination({ fd: errorLogFd, sync: true }),
+);
+
+/**
+ * Log an error and exit immediately
+ * Uses synchronous writes to avoid "sonic boom is not ready yet" error
+ *
+ * @param errorObj - Error object to include in log
+ * @param message - Error message to display
+ */
+export function logErrorAndExit(errorObj: unknown, message: string): never {
+  // Log to file synchronously
+  errorLogger.error({ error: errorObj }, message);
+
+  // Also write to stderr for immediate visibility
+  process.stderr.write(`[ERROR] ${message}\n`);
+
+  process.exit(1);
+}
 
 // Bridge logger for bosch-smart-home-bridge library
 // Implements the library's Logger interface and forwards to pino
