@@ -148,17 +148,17 @@ const errorLogger = pino(
 /**
  * Log an error and exit immediately
  * Uses synchronous writes to avoid "sonic boom is not ready yet" error
- * 
+ *
  * @param errorObj - Error object to include in log
  * @param message - Error message to display
  */
 export function logErrorAndExit(errorObj: unknown, message: string): never {
   // Log to file synchronously
   errorLogger.error({ error: errorObj }, message);
-  
+
   // Also write to stderr for immediate visibility
   process.stderr.write(`[ERROR] ${message}\n`);
-  
+
   process.exit(1);
 }
 
