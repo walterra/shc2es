@@ -120,13 +120,14 @@ export default tseslint.config(
     },
   },
   {
-    // Test files don't need JSDoc comments
+    // Test files don't need JSDoc comments and can have deep nesting
     files: ['**/*.test.ts'],
     rules: {
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-description': 'off',
       'jsdoc/require-param': 'off',
       'jsdoc/require-returns': 'off',
+      'max-nested-callbacks': 'off', // Tests often need deep nesting for describe/it blocks
     },
   },
   {

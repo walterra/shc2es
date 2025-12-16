@@ -45,6 +45,37 @@ export interface Metric {
 }
 
 /**
+ * Extracts metric from DeviceServiceData state object.
+ *
+ * @param state - State object with key-value pairs
+ * @returns First numeric metric found or null
+ */
+function extractFromState(state: Record<string, unknown>): Metric | null {
+  for (const [key, val] of Object.entries(state)) {
+    if (key !== '@type' && typeof val === 'number') {
+      return { name: key, value: val };
+    }
+  }
+  return null;
+}
+
+/**
+ * Extracts metric from room extProperties.
+ *
+ * @param extProperties - Extended properties object
+ * @returns First numeric metric found or null
+ */
+function extractFromExtProperties(extProperties: Record<string, unknown>): Metric | null {
+  for (const [key, val] of Object.entries(extProperties)) {
+    const num = parseFloat(String(val));
+    if (!isNaN(num)) {
+      return { name: key, value: num };
+    }
+  }
+  return null;
+}
+
+/**
  * Extract a numeric metric from a smart home event.
  *
  * For DeviceServiceData events, extracts from the state object.
@@ -66,30 +97,13 @@ export interface Metric {
 export function extractMetric(doc: SmartHomeEvent | GenericEvent): Metric | null {
   // Use type narrowing with discriminated union
   switch (doc['@type']) {
-    case 'DeviceServiceData': {
-      // Extract from state object
-      if (doc.state) {
-        for (const [key, val] of Object.entries(doc.state)) {
-          if (key !== '@type' && typeof val === 'number') {
-            return { name: key, value: val };
-          }
-        }
-      }
-      return null;
-    }
+    case 'DeviceServiceData':
+      return doc.state ? extractFromState(doc.state as Record<string, unknown>) : null;
 
-    case 'room': {
-      // Extract from extProperties (values are strings)
-      if (doc.extProperties) {
-        for (const [key, val] of Object.entries(doc.extProperties)) {
-          const num = parseFloat(String(val));
-          if (!isNaN(num)) {
-            return { name: key, value: num };
-          }
-        }
-      }
-      return null;
-    }
+    case 'room':
+      return doc.extProperties
+        ? extractFromExtProperties(doc.extProperties as Record<string, unknown>)
+        : null;
 
     case 'device':
     case 'message':
