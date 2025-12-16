@@ -233,10 +233,10 @@ describe('poll module', () => {
 
       expect(appLogger.debug).toHaveBeenCalledWith(
         {
-          eventType: 'DeviceServiceData',
-          deviceId: 'device-123',
+          'event.type': 'DeviceServiceData',
+          'device.id': 'device-123',
         },
-        'Event received',
+        'Received DeviceServiceData event from device device-123',
       );
     });
 
@@ -251,10 +251,10 @@ describe('poll module', () => {
       expect(dataLogger.info).toHaveBeenCalledWith(event);
       expect(appLogger.debug).toHaveBeenCalledWith(
         {
-          eventType: 'message',
-          deviceId: undefined,
+          'event.type': 'message',
+          'device.id': undefined,
         },
-        'Event received',
+        'Received message event from device undefined',
       );
     });
   });
@@ -287,7 +287,10 @@ describe('poll module', () => {
 
       processEvents(events);
 
-      expect(appLogger.info).toHaveBeenCalledWith({ count: 2 }, 'Events processed');
+      expect(appLogger.info).toHaveBeenCalledWith(
+        { 'event.count': 2 },
+        'Processed 2 events from controller',
+      );
     });
 
     it('should handle empty event array', () => {
@@ -303,7 +306,10 @@ describe('poll module', () => {
       processEvents(events);
 
       expect(dataLogger.info).toHaveBeenCalledTimes(1);
-      expect(appLogger.info).toHaveBeenCalledWith({ count: 1 }, 'Events processed');
+      expect(appLogger.info).toHaveBeenCalledWith(
+        { 'event.count': 1 },
+        'Processed 1 events from controller',
+      );
     });
 
     it('should process events in order', () => {

@@ -108,6 +108,104 @@ describe('logger module', () => {
     });
   });
 
+  describe('serializeError', () => {
+    it('should serialize Error with all fields', () => {
+      const error = new Error('Test error message');
+      const result = logger.serializeError(error);
+
+      expect(result['error.message']).toBe('Test error message');
+      expect(result['error.type']).toBe('Error');
+      expect(result['error.stack_trace']).toBeDefined();
+      expect(typeof result['error.stack_trace']).toBe('string');
+    });
+
+    it('should serialize error with code property', () => {
+      const error = new Error('Connection failed') as Error & { code: string };
+      error.code = 'ECONNREFUSED';
+      const result = logger.serializeError(error);
+
+      expect(result['error.message']).toBe('Connection failed');
+      expect(result['error.code']).toBe('ECONNREFUSED');
+      expect(result['error.type']).toBe('Error');
+    });
+
+    it('should serialize error with errno property', () => {
+      const error = new Error('File not found') as Error & { errno: number };
+      error.errno = -2;
+      const result = logger.serializeError(error);
+
+      expect(result['error.message']).toBe('File not found');
+      expect(result['error.errno']).toBe(-2);
+    });
+
+    it('should recursively serialize error cause', () => {
+      const cause = new Error('Root cause');
+      const error = new Error('Top level error', { cause });
+      const result = logger.serializeError(error);
+
+      expect(result['error.message']).toBe('Top level error');
+      expect(result['error.cause']).toBeDefined();
+
+      const serializedCause = result['error.cause'] as Record<string, unknown>;
+      expect(serializedCause['error.message']).toBe('Root cause');
+      expect(serializedCause['error.type']).toBe('Error');
+    });
+
+    it('should handle string errors', () => {
+      const result = logger.serializeError('Simple error string');
+
+      expect(result['error.message']).toBe('Simple error string');
+      expect(result['error.type']).toBe('string');
+    });
+
+    it('should handle non-Error objects', () => {
+      const result = logger.serializeError({ custom: 'error' });
+
+      expect(result['error.message']).toBe('[object Object]');
+      expect(result['error.type']).toBe('object');
+    });
+
+    it('should handle null and undefined', () => {
+      const nullResult = logger.serializeError(null);
+      expect(nullResult['error.message']).toBe('null');
+      expect(nullResult['error.type']).toBe('object');
+
+      const undefinedResult = logger.serializeError(undefined);
+      expect(undefinedResult['error.message']).toBe('undefined');
+      expect(undefinedResult['error.type']).toBe('undefined');
+    });
+
+    it('should handle custom error classes', () => {
+      class CustomError extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = 'CustomError';
+        }
+      }
+
+      const error = new CustomError('Custom error occurred');
+      const result = logger.serializeError(error);
+
+      expect(result['error.message']).toBe('Custom error occurred');
+      expect(result['error.type']).toBe('CustomError');
+    });
+
+    it('should use ECS-compliant field names', () => {
+      const error = new Error('Test');
+      const result = logger.serializeError(error);
+
+      // Check for dotted notation (ECS compliant)
+      expect(Object.keys(result)).toContain('error.message');
+      expect(Object.keys(result)).toContain('error.type');
+      expect(Object.keys(result)).toContain('error.stack_trace');
+
+      // Ensure no old field names
+      expect(Object.keys(result)).not.toContain('err');
+      expect(Object.keys(result)).not.toContain('message');
+      expect(Object.keys(result)).not.toContain('type');
+    });
+  });
+
   describe('logErrorAndExit', () => {
     let exitSpy: jest.SpiedFunction<typeof process.exit>;
 

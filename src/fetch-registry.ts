@@ -56,19 +56,25 @@ async function fetchDevicesAndRooms(
 ): Promise<{ devices: BshDevice[]; rooms: BshRoom[] }> {
   // Fetch devices
   const devices = await withSpan('fetch_devices', {}, async () => {
-    log.info('Fetching devices...');
+    log.info('Fetching devices from controller...');
     const devicesResponse = await firstValueFrom(client.getDevices());
     const devices = devicesResponse.parsedResponse as BshDevice[];
-    log.info({ count: devices.length }, 'Devices fetched');
+    log.info(
+      { 'device.count': devices.length },
+      `Fetched ${String(devices.length)} devices from controller`,
+    );
     return devices;
   });
 
   // Fetch rooms
   const rooms = await withSpan('fetch_rooms', {}, async () => {
-    log.info('Fetching rooms...');
+    log.info('Fetching rooms from controller...');
     const roomsResponse = await firstValueFrom(client.getRooms());
     const rooms = roomsResponse.parsedResponse as BshRoom[];
-    log.info({ count: rooms.length }, 'Rooms fetched');
+    log.info(
+      { 'room.count': rooms.length },
+      `Fetched ${String(rooms.length)} rooms from controller`,
+    );
     return rooms;
   });
 
@@ -101,7 +107,10 @@ function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegist
           name: room.name,
           iconId: room.iconId,
         };
-        log.debug({ roomId: room.id, roomName: room.name }, 'Room mapped');
+        log.debug(
+          { 'room.id': room.id, 'room.name': room.name },
+          `Mapped room: ${room.name} (${room.id})`,
+        );
       }
 
       // Map devices
@@ -116,12 +125,12 @@ function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegist
           : 'no room';
         log.debug(
           {
-            deviceId: device.id,
-            deviceName: device.name,
-            roomName,
-            deviceType: device.deviceModel,
+            'device.id': device.id,
+            'device.name': device.name,
+            'room.name': roomName,
+            'device.type': device.deviceModel,
           },
-          'Device mapped',
+          `Mapped device: ${device.name} (${device.id}) in ${roomName}`,
         );
       }
 
@@ -137,7 +146,14 @@ function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegist
 function saveRegistry(registry: DeviceRegistry): void {
   const registryFile = getRegistryFile();
   fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2));
-  log.info({ registryFile }, 'Registry saved');
+  log.info(
+    {
+      'file.path': registryFile,
+      'device.count': Object.keys(registry.devices).length,
+      'room.count': Object.keys(registry.rooms).length,
+    },
+    `Registry saved to ${registryFile}: ${String(Object.keys(registry.devices).length)} devices, ${String(Object.keys(registry.rooms).length)} rooms`,
+  );
 }
 
 /**
@@ -155,7 +171,9 @@ export async function main(): Promise<void> {
   }
   const config = configResult.value;
 
-  log.info('Fetching device and room registry from Bosch Smart Home Controller');
+  log.info(
+    `Fetching device and room registry from Bosch Smart Home Controller at ${config.bshHost}`,
+  );
 
   const { cert, key } = loadCertificate();
 

@@ -68,12 +68,6 @@
   - Use OpenTelemetry trace context when available
   - Files: All CLI scripts (`poll.ts`, `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`)
 
-- **Structured logging consistency**
-  - Audit all log statements for proper structure
-  - Ensure error objects are logged with full context
-  - Use semantic field names consistently (e.g., `device.id` not `deviceId`)
-  - Document logging conventions in `spec/LOGGING.md`
-
 ### Async/Await and Signal Handling
 
 - **Add AbortController support to all async operations**

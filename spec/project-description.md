@@ -83,6 +83,9 @@ Kibana (time series visualization)
 ### Observability
 
 - **Application logs**: Pino JSON logs for debugging (`~/.shc2es/logs/`)
+  - **Standards**: ECS-compliant field naming (see `spec/LOGGING.md`)
+  - **Format**: Structured JSON with human-readable messages
+  - **Fields**: `error.message`, `device.id`, `file.path`, `url.full`, etc.
 - **Event data**: NDJSON format for raw smart home events (`~/.shc2es/data/`)
 - **APM tracing**: OpenTelemetry instrumentation for performance monitoring
 - **Kibana dashboards**: Time series visualization of metrics
@@ -176,7 +179,7 @@ OTEL_TLS_VERIFY=false     # Disable cert verification (dev only)
 - **Primary use case**: Educational and personal home automation monitoring
 - **License**: MIT
 - **Testing coverage**: 70%+ on core modules, integration tests in progress
-- **Documentation**: README, spec files for architecture/APIs
+- **Documentation**: README, spec files for architecture/APIs/logging standards (spec/LOGGING.md)
 
 ## Known Limitations
 

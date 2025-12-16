@@ -36,12 +36,15 @@ interface TlsConfig {
 // Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
   if (!config.esTlsVerify) {
-    log.debug('TLS verification disabled via ES_TLS_VERIFY=false');
+    log.debug('TLS verification disabled via ES_TLS_VERIFY=false (development mode)');
     return { rejectUnauthorized: false };
   }
 
   if (config.esCaCert) {
-    log.debug({ path: config.esCaCert }, 'Using custom CA certificate');
+    log.debug(
+      { 'file.path': config.esCaCert },
+      `Using custom CA certificate from ${config.esCaCert}`,
+    );
     return { ca: readFileSync(config.esCaCert) };
   }
 
@@ -117,7 +120,10 @@ function stripSensitiveMetadata(ndjson: string): string {
 
 async function findDashboardByName(name: string): Promise<SavedObject<DashboardAttributes> | null> {
   return withSpan('find_dashboard', { [SpanAttributes.DASHBOARD_NAME]: name }, async () => {
-    log.info({ name }, 'Searching for dashboard by name');
+    log.info(
+      { 'dashboard.name': name, 'url.full': KIBANA_NODE },
+      `Searching for dashboard '${name}' in Kibana at ${KIBANA_NODE}`,
+    );
 
     const params = new URLSearchParams({
       type: 'dashboard',
@@ -136,8 +142,8 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
     if (!response.ok) {
       const text = await response.text();
       log.fatal(
-        { status: response.status, body: text },
-        `Search failed: HTTP ${String(response.status)}`,
+        { 'http.response.status_code': response.status, 'http.response.body': text },
+        `Dashboard search failed with HTTP ${String(response.status)}`,
       );
       process.exit(1);
     }
@@ -145,7 +151,7 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
     const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
     if (result.total === 0) {
-      log.warn({ name }, 'No dashboards found matching name');
+      log.warn({ 'dashboard.name': name }, `No dashboards found matching name '${name}'`);
       return null;
     }
 
@@ -155,7 +161,10 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
     );
 
     if (exactMatch) {
-      log.info({ id: exactMatch.id, title: exactMatch.attributes.title }, 'Found exact match');
+      log.info(
+        { 'dashboard.id': exactMatch.id, 'dashboard.title': exactMatch.attributes.title },
+        `Found exact match: '${exactMatch.attributes.title}' (${exactMatch.id})`,
+      );
       return exactMatch;
     }
 
@@ -165,21 +174,27 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
         id: obj.id,
         title: obj.attributes.title,
       }));
-      log.warn({ matches }, 'Multiple dashboards found, using first match');
+      log.warn(
+        { matches, 'dashboard.count': matches.length },
+        `Multiple dashboards found matching '${name}', using first match`,
+      );
     }
 
     const match = result.saved_objects[0];
     if (!match) {
-      log.warn('No dashboard found in results');
+      log.warn(`No dashboard found in results for '${name}'`);
       return null;
     }
-    log.info({ id: match.id, title: match.attributes.title }, 'Using dashboard');
+    log.info(
+      { 'dashboard.id': match.id, 'dashboard.title': match.attributes.title },
+      `Using dashboard '${match.attributes.title}' (${match.id})`,
+    );
     return match;
   });
 }
 
 async function listDashboards(): Promise<void> {
-  log.info('Listing all dashboards');
+  log.info({ 'url.full': KIBANA_NODE }, `Listing all dashboards from Kibana at ${KIBANA_NODE}`);
 
   const params = new URLSearchParams({
     type: 'dashboard',
@@ -197,8 +212,8 @@ async function listDashboards(): Promise<void> {
   if (!response.ok) {
     const text = await response.text();
     log.fatal(
-      { status: response.status, body: text },
-      `List failed: HTTP ${String(response.status)}`,
+      { 'http.response.status_code': response.status, 'http.response.body': text },
+      `Dashboard list failed with HTTP ${String(response.status)}`,
     );
     process.exit(1);
   }
@@ -206,7 +221,7 @@ async function listDashboards(): Promise<void> {
   const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
   if (result.total === 0) {
-    log.info('No dashboards found');
+    log.info({ 'url.full': KIBANA_NODE }, `No dashboards found in Kibana at ${KIBANA_NODE}`);
     return;
   }
 
@@ -232,7 +247,10 @@ async function fetchDashboardExport(dashboardId: string): Promise<string> {
     includeReferencesDeep: true,
   };
 
-  log.info({ kibanaNode: KIBANA_NODE, dashboardId }, 'Exporting dashboard from Kibana');
+  log.info(
+    { 'url.full': KIBANA_NODE, 'dashboard.id': dashboardId },
+    `Exporting dashboard ${dashboardId} from Kibana at ${KIBANA_NODE}`,
+  );
 
   const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
     method: 'POST',
@@ -288,16 +306,18 @@ function parseDashboardExport(ndjson: string): ExportMetadata {
   log.info(
     {
       typeCounts,
-      exportedCount: metadata.exportedCount,
+      'export.count': metadata.exportedCount,
       [SpanAttributes.OBJECTS_COUNT]: metadata.exportedCount,
     },
-    'Export summary',
+    `Export contains ${String(metadata.exportedCount)} objects: ${Object.entries(typeCounts)
+      .map(([type, count]) => `${String(count)} ${type}(s)`)
+      .join(', ')}`,
   );
 
   if (metadata.missingRefCount && metadata.missingRefCount > 0) {
     log.warn(
-      { missingReferences: metadata.missingReferences },
-      'Some references could not be resolved',
+      { missingReferences: metadata.missingReferences, 'missing.count': metadata.missingRefCount },
+      `Export has ${String(metadata.missingRefCount)} unresolved references`,
     );
   }
 
@@ -313,17 +333,20 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
   // Ensure dashboards directory exists
   if (!existsSync(DASHBOARDS_DIR)) {
     mkdirSync(DASHBOARDS_DIR, { recursive: true });
-    log.info({ dir: DASHBOARDS_DIR }, 'Created dashboards directory');
+    log.info({ 'file.path': DASHBOARDS_DIR }, `Created dashboards directory at ${DASHBOARDS_DIR}`);
   }
 
   // Strip sensitive metadata before saving
   const strippedNdjson = stripSensitiveMetadata(ndjson);
-  log.info({ strippedFields: SENSITIVE_FIELDS }, 'Stripped sensitive metadata');
+  log.info(
+    { 'field.names': SENSITIVE_FIELDS, 'field.count': SENSITIVE_FIELDS.length },
+    `Stripped ${String(SENSITIVE_FIELDS.length)} sensitive metadata fields: ${SENSITIVE_FIELDS.join(', ')}`,
+  );
 
   // Write to file
   const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
   writeFileSync(outputFile, strippedNdjson);
-  log.info({ outputFile }, 'Dashboard exported successfully');
+  log.info({ 'file.path': outputFile }, `Dashboard exported successfully to ${outputFile}`);
 }
 
 /**
@@ -393,7 +416,7 @@ export async function main(): Promise<void> {
     const dashboard = await findDashboardByName(dashboardName);
 
     if (!dashboard) {
-      log.info('Use --list to see available dashboards');
+      log.info(`Dashboard '${dashboardName}' not found. Use --list to see available dashboards`);
       process.exit(1);
     }
 
