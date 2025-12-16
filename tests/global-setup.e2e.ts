@@ -6,10 +6,7 @@
  * class directly for flexibility (different events per test)
  */
 
-import {
-  startElasticsearchContainer,
-  startKibanaContainer,
-} from './utils/containers';
+import { startElasticsearchContainer, startKibanaContainer } from './utils/containers';
 import type { StartedTestContainer } from 'testcontainers';
 
 // Store container references globally
@@ -33,14 +30,16 @@ export default async function globalSetup(): Promise<void> {
   global.__E2E_CONTAINERS__ = {};
 
   // Start Elasticsearch
-  const { container: esContainer, url: esUrl, containerUrl: esContainerUrl } =
-    await startElasticsearchContainer();
+  const {
+    container: esContainer,
+    url: esUrl,
+    containerUrl: esContainerUrl,
+  } = await startElasticsearchContainer();
   global.__E2E_CONTAINERS__.elasticsearch = esContainer;
   global.__E2E_CONTAINERS__.elasticsearchUrl = esUrl;
 
   // Start Kibana (use containerUrl for inter-container communication)
-  const { container: kibanaContainer, url: kibanaUrl } =
-    await startKibanaContainer(esContainerUrl);
+  const { container: kibanaContainer, url: kibanaUrl } = await startKibanaContainer(esContainerUrl);
   global.__E2E_CONTAINERS__.kibana = kibanaContainer;
   global.__E2E_CONTAINERS__.kibanaUrl = kibanaUrl;
 

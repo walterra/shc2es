@@ -25,10 +25,7 @@ export default async function globalTeardown(): Promise<void> {
 
   if (containers.elasticsearch) {
     await containers.elasticsearch.stop().catch((error: Error) => {
-      console.error(
-        '[E2E Global Teardown] Failed to stop Elasticsearch:',
-        error
-      );
+      console.error('[E2E Global Teardown] Failed to stop Elasticsearch:', error);
     });
   }
 

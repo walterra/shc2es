@@ -7,10 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  getGlobalContainers,
-  createElasticsearchClient,
-} from '../utils/global-containers';
+import { getGlobalContainers, createElasticsearchClient } from '../utils/global-containers';
 import type { Client } from '@elastic/elasticsearch';
 
 describe('Dashboard E2E', () => {
