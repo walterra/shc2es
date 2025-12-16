@@ -262,18 +262,21 @@ Production-grade TypeScript module with strict type safety, zero implicit any, c
 JSDoc comments with @param and @return tags, functional programming patterns with immutable
 data structures, error handling using Result/Either pattern or custom error classes extending
 Error, dependency injection for testability, single responsibility principle with functions
-under 20 lines, using Pino structured logging with correlation IDs, async/await with proper
-AbortController signal handling, exhaustive union type checking with never fallbacks, Jest
-unit tests with 70% branch coverage using arrange-act-assert pattern, integration tests with
-TestContainers for external dependencies, property-based testing with fast-check for edge
-cases, ESLint strict ruleset with no-explicit-any and no-unsafe-\* rules enabled, Prettier
-formatting with 2-space indent and 100-char line width, semantic versioning with Changesets
-following conventional commits, OpenTelemetry spans with proper error recording and semantic
-conventions, graceful shutdown with cleanup hooks, configuration validation using Zod schemas
-with descriptive error messages, meaningful variable names following domain language (no
+under 50 lines and files under 300 lines, using Pino structured logging with correlation IDs,
+async/await with proper AbortController signal handling, exhaustive union type checking with
+never fallbacks, Jest unit tests with 70% branch coverage using arrange-act-assert pattern,
+integration tests with TestContainers for external dependencies, property-based testing with
+fast-check for edge cases, ESLint strict ruleset with no-explicit-any and no-unsafe-\* rules
+enabled plus complexity guards (max-lines:300, max-lines-per-function:50, complexity:10,
+max-depth:3, max-params:4, max-nested-callbacks:4, max-statements:30), Prettier formatting
+with 2-space indent and 100-char line width, semantic versioning with Changesets following
+conventional commits, OpenTelemetry spans with proper error recording and semantic conventions,
+graceful shutdown with cleanup hooks, configuration validation using Zod schemas with
+descriptive error messages, meaningful variable names following domain language (no
 abbreviations except widely known acronyms), pure functions with no side effects marked with
 readonly parameters, defensive programming with input validation at boundaries, SOLID
-principles adherence --coverage 70 --strict true --target ES2022 --moduleResolution bundler --isolatedModules true
+principles adherence, feature-based module organization over type-based --coverage 70 --strict
+true --target ES2022 --moduleResolution bundler --isolatedModules true
 
 ### Key Documentation Files
 

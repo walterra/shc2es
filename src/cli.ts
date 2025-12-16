@@ -24,7 +24,7 @@ const COMMANDS: Record<string, { description: string; module: string; usage?: st
   },
   ingest: {
     description: 'Ingest events to Elasticsearch',
-    module: './ingest',
+    module: './ingest/main',
     usage: '[--setup|--watch|--pattern <glob>]',
   },
   registry: {

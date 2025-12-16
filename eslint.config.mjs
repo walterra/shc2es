@@ -87,6 +87,29 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'error', // Prevent returning any from functions
       '@typescript-eslint/explicit-function-return-type': 'error', // Require explicit return types on functions
       '@typescript-eslint/consistent-type-imports': 'error', // Separate type-only imports using import type
+
+      // Code complexity rules - enforce SOLID principles and maintainability
+      'max-lines': [
+        'warn',
+        {
+          max: 300,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ], // Enforce maximum file length
+      'max-lines-per-function': [
+        'warn',
+        {
+          max: 50,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ], // Enforce maximum function length
+      complexity: ['warn', { max: 10 }], // Cyclomatic complexity threshold
+      'max-depth': ['error', 3], // Maximum nesting depth
+      'max-params': ['error', 4], // Maximum function parameters
+      'max-nested-callbacks': ['error', 4], // Maximum callback nesting
+      'max-statements': ['warn', 30], // Maximum statements per function
     },
   },
   {
@@ -97,13 +120,14 @@ export default tseslint.config(
     },
   },
   {
-    // Test files don't need JSDoc comments
+    // Test files don't need JSDoc comments and can have deep nesting
     files: ['**/*.test.ts'],
     rules: {
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-description': 'off',
       'jsdoc/require-param': 'off',
       'jsdoc/require-returns': 'off',
+      'max-nested-callbacks': 'off', // Tests often need deep nesting for describe/it blocks
     },
   },
   {

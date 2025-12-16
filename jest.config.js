@@ -16,7 +16,8 @@ module.exports = {
     '!src/**/*.test.ts', // Test files - don't measure coverage of tests
     '!src/cli.ts', // CLI entry point - tested via E2E
     '!src/poll.ts', // CLI script - integration tested
-    '!src/ingest.ts', // CLI script - integration tested
+    '!src/ingest.ts', // Old CLI script - being replaced by ingest/* modules
+    '!src/ingest/**/*.ts', // CLI orchestration modules - integration tested
     '!src/fetch-registry.ts', // CLI script - integration tested
     '!src/export-dashboard.ts', // CLI script - integration tested
   ],

@@ -409,24 +409,31 @@ export function validateIngestConfig(
   });
 
   // Combine all results - fail on first error
-  return esNodeResult.andThen((esNode) =>
-    esPasswordResult.andThen((esPassword) =>
-      esCaCertResult.andThen((esCaCert) =>
-        esTlsVerifyResult.andThen((esTlsVerify) =>
-          kibanaNodeResult.map((kibanaNode) => ({
-            // esNode is guaranteed to be string (not undefined) because required=true
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            esNode: esNode!,
-            esPassword,
-            esUser: process.env.ES_USER ?? 'elastic',
-            esCaCert,
-            esTlsVerify,
-            esIndexPrefix: process.env.ES_INDEX_PREFIX ?? 'smart-home-events',
-            kibanaNode,
-          })),
-        ),
-      ),
-    ),
+  // Flatten nested callbacks to reduce complexity
+  const step1 = esNodeResult.andThen((esNode) =>
+    esPasswordResult.map((esPassword) => ({ esNode, esPassword })),
+  );
+
+  const step2 = step1.andThen(({ esNode, esPassword }) =>
+    esCaCertResult.map((esCaCert) => ({ esNode, esPassword, esCaCert })),
+  );
+
+  const step3 = step2.andThen(({ esNode, esPassword, esCaCert }) =>
+    esTlsVerifyResult.map((esTlsVerify) => ({ esNode, esPassword, esCaCert, esTlsVerify })),
+  );
+
+  return step3.andThen(({ esNode, esPassword, esCaCert, esTlsVerify }) =>
+    kibanaNodeResult.map((kibanaNode) => ({
+      // esNode is guaranteed to be string (not undefined) because required=true
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      esNode: esNode!,
+      esPassword,
+      esUser: process.env.ES_USER ?? 'elastic',
+      esCaCert,
+      esTlsVerify,
+      esIndexPrefix: process.env.ES_INDEX_PREFIX ?? 'smart-home-events',
+      kibanaNode,
+    })),
   );
 }
 
