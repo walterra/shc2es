@@ -109,10 +109,12 @@ async function main(): Promise<void> {
   // Dynamic import of the command module and call its main() function
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const modulePath = COMMANDS[command]!.module;
-  const module = (await import(modulePath)) as { main?: () => void | Promise<void> };
-  
+  const module = (await import(modulePath)) as {
+    main?: () => void | Promise<void>;
+  };
+
   // Call main() if it exists
-  if (typeof module.main === 'function') {
+  if (typeof module.main === "function") {
     await module.main();
   } else {
     console.error(`Module ${modulePath} does not export a main() function`);
