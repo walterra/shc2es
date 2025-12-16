@@ -25,12 +25,18 @@ export interface MockControllerConfig {
   longPollingDelay?: number;
 }
 
+/**
+ * Bosch Smart Home Room data structure
+ */
 export interface BshRoom {
   id: string;
   name: string;
   iconId?: string;
 }
 
+/**
+ * Bosch Smart Home Device data structure
+ */
 export interface BshDevice {
   id: string;
   name: string;
@@ -51,7 +57,7 @@ export class MockBoschController {
   private app: Express;
   private server: Server | null = null;
   private config: Required<MockControllerConfig>;
-  private subscriptions: Map<string, { createdAt: Date }> = new Map();
+  private subscriptions = new Map<string, { createdAt: Date }>();
   private eventQueue: SmartHomeEvent[] = [];
   private isPaired = false;
 
@@ -70,6 +76,7 @@ export class MockBoschController {
 
   /**
    * Setup Express routes that mimic Controller II API
+   * @returns Express application with configured routes
    */
   private setupRoutes(): Express {
     const app = express();
@@ -122,7 +129,7 @@ export class MockBoschController {
 
       // Subscribe method - returns subscription ID
       if (method === 'RE/subscribe') {
-        const subscriptionId = `subscription-${Date.now()}`;
+        const subscriptionId = `subscription-${String(Date.now())}`;
         this.subscriptions.set(subscriptionId, { createdAt: new Date() });
         res.json({
           jsonrpc: '2.0',
@@ -202,11 +209,12 @@ export class MockBoschController {
           return;
         }
         // Returns URL with ephemeral port assigned by OS (e.g., http://localhost:54323)
-        const url = `http://localhost:${address.port}`;
+        const url = `http://localhost:${String(address.port)}`;
         resolve(url);
       });
 
-      this.server?.on('error', reject);
+      // Register error handler (server is guaranteed to be defined after listen() call)
+      this.server.on('error', reject);
     });
   }
 
@@ -256,6 +264,7 @@ export class MockBoschController {
 
   /**
    * Get the current event queue length
+   * @returns Number of events in the queue
    */
   getEventQueueLength(): number {
     return this.eventQueue.length;
@@ -263,6 +272,7 @@ export class MockBoschController {
 
   /**
    * Get the number of active subscriptions
+   * @returns Number of active subscriptions
    */
   getSubscriptionCount(): number {
     return this.subscriptions.size;

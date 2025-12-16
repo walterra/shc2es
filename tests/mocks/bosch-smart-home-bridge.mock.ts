@@ -4,7 +4,14 @@
 
 import { Observable } from 'rxjs';
 
+/**
+ * Mock BSHC client for testing
+ */
 export class MockBshcClient {
+  /**
+   * Mock subscribe method
+   * @returns Observable with mock subscription result
+   */
   subscribe = jest.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next({
@@ -14,7 +21,11 @@ export class MockBshcClient {
     });
   });
 
-  longPolling = jest.fn((subscriptionId: string) => {
+  /**
+   * Mock long polling method
+   * @returns Observable with mock polling result
+   */
+  longPolling = jest.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next({
         parsedResponse: { result: [] },
@@ -24,11 +35,22 @@ export class MockBshcClient {
   });
 }
 
+/**
+ * Mock Bosch Smart Home Bridge for testing
+ */
 export class MockBoschSmartHomeBridge {
   private client = new MockBshcClient();
 
+  /**
+   * Get mock BSHC client
+   * @returns Mock client instance
+   */
   getBshcClient = jest.fn(() => this.client);
 
+  /**
+   * Mock pairing method
+   * @returns Observable with mock pairing result
+   */
   pairIfNeeded = jest.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next(true);
@@ -37,6 +59,9 @@ export class MockBoschSmartHomeBridge {
   });
 }
 
+/**
+ * Mock Bosch Smart Home Bridge Builder for testing
+ */
 export class MockBoschSmartHomeBridgeBuilder {
   private host = '';
   private cert = '';

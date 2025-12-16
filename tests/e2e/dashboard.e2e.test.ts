@@ -5,10 +5,22 @@
  * Note: Containers started once in global setup for all E2E tests
  */
 
+/* eslint-disable no-console */
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGlobalContainers, createElasticsearchClient } from '../utils/global-containers';
 import type { Client } from '@elastic/elasticsearch';
+
+interface SavedObject {
+  type: string;
+  id: string;
+  attributes?: Record<string, unknown>;
+}
+
+interface ImportResult {
+  success: boolean;
+  successCount: number;
+}
 
 describe('Dashboard E2E', () => {
   let esClient: Client;
@@ -24,18 +36,9 @@ describe('Dashboard E2E', () => {
     await esClient.close();
   });
 
-  it('should connect to Elasticsearch and Kibana successfully', async () => {
-    // Verify Elasticsearch is running
-    const esHealth = await esClient.cluster.health();
-    expect(esHealth.status).toBeDefined();
-
-    // Verify Kibana is running
-    const kibanaResponse = await fetch(`${kibanaUrl}/api/status`);
-    expect(kibanaResponse.ok).toBe(true);
-
-    const status = await kibanaResponse.json();
-    expect(status.status.overall.level).toBe('available');
-  });
+  // Note: Container readiness is validated in global-setup.e2e.ts
+  // No need to test infrastructure availability - if containers weren't ready,
+  // global setup would have failed before any tests run
 
   it('should read dashboard NDJSON file', () => {
     const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
@@ -50,7 +53,7 @@ describe('Dashboard E2E', () => {
     expect(lines.length).toBeGreaterThan(0);
 
     // Parse each line to verify valid JSON
-    const objects = lines.map((line) => JSON.parse(line));
+    const objects = lines.map((line) => JSON.parse(line) as SavedObject);
 
     // Should contain saved object exports
     expect(objects.length).toBeGreaterThan(0);
@@ -84,7 +87,7 @@ describe('Dashboard E2E', () => {
 
     expect(importResponse.ok).toBe(true);
 
-    const importResult = await importResponse.json();
+    const importResult = (await importResponse.json()) as ImportResult;
     expect(importResult.success).toBe(true);
     expect(importResult.successCount).toBeGreaterThan(0);
   });
@@ -108,22 +111,27 @@ describe('Dashboard E2E', () => {
 
     // Find dashboard objects from the NDJSON
     const lines = content.trim().split('\n');
-    const objects = lines.map((line) => JSON.parse(line));
+    const objects = lines.map((line) => JSON.parse(line) as SavedObject);
     const dashboards = objects.filter((obj) => obj.type === 'dashboard');
 
     expect(dashboards.length).toBeGreaterThan(0);
 
     // Query for the dashboard
-    const dashboardId = dashboards[0].id;
-    const findResponse = await fetch(`${kibanaUrl}/api/saved_objects/dashboard/${dashboardId}`, {
-      headers: {
-        'kbn-xsrf': 'true',
+    const dashboardId = dashboards[0]?.id;
+    expect(dashboardId).toBeDefined();
+
+    const findResponse = await fetch(
+      `${kibanaUrl}/api/saved_objects/dashboard/${String(dashboardId)}`,
+      {
+        headers: {
+          'kbn-xsrf': 'true',
+        },
       },
-    });
+    );
 
     expect(findResponse.ok).toBe(true);
 
-    const dashboard = await findResponse.json();
+    const dashboard = (await findResponse.json()) as SavedObject;
     expect(dashboard.type).toBe('dashboard');
     expect(dashboard.id).toBe(dashboardId);
     expect(dashboard.attributes).toHaveProperty('title');
@@ -163,7 +171,7 @@ describe('Dashboard E2E', () => {
 
     expect(secondImport.ok).toBe(true);
 
-    const secondResult = await secondImport.json();
+    const secondResult = (await secondImport.json()) as ImportResult;
     expect(secondResult.success).toBe(true);
     // Should show objects were overwritten, not created
     expect(secondResult.successCount).toBeGreaterThan(0);
@@ -188,9 +196,10 @@ describe('Dashboard E2E', () => {
 
     // Find dashboard ID
     const lines = content.trim().split('\n');
-    const objects = lines.map((line) => JSON.parse(line));
+    const objects = lines.map((line) => JSON.parse(line) as SavedObject);
     const dashboards = objects.filter((obj) => obj.type === 'dashboard');
-    const dashboardId = dashboards[0].id;
+    const dashboardId = dashboards[0]?.id;
+    expect(dashboardId).toBeDefined();
 
     // Export the dashboard
     const exportResponse = await fetch(`${kibanaUrl}/api/saved_objects/_export`, {
@@ -201,7 +210,7 @@ describe('Dashboard E2E', () => {
       },
       body: JSON.stringify({
         // Use 'objects' to export specific dashboard (not 'type')
-        objects: [{ type: 'dashboard', id: dashboardId }],
+        objects: [{ type: 'dashboard', id: String(dashboardId) }],
         includeReferencesDeep: true,
       }),
     });
@@ -215,7 +224,7 @@ describe('Dashboard E2E', () => {
 
     const exportedContent = await exportResponse.text();
     const exportedLines = exportedContent.trim().split('\n');
-    const exportedObjects = exportedLines.map((line) => JSON.parse(line));
+    const exportedObjects = exportedLines.map((line) => JSON.parse(line) as SavedObject);
 
     // Should have at least the dashboard object
     expect(exportedObjects.length).toBeGreaterThan(0);

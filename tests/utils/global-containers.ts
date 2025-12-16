@@ -16,11 +16,12 @@ export interface GlobalContainers {
 /**
  * Gets container URLs from global state
  * Throws if containers not started (indicates setup issue)
+ * @returns Container URLs
  */
 export function getGlobalContainers(): GlobalContainers {
   const containers = global.__E2E_CONTAINERS__;
 
-  if (!containers) {
+  if (containers === undefined) {
     throw new Error('E2E containers not initialized. Ensure globalSetup is configured.');
   }
 
@@ -36,6 +37,7 @@ export function getGlobalContainers(): GlobalContainers {
 
 /**
  * Creates Elasticsearch client for global container
+ * @returns Elasticsearch client
  */
 export function createElasticsearchClient(): Client {
   const { elasticsearchUrl } = getGlobalContainers();
