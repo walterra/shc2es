@@ -2,51 +2,38 @@
  * E2E tests for dashboard setup - Importing Kibana dashboard
  * Tests the complete dashboard import flow with Elasticsearch and Kibana containers
  *
- * Note: Containers use ephemeral ports to avoid conflicts with running services
- * - Elasticsearch: avoids localhost:9200
- * - Kibana: avoids localhost:5601
+ * Note: Containers started once in global setup for all E2E tests
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  startElasticsearchContainer,
-  startKibanaContainer,
-  stopAllContainers,
-  type StartedElasticsearch,
-  type StartedKibana,
-} from '../utils/containers';
+  getGlobalContainers,
+  createElasticsearchClient,
+} from '../utils/global-containers';
+import type { Client } from '@elastic/elasticsearch';
 
 describe('Dashboard E2E', () => {
-  let elasticsearch: StartedElasticsearch | undefined;
-  let kibana: StartedKibana | undefined;
+  let esClient: Client;
+  let kibanaUrl: string;
 
-  beforeAll(async () => {
-    try {
-      // Start Elasticsearch first
-      elasticsearch = await startElasticsearchContainer();
-
-      // Then start Kibana connected to Elasticsearch (use containerUrl for inter-container communication)
-      kibana = await startKibanaContainer(elasticsearch.containerUrl);
-    } catch (error) {
-      throw error;
-    }
-  }, 720000); // 12 minutes timeout for both containers (ES ~2min + Kibana ~10min)
-
-  afterAll(async () => {
-    await stopAllContainers(elasticsearch, kibana);
+  beforeAll(() => {
+    const containers = getGlobalContainers();
+    esClient = createElasticsearchClient();
+    kibanaUrl = containers.kibanaUrl;
   });
 
-  it('should start Elasticsearch and Kibana containers successfully', async () => {
-    expect(elasticsearch).toBeDefined();
-    expect(kibana).toBeDefined();
+  afterAll(async () => {
+    await esClient.close();
+  });
 
+  it('should connect to Elasticsearch and Kibana successfully', async () => {
     // Verify Elasticsearch is running
-    const esHealth = await elasticsearch!.client.cluster.health();
+    const esHealth = await esClient.cluster.health();
     expect(esHealth.status).toBeDefined();
 
     // Verify Kibana is running
-    const kibanaResponse = await fetch(`${kibana!.url}/api/status`);
+    const kibanaResponse = await fetch(`${kibanaUrl}/api/status`);
     expect(kibanaResponse.ok).toBe(true);
 
     const status = await kibanaResponse.json();
@@ -84,7 +71,7 @@ describe('Dashboard E2E', () => {
     formData.append('file', blob, 'dashboard.ndjson');
 
     // Import saved objects via Kibana API
-    const importResponse = await fetch(`${kibana!.url}/api/saved_objects/_import`, {
+    const importResponse = await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -114,7 +101,7 @@ describe('Dashboard E2E', () => {
     const blob = new Blob([content], { type: 'application/ndjson' });
     formData.append('file', blob, 'dashboard.ndjson');
 
-    await fetch(`${kibana!.url}/api/saved_objects/_import`, {
+    await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -131,7 +118,7 @@ describe('Dashboard E2E', () => {
 
     // Query for the dashboard
     const dashboardId = dashboards[0].id;
-    const findResponse = await fetch(`${kibana!.url}/api/saved_objects/dashboard/${dashboardId}`, {
+    const findResponse = await fetch(`${kibanaUrl}/api/saved_objects/dashboard/${dashboardId}`, {
       headers: {
         'kbn-xsrf': 'true',
       },
@@ -154,7 +141,7 @@ describe('Dashboard E2E', () => {
     const blob1 = new Blob([content], { type: 'application/ndjson' });
     formData1.append('file', blob1, 'dashboard.ndjson');
 
-    const firstImport = await fetch(`${kibana!.url}/api/saved_objects/_import`, {
+    const firstImport = await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -169,7 +156,7 @@ describe('Dashboard E2E', () => {
     const blob2 = new Blob([content], { type: 'application/ndjson' });
     formData2.append('file', blob2, 'dashboard.ndjson');
 
-    const secondImport = await fetch(`${kibana!.url}/api/saved_objects/_import?overwrite=true`, {
+    const secondImport = await fetch(`${kibanaUrl}/api/saved_objects/_import?overwrite=true`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -194,7 +181,7 @@ describe('Dashboard E2E', () => {
     const blob = new Blob([content], { type: 'application/ndjson' });
     formData.append('file', blob, 'dashboard.ndjson');
 
-    await fetch(`${kibana!.url}/api/saved_objects/_import`, {
+    await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -209,7 +196,7 @@ describe('Dashboard E2E', () => {
     const dashboardId = dashboards[0].id;
 
     // Export the dashboard
-    const exportResponse = await fetch(`${kibana!.url}/api/saved_objects/_export`, {
+    const exportResponse = await fetch(`${kibanaUrl}/api/saved_objects/_export`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',

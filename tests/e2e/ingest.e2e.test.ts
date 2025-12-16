@@ -2,54 +2,43 @@
  * E2E tests for ingest.ts - Ingesting NDJSON files into Elasticsearch
  * Tests the complete data ingestion flow with real Elasticsearch container
  *
- * Note: Elasticsearch uses ephemeral port to avoid conflicts with localhost:9200
+ * Note: Containers started once in global setup for all E2E tests
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  startElasticsearchContainer,
-  stopElasticsearchContainer,
-  type StartedElasticsearch,
-} from '../utils/containers';
+  createElasticsearchClient,
+  getGlobalContainers,
+} from '../utils/global-containers';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
+import type { Client } from '@elastic/elasticsearch';
 
 describe('Ingest E2E', () => {
-  let elasticsearch: StartedElasticsearch | undefined;
+  let esClient: Client;
+  let elasticsearchUrl: string;
   let tempDir: string;
 
-  beforeAll(async () => {
+  beforeAll(() => {
     tempDir = createTempDir('ingest-e2e-');
-
-    // Start Elasticsearch container
-    try {
-      elasticsearch = await startElasticsearchContainer();
-    } catch (error) {
-      throw error;
-    }
-  }, 180000); // 3 minutes for container startup
+    const containers = getGlobalContainers();
+    esClient = createElasticsearchClient();
+    elasticsearchUrl = containers.elasticsearchUrl;
+  });
 
   afterAll(async () => {
-    // Stop container and close client
-    await stopElasticsearchContainer(elasticsearch);
+    await esClient.close();
 
     // Clean up temp directory
     if (tempDir) {
       cleanupTempDir(tempDir);
     }
+  });
 
-    // Force garbage collection to help close any lingering connections
-    if (global.gc) {
-      global.gc();
-    }
-  }, 60000); // 1 minute for cleanup
-
-  it('should start Elasticsearch container successfully', async () => {
-    expect(elasticsearch).toBeDefined();
-
+  it('should connect to Elasticsearch successfully', async () => {
     // Verify Elasticsearch is running
-    const health = await elasticsearch!.client.cluster.health();
+    const health = await esClient.cluster.health();
     expect(health.status).toBeDefined();
     expect(['yellow', 'green']).toContain(health.status);
   });
@@ -119,7 +108,7 @@ describe('Ingest E2E', () => {
       doc,
     ]);
 
-    const bulkResponse = await elasticsearch!.client.bulk({
+    const bulkResponse = await esClient.bulk({
       body: bulkBody,
       refresh: 'wait_for', // Wait for documents to be searchable
     });
@@ -127,7 +116,7 @@ describe('Ingest E2E', () => {
     expect(bulkResponse.errors).toBe(false);
 
     // Verify documents were indexed
-    const searchResponse = await elasticsearch!.client.search({
+    const searchResponse = await esClient.search({
       index: indexName,
       body: {
         query: { match_all: {} },
@@ -147,7 +136,7 @@ describe('Ingest E2E', () => {
     const indexName = 'test-smart-home-events-mappings';
 
     // Create index with mappings (similar to what ingest.ts does)
-    await elasticsearch!.client.indices.create({
+    await esClient.indices.create({
       index: indexName,
       body: {
         mappings: {
@@ -168,11 +157,11 @@ describe('Ingest E2E', () => {
     });
 
     // Verify index was created
-    const indexExists = await elasticsearch!.client.indices.exists({ index: indexName });
+    const indexExists = await esClient.indices.exists({ index: indexName });
     expect(indexExists).toBe(true);
 
     // Verify mappings
-    const mappings = await elasticsearch!.client.indices.getMapping({ index: indexName });
+    const mappings = await esClient.indices.getMapping({ index: indexName });
     const indexMappings = mappings[indexName]?.mappings;
 
     expect(indexMappings?.properties?.['@timestamp']).toMatchObject({ type: 'date' });
@@ -189,7 +178,7 @@ describe('Ingest E2E', () => {
     const indexName = 'test-smart-home-events-query';
 
     // Create index and ingest test data
-    await elasticsearch!.client.indices.create({
+    await esClient.indices.create({
       index: indexName,
       body: {
         mappings: {
@@ -226,13 +215,13 @@ describe('Ingest E2E', () => {
 
     const bulkBody = docs.flatMap((doc) => [{ index: { _index: indexName } }, doc]);
 
-    await elasticsearch!.client.bulk({
+    await esClient.bulk({
       body: bulkBody,
       refresh: 'wait_for',
     });
 
     // Query for specific device
-    const deviceQuery = await elasticsearch!.client.search({
+    const deviceQuery = await esClient.search({
       index: indexName,
       body: {
         query: {
@@ -244,7 +233,7 @@ describe('Ingest E2E', () => {
     expect(deviceQuery.hits.total).toMatchObject({ value: 2 });
 
     // Query for specific metric
-    const metricQuery = await elasticsearch!.client.search({
+    const metricQuery = await esClient.search({
       index: indexName,
       body: {
         query: {
