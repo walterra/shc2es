@@ -167,7 +167,6 @@
 ### Misc
 
 - evaluate vitest vs jest
-- split out functions into separate files, ideally one function per file
 
 ## Notes
 
