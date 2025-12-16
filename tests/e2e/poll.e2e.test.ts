@@ -10,6 +10,13 @@ import * as path from 'path';
 import { MockBoschController } from '../mocks/bosch-controller-server';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
+import type { SmartHomeEvent } from '../../src/types/smart-home-events';
+
+interface JsonRpcResponse {
+  jsonrpc: string;
+  result?: unknown;
+  error?: { code: number; message: string };
+}
 
 // Mock environment variables for poll configuration
 const setupTestEnv = (controllerUrl: string, tempDir: string): void => {
@@ -102,9 +109,9 @@ describe('Poll E2E', () => {
     });
 
     expect(subscribeResponse.ok).toBe(true);
-    const subscribeData = await subscribeResponse.json();
+    const subscribeData = (await subscribeResponse.json()) as JsonRpcResponse;
     expect(subscribeData).toHaveProperty('result');
-    const subscriptionId = subscribeData.result;
+    const subscriptionId = subscribeData.result as string;
 
     // Long poll
     const pollResponse = await fetch(`${controllerUrl}/remote/json-rpc`, {
@@ -118,13 +125,14 @@ describe('Poll E2E', () => {
     });
 
     expect(pollResponse.ok).toBe(true);
-    const pollData = await pollResponse.json();
+    const pollData = (await pollResponse.json()) as JsonRpcResponse;
     expect(pollData).toHaveProperty('result');
-    expect(Array.isArray(pollData.result)).toBe(true);
-    expect(pollData.result).toHaveLength(2); // We added 2 events
+    const pollResult = pollData.result as SmartHomeEvent[];
+    expect(Array.isArray(pollResult)).toBe(true);
+    expect(pollResult).toHaveLength(2); // We added 2 events
   });
 
-  it('should write events to NDJSON when integrated', async () => {
+  it('should write events to NDJSON when integrated', () => {
     // Note: This test would require refactoring poll.ts to:
     // 1. Accept controller URL as parameter instead of env var
     // 2. Accept config directory as parameter
@@ -151,7 +159,7 @@ describe('Poll E2E', () => {
     const events = content
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line));
+      .map((line) => JSON.parse(line) as SmartHomeEvent);
 
     expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({

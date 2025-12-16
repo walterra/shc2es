@@ -12,16 +12,20 @@ import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
 import type { Client } from '@elastic/elasticsearch';
 
+interface SmartHomeEvent {
+  '@type': string;
+  '@timestamp'?: string;
+  [key: string]: unknown;
+}
+
 describe('Ingest E2E', () => {
   let esClient: Client;
-  let elasticsearchUrl: string;
   let tempDir: string;
 
   beforeAll(() => {
     tempDir = createTempDir('ingest-e2e-');
-    const containers = getGlobalContainers();
+    getGlobalContainers(); // Validate containers are initialized
     esClient = createElasticsearchClient();
-    elasticsearchUrl = containers.elasticsearchUrl;
   });
 
   afterAll(async () => {
@@ -33,12 +37,8 @@ describe('Ingest E2E', () => {
     }
   });
 
-  it('should connect to Elasticsearch successfully', async () => {
-    // Verify Elasticsearch is running
-    const health = await esClient.cluster.health();
-    expect(health.status).toBeDefined();
-    expect(['yellow', 'green']).toContain(health.status);
-  });
+  // Note: Elasticsearch readiness is validated in global-setup.e2e.ts
+  // No need to test infrastructure availability here
 
   it('should create NDJSON files from test events', () => {
     const dataDir = path.join(tempDir, 'data');
@@ -64,10 +64,10 @@ describe('Ingest E2E', () => {
     const parsedEvents = content
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line));
+      .map((line) => JSON.parse(line) as SmartHomeEvent);
 
     expect(parsedEvents).toHaveLength(4);
-    expect(parsedEvents[0]['@type']).toBe('DeviceServiceData');
+    expect(parsedEvents[0]?.['@type']).toBe('DeviceServiceData');
   });
 
   it('should ingest events into Elasticsearch', async () => {
@@ -160,15 +160,16 @@ describe('Ingest E2E', () => {
     // Verify mappings
     const mappings = await esClient.indices.getMapping({ index: indexName });
     const indexMappings = mappings[indexName]?.mappings;
+    expect(indexMappings).toBeDefined();
 
     expect(indexMappings?.properties?.['@timestamp']).toMatchObject({ type: 'date' });
-    expect(indexMappings?.properties?.['deviceId']).toMatchObject({ type: 'keyword' });
+    expect(indexMappings?.properties?.deviceId).toMatchObject({ type: 'keyword' });
 
     // metric.value is a nested field - check the metric object first
-    const metricProperties = indexMappings?.properties?.['metric'] as {
-      properties?: Record<string, unknown>;
-    };
-    expect(metricProperties?.properties?.['value']).toMatchObject({ type: 'double' });
+    const metricProperties = indexMappings?.properties?.metric as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    expect(metricProperties?.properties?.value).toMatchObject({ type: 'double' });
   });
 
   it('should query ingested data with filters', async () => {

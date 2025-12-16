@@ -3,6 +3,7 @@
  * Manages Elasticsearch and Kibana containers for integration testing
  */
 
+/* eslint-disable no-console */
 import { Client } from '@elastic/elasticsearch';
 import {
   ElasticsearchContainer,
@@ -84,7 +85,8 @@ export async function startElasticsearchContainer(
     .start();
 
   // Host-accessible URL (for our test client)
-  const url = `http://${container.getHost()}:${container.getMappedPort(9200)}`;
+  const esPort = String(container.getMappedPort(9200));
+  const url = `http://${container.getHost()}:${esPort}`;
 
   // Container-accessible URL (for Kibana to connect from another container)
   const containerIp = container.getIpAddress('bridge');
@@ -142,7 +144,7 @@ export async function startKibanaContainer(
         .forResponsePredicate((response) => {
           try {
             const body = JSON.parse(response) as { status?: { overall?: { level?: string } } };
-            const level = body?.status?.overall?.level;
+            const level = body.status?.overall?.level;
             // Accept 'available' or 'degraded' - degraded is ok for tests
             return level === 'available' || level === 'degraded';
           } catch {
@@ -155,7 +157,8 @@ export async function startKibanaContainer(
     .start();
 
   // getMappedPort returns the ephemeral host port (e.g., 54322)
-  const url = `http://${container.getHost()}:${container.getMappedPort(5601)}`;
+  const kibanaPort = String(container.getMappedPort(5601));
+  const url = `http://${container.getHost()}:${kibanaPort}`;
   console.log(`[TestContainers] Kibana ready at ${url}`);
 
   return { container, url };
@@ -186,7 +189,9 @@ export async function stopElasticsearchContainer(
     await Promise.race([
       elasticsearch.container.stop(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Container stop timeout')), 30000),
+        setTimeout(() => {
+          reject(new Error('Container stop timeout'));
+        }, 30000),
       ),
     ]);
   } catch {

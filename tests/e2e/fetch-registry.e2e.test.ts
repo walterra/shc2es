@@ -10,6 +10,25 @@ import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import controllerDevices from '../fixtures/controller-devices.json';
 import controllerRooms from '../fixtures/controller-rooms.json';
 
+interface Room {
+  id: string;
+  name: string;
+  iconId: string;
+}
+
+interface Device {
+  id: string;
+  name: string;
+  roomId?: string;
+  deviceModel: string;
+}
+
+interface Registry {
+  fetchedAt: string;
+  devices: Record<string, { name: string; roomId?: string; type?: string }>;
+  rooms: Record<string, { name: string; iconId?: string }>;
+}
+
 describe('Fetch Registry E2E', () => {
   let mockController: MockBoschController;
   let controllerUrl: string;
@@ -37,7 +56,7 @@ describe('Fetch Registry E2E', () => {
     const response = await fetch(`${controllerUrl}/smarthome/devices`);
     expect(response.ok).toBe(true);
 
-    const devices = await response.json();
+    const devices = (await response.json()) as Device[];
     expect(Array.isArray(devices)).toBe(true);
     expect(devices).toHaveLength(3);
     expect(devices[0]).toMatchObject({
@@ -51,7 +70,7 @@ describe('Fetch Registry E2E', () => {
     const response = await fetch(`${controllerUrl}/smarthome/rooms`);
     expect(response.ok).toBe(true);
 
-    const rooms = await response.json();
+    const rooms = (await response.json()) as Room[];
     expect(Array.isArray(rooms)).toBe(true);
     expect(rooms).toHaveLength(2);
     expect(rooms[0]).toMatchObject({
@@ -74,13 +93,13 @@ describe('Fetch Registry E2E', () => {
 
     // Fetch devices and rooms
     const devicesResponse = await fetch(`${controllerUrl}/smarthome/devices`);
-    const devices = await devicesResponse.json();
+    const devices = (await devicesResponse.json()) as Device[];
 
     const roomsResponse = await fetch(`${controllerUrl}/smarthome/rooms`);
-    const rooms = await roomsResponse.json();
+    const rooms = (await roomsResponse.json()) as Room[];
 
     // Build registry structure (same logic as fetch-registry.ts)
-    const registry = {
+    const registry: Registry = {
       fetchedAt: new Date().toISOString(),
       devices: {} as Record<string, { name: string; roomId?: string; type?: string }>,
       rooms: {} as Record<string, { name: string; iconId?: string }>,
@@ -110,7 +129,7 @@ describe('Fetch Registry E2E', () => {
     expect(fs.existsSync(registryFile)).toBe(true);
 
     // Verify registry structure
-    const savedRegistry = JSON.parse(fs.readFileSync(registryFile, 'utf-8'));
+    const savedRegistry = JSON.parse(fs.readFileSync(registryFile, 'utf-8')) as Registry;
     expect(savedRegistry).toHaveProperty('fetchedAt');
     expect(savedRegistry).toHaveProperty('devices');
     expect(savedRegistry).toHaveProperty('rooms');
@@ -125,14 +144,17 @@ describe('Fetch Registry E2E', () => {
 
     // Verify rooms
     expect(Object.keys(savedRegistry.rooms)).toHaveLength(2);
-    expect(savedRegistry.rooms['hz_1']).toEqual({
+    expect(savedRegistry.rooms.hz_1).toEqual({
       name: 'EG Wohnzimmer',
       iconId: 'icon_room_living_room',
     });
 
     // Verify device-room relationship
     const device = savedRegistry.devices['hdm:ZigBee:001e5e0902b94515'];
-    const room = savedRegistry.rooms[device.roomId];
-    expect(room.name).toBe('EG Wohnzimmer');
+    expect(device.roomId).toBeDefined();
+    if (device.roomId) {
+      const room = savedRegistry.rooms[device.roomId];
+      expect(room.name).toBe('EG Wohnzimmer');
+    }
   });
 });
