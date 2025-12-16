@@ -239,10 +239,10 @@ export interface FindResponse<T = Record<string, unknown>> {
  */
 export function isExportMetadata(obj: unknown): obj is ExportMetadata {
   return (
-    typeof obj === "object" &&
+    typeof obj === 'object' &&
     obj !== null &&
-    "exportedCount" in obj &&
-    typeof (obj as ExportMetadata).exportedCount === "number"
+    'exportedCount' in obj &&
+    typeof (obj as ExportMetadata).exportedCount === 'number'
   );
 }
 
@@ -252,10 +252,8 @@ export function isExportMetadata(obj: unknown): obj is ExportMetadata {
  * @param obj - Saved object to check
  * @returns True if the saved object is a dashboard
  */
-export function isDashboard(
-  obj: SavedObject,
-): obj is SavedObject<DashboardAttributes> {
-  return obj.type === "dashboard";
+export function isDashboard(obj: SavedObject): obj is SavedObject<DashboardAttributes> {
+  return obj.type === 'dashboard';
 }
 
 /**
@@ -264,10 +262,8 @@ export function isDashboard(
  * @param obj - Saved object to check
  * @returns True if the saved object is an index pattern
  */
-export function isIndexPattern(
-  obj: SavedObject,
-): obj is SavedObject<IndexPatternAttributes> {
-  return obj.type === "index-pattern";
+export function isIndexPattern(obj: SavedObject): obj is SavedObject<IndexPatternAttributes> {
+  return obj.type === 'index-pattern';
 }
 
 /**

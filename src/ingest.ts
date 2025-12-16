@@ -1,25 +1,25 @@
-import { Client } from "@elastic/elasticsearch";
-import { Agent, fetch as undiciFetch } from "undici";
-import { createReadStream, existsSync, readFileSync } from "fs";
-import { glob } from "glob";
-import split from "split2";
-import chokidar, { type FSWatcher } from "chokidar";
-import { Tail } from "tail";
-import * as path from "path";
-import { DATA_DIR } from "./config";
-import { createLogger, logErrorAndExit } from "./logger";
-import { validateIngestConfig } from "./validation";
-import { withSpan, SpanAttributes } from "./instrumentation"; // withSpan for high-level operations only
+import { Client } from '@elastic/elasticsearch';
+import { Agent, fetch as undiciFetch } from 'undici';
+import { createReadStream, existsSync, readFileSync } from 'fs';
+import { glob } from 'glob';
+import split from 'split2';
+import chokidar, { type FSWatcher } from 'chokidar';
+import { Tail } from 'tail';
+import * as path from 'path';
+import { DATA_DIR } from './config';
+import { createLogger, logErrorAndExit } from './logger';
+import { validateIngestConfig } from './validation';
+import { withSpan, SpanAttributes } from './instrumentation'; // withSpan for high-level operations only
 import {
   ImportResponse,
   ExportMetadata,
   isExportMetadata,
   KibanaSavedObject,
-} from "./types/kibana-saved-objects";
-import { SmartHomeEvent } from "./types/smart-home-events";
-import { extractMetric, generateDocId, Metric } from "./transforms";
+} from './types/kibana-saved-objects';
+import { SmartHomeEvent } from './types/smart-home-events';
+import { extractMetric, generateDocId, Metric } from './transforms';
 
-const log = createLogger("ingest");
+const log = createLogger('ingest');
 
 // Validate configuration early
 const configResult = validateIngestConfig({ requireKibana: false });
@@ -41,12 +41,12 @@ interface TlsConfig {
 // Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
   if (!config.esTlsVerify) {
-    log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
+    log.debug('TLS verification disabled via ES_TLS_VERIFY=false');
     return { rejectUnauthorized: false };
   }
 
   if (config.esCaCert) {
-    log.debug({ path: config.esCaCert }, "Using custom CA certificate");
+    log.debug({ path: config.esCaCert }, 'Using custom CA certificate');
     return { ca: readFileSync(config.esCaCert) };
   }
 
@@ -91,23 +91,21 @@ const INDEX_PREFIX = config.esIndexPrefix;
 const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
 const PIPELINE_NAME = `${INDEX_PREFIX}-pipeline`;
 const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
-const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
+const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
 
 // Kibana dashboard import
 const KIBANA_NODE = config.kibanaNode;
-const DASHBOARDS_DIR = path.join(__dirname, "..", "dashboards");
-const DASHBOARD_FILE = path.join(DASHBOARDS_DIR, "smart-home.ndjson");
+const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
+const DASHBOARD_FILE = path.join(DASHBOARDS_DIR, 'smart-home.ndjson');
 
 // Extract date from filename like events-2025-12-10.ndjson
 function extractDateFromFilename(filePath: string): string {
-  const match = /events-(\d{4}-\d{2}-\d{2})\.ndjson/.exec(
-    path.basename(filePath),
-  );
+  const match = /events-(\d{4}-\d{2}-\d{2})\.ndjson/.exec(path.basename(filePath));
   if (match?.[1]) {
     return match[1];
   }
-  const isoDate = new Date().toISOString().split("T")[0];
-  return isoDate ?? "1970-01-01"; // Fallback should never happen
+  const isoDate = new Date().toISOString().split('T')[0];
+  return isoDate ?? '1970-01-01'; // Fallback should never happen
 }
 
 // Get index name for a specific date
@@ -136,7 +134,7 @@ interface DeviceRegistry {
 let registry: DeviceRegistry | null = null;
 
 function loadRegistry(): void {
-  withSpan("load_registry", {}, () => {
+  withSpan('load_registry', {}, () => {
     if (!existsSync(REGISTRY_FILE)) {
       log.warn(
         { registryFile: REGISTRY_FILE },
@@ -146,19 +144,16 @@ function loadRegistry(): void {
     }
 
     try {
-      const content = readFileSync(REGISTRY_FILE, "utf-8");
+      const content = readFileSync(REGISTRY_FILE, 'utf-8');
       const parsed = JSON.parse(content) as DeviceRegistry;
       registry = parsed;
       const deviceCount = Object.keys(parsed.devices).length;
       const roomCount = Object.keys(parsed.rooms).length;
-      log.info(
-        { deviceCount, roomCount, fetchedAt: parsed.fetchedAt },
-        "Loaded device registry",
-      );
+      log.info({ deviceCount, roomCount, fetchedAt: parsed.fetchedAt }, 'Loaded device registry');
     } catch (err) {
       log.warn(
         { err },
-        "Failed to load registry. Events will be indexed without device/room names.",
+        'Failed to load registry. Events will be indexed without device/room names.',
       );
     }
   });
@@ -180,8 +175,8 @@ interface RoomField {
 }
 
 interface TransformedEvent {
-  "@timestamp": string | undefined;
-  "@type"?: string;
+  '@timestamp': string | undefined;
+  '@type'?: string;
   id?: string;
   deviceId?: string;
   path?: string;
@@ -193,14 +188,14 @@ interface TransformedEvent {
 function transformDoc(doc: SmartHomeEvent): TransformedEvent {
   // Fast in-memory transformation - no span needed to avoid overwhelming OTel queue
   const result: TransformedEvent = {
-    "@timestamp": doc.time,
-    "@type": doc["@type"],
+    '@timestamp': doc.time,
+    '@type': doc['@type'],
     id: doc.id,
   };
 
   // Use type narrowing for type-specific field handling
-  switch (doc["@type"]) {
-    case "DeviceServiceData":
+  switch (doc['@type']) {
+    case 'DeviceServiceData':
       // Add device service data specific fields
       result.deviceId = doc.deviceId;
       result.path = doc.path;
@@ -226,7 +221,7 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
       }
       break;
 
-    case "room":
+    case 'room':
       // Enrich room events with registry info
       if (registry && doc.id in registry.rooms) {
         const roomInfo = registry.rooms[doc.id];
@@ -239,9 +234,9 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
       }
       break;
 
-    case "device":
-    case "message":
-    case "client":
+    case 'device':
+    case 'message':
+    case 'client':
       // These event types don't need special field handling
       break;
 
@@ -261,10 +256,10 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
 
 // Parse NDJSON line, handling pino's leading comma issue
 function parseLine(line: string): SmartHomeEvent | null {
-  if (!line || line.trim() === "") return null;
+  if (!line || line.trim() === '') return null;
   try {
     // Handle pino's leading comma in output
-    const cleanLine = line.startsWith("{,") ? "{" + line.slice(2) : line;
+    const cleanLine = line.startsWith('{,') ? '{' + line.slice(2) : line;
     return JSON.parse(cleanLine) as SmartHomeEvent;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -277,7 +272,7 @@ function parseLine(line: string): SmartHomeEvent | null {
 }
 
 function prefixSavedObjectIds(ndjson: string, prefix: string): string {
-  const lines = ndjson.trim().split("\n");
+  const lines = ndjson.trim().split('\n');
   const prefixedLines: string[] = [];
 
   for (const line of lines) {
@@ -300,7 +295,7 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
     };
 
     // Prefix dashboard title to distinguish from other deployments
-    if (prefixedObj.type === "dashboard") {
+    if (prefixedObj.type === 'dashboard') {
       prefixedObj.attributes = {
         ...prefixedObj.attributes,
         title: prefix,
@@ -308,7 +303,7 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
     }
 
     // Prefix index pattern name/title to match the prefixed indices
-    if (prefixedObj.type === "index-pattern") {
+    if (prefixedObj.type === 'index-pattern') {
       prefixedObj.attributes = {
         ...prefixedObj.attributes,
         title: `${prefix}-*`,
@@ -319,193 +314,175 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
     prefixedLines.push(JSON.stringify(prefixedObj));
   }
 
-  return prefixedLines.join("\n");
+  return prefixedLines.join('\n');
 }
 
 async function importDashboard(): Promise<void> {
-  return withSpan(
-    "import_dashboard",
-    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
-    async () => {
-      if (!KIBANA_NODE) {
-        log.info(
-          "KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.",
-        );
-        return;
-      }
+  return withSpan('import_dashboard', { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX }, async () => {
+    if (!KIBANA_NODE) {
+      log.info('KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.');
+      return;
+    }
 
-      if (!existsSync(DASHBOARD_FILE)) {
-        log.info(
-          { dashboardFile: DASHBOARD_FILE },
-          "Dashboard file not found, skipping import",
-        );
-        return;
-      }
+    if (!existsSync(DASHBOARD_FILE)) {
+      log.info({ dashboardFile: DASHBOARD_FILE }, 'Dashboard file not found, skipping import');
+      return;
+    }
 
+    log.info(
+      {
+        dashboardFile: DASHBOARD_FILE,
+        kibanaNode: KIBANA_NODE,
+        prefix: INDEX_PREFIX,
+      },
+      'Importing Kibana dashboard with prefixed IDs',
+    );
+
+    // Read and prefix all saved object IDs
+    const fileContent = readFileSync(DASHBOARD_FILE, 'utf-8');
+    const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
+
+    // Create proper multipart/form-data with boundary
+    const boundary = `----FormBoundary${String(Date.now())}`;
+    const formDataBody = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
+      `Content-Type: application/ndjson`,
+      ``,
+      prefixedContent,
+      `--${boundary}--`,
+    ].join('\r\n');
+
+    const auth = Buffer.from(`${config.esUser}:${config.esPassword}`).toString('base64');
+
+    const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`, {
+      method: 'POST',
+      headers: {
+        'kbn-xsrf': 'true',
+        Authorization: `Basic ${auth}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: formDataBody,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      log.error(
+        { status: response.status, body: text },
+        `Dashboard import failed: HTTP ${String(response.status)}`,
+      );
+      return;
+    }
+
+    const result = (await response.json()) as ImportResponse;
+
+    if (result.success) {
       log.info(
-        {
-          dashboardFile: DASHBOARD_FILE,
-          kibanaNode: KIBANA_NODE,
-          prefix: INDEX_PREFIX,
-        },
-        "Importing Kibana dashboard with prefixed IDs",
+        { successCount: result.successCount, prefix: INDEX_PREFIX },
+        'Dashboard imported successfully',
       );
-
-      // Read and prefix all saved object IDs
-      const fileContent = readFileSync(DASHBOARD_FILE, "utf-8");
-      const prefixedContent = prefixSavedObjectIds(fileContent, INDEX_PREFIX);
-
-      // Create proper multipart/form-data with boundary
-      const boundary = `----FormBoundary${String(Date.now())}`;
-      const formDataBody = [
-        `--${boundary}`,
-        `Content-Disposition: form-data; name="file"; filename="dashboard.ndjson"`,
-        `Content-Type: application/ndjson`,
-        ``,
-        prefixedContent,
-        `--${boundary}--`,
-      ].join("\r\n");
-
-      const auth = Buffer.from(
-        `${config.esUser}:${config.esPassword}`,
-      ).toString("base64");
-
-      const response = await tlsFetch(
-        `${KIBANA_NODE}/api/saved_objects/_import?overwrite=true`,
-        {
-          method: "POST",
-          headers: {
-            "kbn-xsrf": "true",
-            Authorization: `Basic ${auth}`,
-            "Content-Type": `multipart/form-data; boundary=${boundary}`,
-          },
-          body: formDataBody,
-        },
-      );
-
-      if (!response.ok) {
-        const text = await response.text();
-        log.error(
-          { status: response.status, body: text },
-          `Dashboard import failed: HTTP ${String(response.status)}`,
-        );
-        return;
-      }
-
-      const result = (await response.json()) as ImportResponse;
-
-      if (result.success) {
-        log.info(
-          { successCount: result.successCount, prefix: INDEX_PREFIX },
-          "Dashboard imported successfully",
-        );
-      } else {
-        log.error({ errors: result.errors }, "Dashboard import had errors");
-      }
-    },
-  );
+    } else {
+      log.error({ errors: result.errors }, 'Dashboard import had errors');
+    }
+  });
 }
 
 async function setup(): Promise<void> {
-  return withSpan(
-    "setup",
-    { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX },
-    async () => {
-      log.info("Setting up Elasticsearch pipeline and index template");
+  return withSpan('setup', { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX }, async () => {
+    log.info('Setting up Elasticsearch pipeline and index template');
 
-      // Create ingest pipeline
-      log.info({ pipelineName: PIPELINE_NAME }, "Creating ingest pipeline");
-      await client.ingest.putPipeline({
-        id: PIPELINE_NAME,
-        description: "Add event.ingested timestamp to smart home events",
-        processors: [
-          {
-            set: {
-              field: "event.ingested",
-              value: "{{{_ingest.timestamp}}}",
-            },
+    // Create ingest pipeline
+    log.info({ pipelineName: PIPELINE_NAME }, 'Creating ingest pipeline');
+    await client.ingest.putPipeline({
+      id: PIPELINE_NAME,
+      description: 'Add event.ingested timestamp to smart home events',
+      processors: [
+        {
+          set: {
+            field: 'event.ingested',
+            value: '{{{_ingest.timestamp}}}',
           },
-        ],
-      });
-      log.info("Pipeline created successfully");
+        },
+      ],
+    });
+    log.info('Pipeline created successfully');
 
-      // Create index template (applies to smart-home-events-* indices)
-      log.info(
-        { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
-        "Creating index template",
-      );
-      await client.indices.putIndexTemplate({
-        name: TEMPLATE_NAME,
-        index_patterns: [INDEX_PATTERN],
-        priority: 100,
-        template: {
-          settings: {
-            index: {
-              default_pipeline: PIPELINE_NAME,
-            },
+    // Create index template (applies to smart-home-events-* indices)
+    log.info(
+      { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
+      'Creating index template',
+    );
+    await client.indices.putIndexTemplate({
+      name: TEMPLATE_NAME,
+      index_patterns: [INDEX_PATTERN],
+      priority: 100,
+      template: {
+        settings: {
+          index: {
+            default_pipeline: PIPELINE_NAME,
           },
-          mappings: {
-            properties: {
-              "@timestamp": { type: "date" },
-              event: {
-                properties: {
-                  ingested: { type: "date" },
-                },
+        },
+        mappings: {
+          properties: {
+            '@timestamp': { type: 'date' },
+            event: {
+              properties: {
+                ingested: { type: 'date' },
               },
-              "@type": { type: "keyword" },
-              id: { type: "keyword" },
-              deviceId: { type: "keyword" },
-              path: { type: "keyword" },
-              device: {
-                properties: {
-                  name: { type: "keyword" },
-                  type: { type: "keyword" },
-                },
+            },
+            '@type': { type: 'keyword' },
+            id: { type: 'keyword' },
+            deviceId: { type: 'keyword' },
+            path: { type: 'keyword' },
+            device: {
+              properties: {
+                name: { type: 'keyword' },
+                type: { type: 'keyword' },
               },
-              room: {
-                properties: {
-                  id: { type: "keyword" },
-                  name: { type: "keyword" },
-                },
+            },
+            room: {
+              properties: {
+                id: { type: 'keyword' },
+                name: { type: 'keyword' },
               },
-              metric: {
-                properties: {
-                  name: { type: "keyword" },
-                  value: { type: "float" },
-                },
+            },
+            metric: {
+              properties: {
+                name: { type: 'keyword' },
+                value: { type: 'float' },
               },
             },
           },
         },
-      });
-      log.info(
-        { indexPattern: INDEX_PATTERN },
-        "Index template created. New indices will automatically use the template.",
-      );
+      },
+    });
+    log.info(
+      { indexPattern: INDEX_PATTERN },
+      'Index template created. New indices will automatically use the template.',
+    );
 
-      // Import Kibana dashboard (if configured)
-      await importDashboard();
-    },
-  );
+    // Import Kibana dashboard (if configured)
+    await importDashboard();
+  });
 }
 
 async function bulkImportFile(filePath: string): Promise<number> {
   return withSpan(
-    "bulk_import_file",
+    'bulk_import_file',
     {
       [SpanAttributes.FILE_PATH]: filePath,
     },
     async () => {
       const dateStr = extractDateFromFilename(filePath);
       const indexName = getIndexName(dateStr);
-      log.info({ filePath, indexName }, "Importing file");
+      log.info({ filePath, indexName }, 'Importing file');
 
       const documents: { doc: TransformedEvent; id: string }[] = [];
 
       return new Promise<number>((resolve, reject) => {
         createReadStream(filePath)
           .pipe(split())
-          .on("data", (line: string) => {
+          .on('data', (line: string) => {
             const doc = parseLine(line);
             if (doc) {
               documents.push({
@@ -514,7 +491,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
               });
             }
           })
-          .on("end", () => {
+          .on('end', () => {
             if (documents.length === 0) {
               resolve(0);
               return;
@@ -529,23 +506,17 @@ async function bulkImportFile(filePath: string): Promise<number> {
               .bulk({ operations, refresh: true })
               .then((result) => {
                 if (result.errors) {
-                  const errors = result.items.filter(
-                    (item) => item.index?.error,
-                  );
+                  const errors = result.items.filter((item) => item.index?.error);
                   log.error(
                     {
                       errorCount: errors.length,
-                      errors: errors
-                        .slice(0, 3)
-                        .map((item) => item.index?.error),
+                      errors: errors.slice(0, 3).map((item) => item.index?.error),
                     },
                     `Documents failed to index: ${String(errors.length)} error(s)`,
                   );
                 }
 
-                const indexed = result.items.filter(
-                  (item) => !item.index?.error,
-                ).length;
+                const indexed = result.items.filter((item) => !item.index?.error).length;
                 log.info(
                   {
                     indexed,
@@ -553,7 +524,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
                     [SpanAttributes.DOCUMENTS_COUNT]: documents.length,
                     [SpanAttributes.INDEX_NAME]: indexName,
                   },
-                  "Indexed documents",
+                  'Indexed documents',
                 );
                 resolve(indexed);
               })
@@ -561,7 +532,7 @@ async function bulkImportFile(filePath: string): Promise<number> {
                 reject(err instanceof Error ? err : new Error(String(err)));
               });
           })
-          .on("error", reject);
+          .on('error', reject);
       });
     },
   );
@@ -569,21 +540,21 @@ async function bulkImportFile(filePath: string): Promise<number> {
 
 async function batchImport(pattern?: string): Promise<void> {
   const globPattern = pattern
-    ? pattern.includes("/")
+    ? pattern.includes('/')
       ? pattern
       : `${DATA_DIR}/${pattern}`
     : `${DATA_DIR}/events-*.ndjson`;
 
-  log.info({ pattern: globPattern }, "Starting batch import");
+  log.info({ pattern: globPattern }, 'Starting batch import');
 
   const files = await glob(globPattern);
 
   if (files.length === 0) {
-    log.info({ dataDir: DATA_DIR }, "No NDJSON files found in data directory");
+    log.info({ dataDir: DATA_DIR }, 'No NDJSON files found in data directory');
     return;
   }
 
-  log.info({ fileCount: files.length }, "Found files to import");
+  log.info({ fileCount: files.length }, 'Found files to import');
 
   let totalIndexed = 0;
   for (const file of files.sort()) {
@@ -591,7 +562,7 @@ async function batchImport(pattern?: string): Promise<void> {
     totalIndexed += indexed;
   }
 
-  log.info({ totalIndexed }, "Batch import complete");
+  log.info({ totalIndexed }, 'Batch import complete');
 }
 
 /**
@@ -608,12 +579,8 @@ function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
       document: transformed,
     })
     .then(() => {
-      const deviceId =
-        doc["@type"] === "DeviceServiceData" ? doc.deviceId : undefined;
-      log.debug(
-        { eventType: doc["@type"], deviceId, indexName },
-        "Indexed event",
-      );
+      const deviceId = doc['@type'] === 'DeviceServiceData' ? doc.deviceId : undefined;
+      log.debug({ eventType: doc['@type'], deviceId, indexName }, 'Indexed event');
     })
     .catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -628,18 +595,18 @@ function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
  * @returns Tail instance
  */
 function startTailing(filePath: string, indexName: string): Tail {
-  log.info({ filePath, indexName }, "Tailing file");
+  log.info({ filePath, indexName }, 'Tailing file');
 
   const tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
-  tail.on("line", (line: string) => {
+  tail.on('line', (line: string) => {
     const doc = parseLine(line);
     if (doc) {
       indexSingleEvent(doc, indexName);
     }
   });
 
-  tail.on("error", (err) => {
+  tail.on('error', (err) => {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ err: message, filePath }, `Tail error: ${message}`);
   });
@@ -664,24 +631,24 @@ function startFileWatcher(
     ignoreInitial: false,
   });
 
-  watcher.on("ready", () => {
-    log.info("Watcher ready");
+  watcher.on('ready', () => {
+    log.info('Watcher ready');
   });
 
-  watcher.on("error", (err) => {
+  watcher.on('error', (err) => {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ err: message }, `Watcher error: ${message}`);
   });
 
-  watcher.on("add", (addedPath) => {
+  watcher.on('add', (addedPath) => {
     tailRef.current = startTailing(addedPath, indexName);
   });
 
-  watcher.on("unlink", (unlinkedPath) => {
+  watcher.on('unlink', (unlinkedPath) => {
     if (tailRef.current) {
       tailRef.current.unwatch();
       tailRef.current = null;
-      log.info({ filePath: unlinkedPath }, "Stopped tailing file");
+      log.info({ filePath: unlinkedPath }, 'Stopped tailing file');
     }
   });
 
@@ -693,20 +660,17 @@ function startFileWatcher(
  */
 function watchAndTail(): void {
   // Get current day's file
-  const today = new Date().toISOString().split("T")[0] ?? "";
+  const today = new Date().toISOString().split('T')[0] ?? '';
   const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
   const indexName = getIndexName(today);
 
-  log.info(
-    { filePath: todayFile, indexName },
-    "Starting watch mode for current day's file",
-  );
+  log.info({ filePath: todayFile, indexName }, "Starting watch mode for current day's file");
 
   const { watcher, tailRef } = startFileWatcher(todayFile, indexName);
 
   // Graceful shutdown
-  process.on("SIGINT", () => {
-    log.info("Shutting down");
+  process.on('SIGINT', () => {
+    log.info('Shutting down');
     void watcher.close();
     if (tailRef.current) {
       tailRef.current.unwatch();
@@ -714,7 +678,7 @@ function watchAndTail(): void {
     process.exit(0);
   });
 
-  log.info("Watch mode active. Press Ctrl+C to stop.");
+  log.info('Watch mode active. Press Ctrl+C to stop.');
 }
 
 /**
@@ -725,34 +689,29 @@ export async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   // Load device registry for enrichment (not needed for --setup)
-  if (!args.includes("--setup")) {
+  if (!args.includes('--setup')) {
     loadRegistry();
   }
 
   try {
     // Test connection
     await client.ping();
-    log.info({ esNode: config.esNode }, "Connected to Elasticsearch");
+    log.info({ esNode: config.esNode }, 'Connected to Elasticsearch');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.fatal(
-      { err: message },
-      `Failed to connect to Elasticsearch: ${message}`,
-    );
+    log.fatal({ err: message }, `Failed to connect to Elasticsearch: ${message}`);
     process.exit(1);
   }
 
-  if (args.includes("--setup")) {
+  if (args.includes('--setup')) {
     await setup();
-  } else if (args.includes("--watch")) {
+  } else if (args.includes('--watch')) {
     watchAndTail();
   } else {
     // Parse --pattern option
-    const patternIndex = args.indexOf("--pattern");
+    const patternIndex = args.indexOf('--pattern');
     const pattern =
-      patternIndex !== -1 && args[patternIndex + 1]
-        ? args[patternIndex + 1]
-        : undefined;
+      patternIndex !== -1 && args[patternIndex + 1] ? args[patternIndex + 1] : undefined;
     await batchImport(pattern);
   }
 }

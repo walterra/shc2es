@@ -1,14 +1,14 @@
-import * as fs from "fs";
-import * as path from "path";
-import { BoschSmartHomeBridgeBuilder } from "bosch-smart-home-bridge";
-import type { BshcClient } from "bosch-smart-home-bridge/dist/api/bshc-client";
-import { firstValueFrom } from "rxjs";
-import { CERT_FILE, KEY_FILE, DATA_DIR } from "./config";
-import { createLogger, logErrorAndExit } from "./logger";
-import { validateRegistryConfig } from "./validation";
-import { withSpan } from "./instrumentation";
+import * as fs from 'fs';
+import * as path from 'path';
+import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
+import type { BshcClient } from 'bosch-smart-home-bridge/dist/api/bshc-client';
+import { firstValueFrom } from 'rxjs';
+import { CERT_FILE, KEY_FILE, DATA_DIR } from './config';
+import { createLogger, logErrorAndExit } from './logger';
+import { validateRegistryConfig } from './validation';
+import { withSpan } from './instrumentation';
 
-const log = createLogger("registry");
+const log = createLogger('registry');
 
 // Validate configuration early
 const configResult = validateRegistryConfig();
@@ -22,7 +22,7 @@ if (configResult.isErr()) {
 const config = configResult.value;
 
 const CONTROLLER_HOST = config.bshHost;
-const REGISTRY_FILE = path.join(DATA_DIR, "device-registry.json");
+const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
 
 interface BshRoom {
   id: string;
@@ -46,13 +46,11 @@ interface DeviceRegistry {
 function loadCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
     return {
-      cert: fs.readFileSync(CERT_FILE, "utf-8"),
-      key: fs.readFileSync(KEY_FILE, "utf-8"),
+      cert: fs.readFileSync(CERT_FILE, 'utf-8'),
+      key: fs.readFileSync(KEY_FILE, 'utf-8'),
     };
   }
-  throw new Error(
-    "Certificate not found. Run yarn poll first to generate certificates.",
-  );
+  throw new Error('Certificate not found. Run yarn poll first to generate certificates.');
 }
 
 /**
@@ -64,20 +62,20 @@ async function fetchDevicesAndRooms(
   client: BshcClient,
 ): Promise<{ devices: BshDevice[]; rooms: BshRoom[] }> {
   // Fetch devices
-  const devices = await withSpan("fetch_devices", {}, async () => {
-    log.info("Fetching devices...");
+  const devices = await withSpan('fetch_devices', {}, async () => {
+    log.info('Fetching devices...');
     const devicesResponse = await firstValueFrom(client.getDevices());
     const devices = devicesResponse.parsedResponse as BshDevice[];
-    log.info({ count: devices.length }, "Devices fetched");
+    log.info({ count: devices.length }, 'Devices fetched');
     return devices;
   });
 
   // Fetch rooms
-  const rooms = await withSpan("fetch_rooms", {}, async () => {
-    log.info("Fetching rooms...");
+  const rooms = await withSpan('fetch_rooms', {}, async () => {
+    log.info('Fetching rooms...');
     const roomsResponse = await firstValueFrom(client.getRooms());
     const rooms = roomsResponse.parsedResponse as BshRoom[];
-    log.info({ count: rooms.length }, "Rooms fetched");
+    log.info({ count: rooms.length }, 'Rooms fetched');
     return rooms;
   });
 
@@ -90,15 +88,12 @@ async function fetchDevicesAndRooms(
  * @param rooms - Array of rooms from API
  * @returns Registry object with mapped devices and rooms
  */
-function buildRegistryData(
-  devices: BshDevice[],
-  rooms: BshRoom[],
-): DeviceRegistry {
+function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegistry {
   return withSpan(
-    "build_registry",
+    'build_registry',
     {
-      "devices.count": devices.length,
-      "rooms.count": rooms.length,
+      'devices.count': devices.length,
+      'rooms.count': rooms.length,
     },
     () => {
       const registry: DeviceRegistry = {
@@ -113,7 +108,7 @@ function buildRegistryData(
           name: room.name,
           iconId: room.iconId,
         };
-        log.debug({ roomId: room.id, roomName: room.name }, "Room mapped");
+        log.debug({ roomId: room.id, roomName: room.name }, 'Room mapped');
       }
 
       // Map devices
@@ -124,8 +119,8 @@ function buildRegistryData(
           type: device.deviceModel,
         };
         const roomName = device.roomId
-          ? (registry.rooms[device.roomId]?.name ?? "unknown room")
-          : "no room";
+          ? (registry.rooms[device.roomId]?.name ?? 'unknown room')
+          : 'no room';
         log.debug(
           {
             deviceId: device.id,
@@ -133,7 +128,7 @@ function buildRegistryData(
             roomName,
             deviceType: device.deviceModel,
           },
-          "Device mapped",
+          'Device mapped',
         );
       }
 
@@ -148,7 +143,7 @@ function buildRegistryData(
  */
 function saveRegistry(registry: DeviceRegistry): void {
   fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-  log.info({ registryFile: REGISTRY_FILE }, "Registry saved");
+  log.info({ registryFile: REGISTRY_FILE }, 'Registry saved');
 }
 
 /**
@@ -156,9 +151,7 @@ function saveRegistry(registry: DeviceRegistry): void {
  * @returns Promise that resolves when registry is saved
  */
 export async function main(): Promise<void> {
-  log.info(
-    "Fetching device and room registry from Bosch Smart Home Controller",
-  );
+  log.info('Fetching device and room registry from Bosch Smart Home Controller');
 
   const { cert, key } = loadCertificate();
 

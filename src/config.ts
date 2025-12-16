@@ -1,7 +1,7 @@
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
-import * as dotenv from "dotenv";
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as dotenv from 'dotenv';
 
 /**
  * User configuration directory.
@@ -15,7 +15,7 @@ import * as dotenv from "dotenv";
  * console.log(USER_CONFIG_DIR); // "/Users/username/.shc2es"
  * ```
  */
-export const USER_CONFIG_DIR = path.join(os.homedir(), ".shc2es");
+export const USER_CONFIG_DIR = path.join(os.homedir(), '.shc2es');
 
 /**
  * Directory for TLS certificates used to authenticate with the Smart Home Controller.
@@ -28,7 +28,7 @@ export const USER_CONFIG_DIR = path.join(os.homedir(), ".shc2es");
  * console.log(CERTS_DIR); // "/Users/username/.shc2es/certs"
  * ```
  */
-export const CERTS_DIR = path.join(USER_CONFIG_DIR, "certs");
+export const CERTS_DIR = path.join(USER_CONFIG_DIR, 'certs');
 
 /**
  * Directory for data files (NDJSON event logs and device registry).
@@ -43,7 +43,7 @@ export const CERTS_DIR = path.join(USER_CONFIG_DIR, "certs");
  * console.log(DATA_DIR); // "/Users/username/.shc2es/data"
  * ```
  */
-export const DATA_DIR = path.join(USER_CONFIG_DIR, "data");
+export const DATA_DIR = path.join(USER_CONFIG_DIR, 'data');
 
 /**
  * Directory for application logs (debug/error logs).
@@ -58,7 +58,7 @@ export const DATA_DIR = path.join(USER_CONFIG_DIR, "data");
  * console.log(LOGS_DIR); // "/Users/username/.shc2es/logs"
  * ```
  */
-export const LOGS_DIR = path.join(USER_CONFIG_DIR, "logs");
+export const LOGS_DIR = path.join(USER_CONFIG_DIR, 'logs');
 
 /**
  * Path to the client certificate file used for Smart Home Controller authentication.
@@ -72,7 +72,7 @@ export const LOGS_DIR = path.join(USER_CONFIG_DIR, "logs");
  * const cert = readFileSync(CERT_FILE, 'utf-8');
  * ```
  */
-export const CERT_FILE = path.join(CERTS_DIR, "client-cert.pem");
+export const CERT_FILE = path.join(CERTS_DIR, 'client-cert.pem');
 
 /**
  * Path to the private key file used for Smart Home Controller authentication.
@@ -86,7 +86,7 @@ export const CERT_FILE = path.join(CERTS_DIR, "client-cert.pem");
  * const key = readFileSync(KEY_FILE, 'utf-8');
  * ```
  */
-export const KEY_FILE = path.join(CERTS_DIR, "client-key.pem");
+export const KEY_FILE = path.join(CERTS_DIR, 'client-key.pem');
 
 /**
  * Path to the user environment configuration file.
@@ -100,13 +100,11 @@ export const KEY_FILE = path.join(CERTS_DIR, "client-key.pem");
  * console.log(ENV_FILE); // "/Users/username/.shc2es/.env"
  * ```
  */
-export const ENV_FILE = path.join(USER_CONFIG_DIR, ".env");
+export const ENV_FILE = path.join(USER_CONFIG_DIR, '.env');
 
 // Check if running in development (ts-node or local)
 const isDev =
-  process.argv[1]?.includes("ts-node") ??
-  process.argv[1]?.includes("node_modules") ??
-  false;
+  process.argv[1]?.includes('ts-node') ?? process.argv[1]?.includes('node_modules') ?? false;
 
 /**
  * Path to the local development environment configuration file.
@@ -120,7 +118,7 @@ const isDev =
  * console.log(LOCAL_ENV_FILE); // "/path/to/project/.env"
  * ```
  */
-export const LOCAL_ENV_FILE = path.join(process.cwd(), ".env");
+export const LOCAL_ENV_FILE = path.join(process.cwd(), '.env');
 
 /**
  * Ensure all configuration directories exist.
@@ -249,6 +247,6 @@ export function getConfigPaths(): Record<string, string> {
     certsDir: CERTS_DIR,
     dataDir: DATA_DIR,
     logsDir: LOGS_DIR,
-    envFile: findEnvFile() ?? "(not found)",
+    envFile: findEnvFile() ?? '(not found)',
   };
 }

@@ -44,7 +44,7 @@ interface BaseEvent {
  * ```
  */
 export interface DeviceServiceDataEvent extends BaseEvent {
-  "@type": "DeviceServiceData";
+  '@type': 'DeviceServiceData';
   /** Service identifier (e.g., "HumidityLevel", "ValveTappet", "RoomClimateControl") */
   id: string;
   /** Device identifier */
@@ -92,7 +92,7 @@ export interface DeviceServiceDataEvent extends BaseEvent {
  * ```
  */
 export interface DeviceEvent extends BaseEvent {
-  "@type": "device";
+  '@type': 'device';
   /** Device identifier */
   id: string;
   /** Human-readable device name */
@@ -140,7 +140,7 @@ export interface DeviceEvent extends BaseEvent {
  * ```
  */
 export interface RoomEvent extends BaseEvent {
-  "@type": "room";
+  '@type': 'room';
   /** Room identifier */
   id: string;
   /** Human-readable room name */
@@ -175,7 +175,7 @@ export interface RoomEvent extends BaseEvent {
  * ```
  */
 export interface MessageEvent extends BaseEvent {
-  "@type": "message";
+  '@type': 'message';
   /** Message identifier (UUID) */
   id: string;
   /** Source device/entity identifier */
@@ -214,7 +214,7 @@ export interface MessageEvent extends BaseEvent {
  * ```
  */
 export interface ClientEvent extends BaseEvent {
-  "@type": "client";
+  '@type': 'client';
   /** Client identifier (UUID) */
   id: string;
   /** Human-readable client name */

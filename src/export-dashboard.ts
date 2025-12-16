@@ -1,10 +1,10 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
-import * as path from "path";
-import { Agent, fetch as undiciFetch } from "undici";
-import "./config"; // Load env vars from ~/.shc2es/.env
-import { createLogger, logErrorAndExit } from "./logger";
-import { validateDashboardConfig } from "./validation";
-import { withSpan, SpanAttributes } from "./instrumentation";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import * as path from 'path';
+import { Agent, fetch as undiciFetch } from 'undici';
+import './config'; // Load env vars from ~/.shc2es/.env
+import { createLogger, logErrorAndExit } from './logger';
+import { validateDashboardConfig } from './validation';
+import { withSpan, SpanAttributes } from './instrumentation';
 import {
   SavedObject,
   DashboardAttributes,
@@ -12,9 +12,9 @@ import {
   ExportMetadata,
   isExportMetadata,
   KibanaSavedObject,
-} from "./types/kibana-saved-objects";
+} from './types/kibana-saved-objects';
 
-const log = createLogger("export-dashboard");
+const log = createLogger('export-dashboard');
 
 // Validate configuration early
 const configResult = validateDashboardConfig();
@@ -36,12 +36,12 @@ interface TlsConfig {
 // Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
   if (!config.esTlsVerify) {
-    log.debug("TLS verification disabled via ES_TLS_VERIFY=false");
+    log.debug('TLS verification disabled via ES_TLS_VERIFY=false');
     return { rejectUnauthorized: false };
   }
 
   if (config.esCaCert) {
-    log.debug({ path: config.esCaCert }, "Using custom CA certificate");
+    log.debug({ path: config.esCaCert }, 'Using custom CA certificate');
     return { ca: readFileSync(config.esCaCert) };
   }
 
@@ -76,152 +76,123 @@ const tlsFetch = createTlsFetch();
 const KIBANA_NODE = config.kibanaNode;
 const ES_USER = config.esUser;
 const ES_PASSWORD = config.esPassword;
-const DASHBOARDS_DIR = path.join(__dirname, "..", "dashboards");
-const DEFAULT_DASHBOARD_NAME = "smart-home";
+const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
+const DEFAULT_DASHBOARD_NAME = 'smart-home';
 
 function getAuthHeader(): string {
-  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString("base64")}`;
+  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64')}`;
 }
 
 // Fields to strip from exported objects for privacy
-const SENSITIVE_FIELDS = [
-  "created_by",
-  "updated_by",
-  "created_at",
-  "updated_at",
-  "version",
-];
+const SENSITIVE_FIELDS = ['created_by', 'updated_by', 'created_at', 'updated_at', 'version'];
 
 function stripSensitiveMetadata(ndjson: string): string {
-  return withSpan(
-    "strip_metadata",
-    { "fields.count": SENSITIVE_FIELDS.length },
-    () => {
-      const lines = ndjson.trim().split("\n");
-      const strippedLines: string[] = [];
+  return withSpan('strip_metadata', { 'fields.count': SENSITIVE_FIELDS.length }, () => {
+    const lines = ndjson.trim().split('\n');
+    const strippedLines: string[] = [];
 
-      for (const line of lines) {
-        const obj = JSON.parse(line) as KibanaSavedObject | ExportMetadata;
+    for (const line of lines) {
+      const obj = JSON.parse(line) as KibanaSavedObject | ExportMetadata;
 
-        // Skip export metadata line (has exportedCount)
-        if (isExportMetadata(obj)) {
-          strippedLines.push(line);
-          continue;
-        }
-
-        // Remove sensitive fields - create new object without them
-        const stripped: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(obj)) {
-          if (!SENSITIVE_FIELDS.includes(key)) {
-            stripped[key] = value;
-          }
-        }
-
-        strippedLines.push(JSON.stringify(stripped));
+      // Skip export metadata line (has exportedCount)
+      if (isExportMetadata(obj)) {
+        strippedLines.push(line);
+        continue;
       }
 
-      return strippedLines.join("\n");
-    },
-  );
+      // Remove sensitive fields - create new object without them
+      const stripped: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (!SENSITIVE_FIELDS.includes(key)) {
+          stripped[key] = value;
+        }
+      }
+
+      strippedLines.push(JSON.stringify(stripped));
+    }
+
+    return strippedLines.join('\n');
+  });
 }
 
-async function findDashboardByName(
-  name: string,
-): Promise<SavedObject<DashboardAttributes> | null> {
-  return withSpan(
-    "find_dashboard",
-    { [SpanAttributes.DASHBOARD_NAME]: name },
-    async () => {
-      log.info({ name }, "Searching for dashboard by name");
+async function findDashboardByName(name: string): Promise<SavedObject<DashboardAttributes> | null> {
+  return withSpan('find_dashboard', { [SpanAttributes.DASHBOARD_NAME]: name }, async () => {
+    log.info({ name }, 'Searching for dashboard by name');
 
-      const params = new URLSearchParams({
-        type: "dashboard",
-        search: name,
-        search_fields: "title",
-      });
+    const params = new URLSearchParams({
+      type: 'dashboard',
+      search: name,
+      search_fields: 'title',
+    });
 
-      const response = await tlsFetch(
-        `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            "kbn-xsrf": "true",
-            Authorization: getAuthHeader(),
-          },
-        },
+    const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'kbn-xsrf': 'true',
+        Authorization: getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      log.fatal(
+        { status: response.status, body: text },
+        `Search failed: HTTP ${String(response.status)}`,
       );
+      process.exit(1);
+    }
 
-      if (!response.ok) {
-        const text = await response.text();
-        log.fatal(
-          { status: response.status, body: text },
-          `Search failed: HTTP ${String(response.status)}`,
-        );
-        process.exit(1);
-      }
+    const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
-      const result =
-        (await response.json()) as FindResponse<DashboardAttributes>;
+    if (result.total === 0) {
+      log.warn({ name }, 'No dashboards found matching name');
+      return null;
+    }
 
-      if (result.total === 0) {
-        log.warn({ name }, "No dashboards found matching name");
-        return null;
-      }
+    // Look for exact match first
+    const exactMatch = result.saved_objects.find(
+      (obj) => obj.attributes.title.toLowerCase() === name.toLowerCase(),
+    );
 
-      // Look for exact match first
-      const exactMatch = result.saved_objects.find(
-        (obj) => obj.attributes.title.toLowerCase() === name.toLowerCase(),
-      );
+    if (exactMatch) {
+      log.info({ id: exactMatch.id, title: exactMatch.attributes.title }, 'Found exact match');
+      return exactMatch;
+    }
 
-      if (exactMatch) {
-        log.info(
-          { id: exactMatch.id, title: exactMatch.attributes.title },
-          "Found exact match",
-        );
-        return exactMatch;
-      }
+    // If no exact match, show all matches and use first one
+    if (result.total > 1) {
+      const matches = result.saved_objects.map((obj) => ({
+        id: obj.id,
+        title: obj.attributes.title,
+      }));
+      log.warn({ matches }, 'Multiple dashboards found, using first match');
+    }
 
-      // If no exact match, show all matches and use first one
-      if (result.total > 1) {
-        const matches = result.saved_objects.map((obj) => ({
-          id: obj.id,
-          title: obj.attributes.title,
-        }));
-        log.warn({ matches }, "Multiple dashboards found, using first match");
-      }
-
-      const match = result.saved_objects[0];
-      if (!match) {
-        log.warn("No dashboard found in results");
-        return null;
-      }
-      log.info(
-        { id: match.id, title: match.attributes.title },
-        "Using dashboard",
-      );
-      return match;
-    },
-  );
+    const match = result.saved_objects[0];
+    if (!match) {
+      log.warn('No dashboard found in results');
+      return null;
+    }
+    log.info({ id: match.id, title: match.attributes.title }, 'Using dashboard');
+    return match;
+  });
 }
 
 async function listDashboards(): Promise<void> {
-  log.info("Listing all dashboards");
+  log.info('Listing all dashboards');
 
   const params = new URLSearchParams({
-    type: "dashboard",
-    per_page: "100",
+    type: 'dashboard',
+    per_page: '100',
   });
 
-  const response = await tlsFetch(
-    `${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        "kbn-xsrf": "true",
-        Authorization: getAuthHeader(),
-      },
+  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'kbn-xsrf': 'true',
+      Authorization: getAuthHeader(),
     },
-  );
+  });
 
   if (!response.ok) {
     const text = await response.text();
@@ -235,13 +206,13 @@ async function listDashboards(): Promise<void> {
   const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
   if (result.total === 0) {
-    log.info("No dashboards found");
+    log.info('No dashboards found');
     return;
   }
 
   // User-facing CLI output
   // eslint-disable-next-line no-console
-  console.log("\nAvailable dashboards:\n");
+  console.log('\nAvailable dashboards:\n');
   for (const obj of result.saved_objects) {
     // eslint-disable-next-line no-console
     console.log(`  "${obj.attributes.title}" (id: ${obj.id})`);
@@ -257,20 +228,17 @@ async function listDashboards(): Promise<void> {
  */
 async function fetchDashboardExport(dashboardId: string): Promise<string> {
   const body = {
-    objects: [{ type: "dashboard", id: dashboardId }],
+    objects: [{ type: 'dashboard', id: dashboardId }],
     includeReferencesDeep: true,
   };
 
-  log.info(
-    { kibanaNode: KIBANA_NODE, dashboardId },
-    "Exporting dashboard from Kibana",
-  );
+  log.info({ kibanaNode: KIBANA_NODE, dashboardId }, 'Exporting dashboard from Kibana');
 
   const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "kbn-xsrf": "true",
-      "Content-Type": "application/json",
+      'kbn-xsrf': 'true',
+      'Content-Type': 'application/json',
       Authorization: getAuthHeader(),
     },
     body: JSON.stringify(body),
@@ -294,7 +262,7 @@ async function fetchDashboardExport(dashboardId: string): Promise<string> {
  * @returns Metadata about the export (object counts, missing refs, etc.)
  */
 function parseDashboardExport(ndjson: string): ExportMetadata {
-  const lines = ndjson.trim().split("\n");
+  const lines = ndjson.trim().split('\n');
   const objects = lines.map((line) => {
     const parsed: unknown = JSON.parse(line);
     return parsed as KibanaSavedObject | ExportMetadata;
@@ -303,7 +271,7 @@ function parseDashboardExport(ndjson: string): ExportMetadata {
   // Last line is export metadata
   const lastObject = objects[objects.length - 1];
   if (!lastObject || !isExportMetadata(lastObject)) {
-    log.fatal("Export response missing metadata line");
+    log.fatal('Export response missing metadata line');
     process.exit(1);
   }
 
@@ -323,13 +291,13 @@ function parseDashboardExport(ndjson: string): ExportMetadata {
       exportedCount: metadata.exportedCount,
       [SpanAttributes.OBJECTS_COUNT]: metadata.exportedCount,
     },
-    "Export summary",
+    'Export summary',
   );
 
   if (metadata.missingRefCount && metadata.missingRefCount > 0) {
     log.warn(
       { missingReferences: metadata.missingReferences },
-      "Some references could not be resolved",
+      'Some references could not be resolved',
     );
   }
 
@@ -345,17 +313,17 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
   // Ensure dashboards directory exists
   if (!existsSync(DASHBOARDS_DIR)) {
     mkdirSync(DASHBOARDS_DIR, { recursive: true });
-    log.info({ dir: DASHBOARDS_DIR }, "Created dashboards directory");
+    log.info({ dir: DASHBOARDS_DIR }, 'Created dashboards directory');
   }
 
   // Strip sensitive metadata before saving
   const strippedNdjson = stripSensitiveMetadata(ndjson);
-  log.info({ strippedFields: SENSITIVE_FIELDS }, "Stripped sensitive metadata");
+  log.info({ strippedFields: SENSITIVE_FIELDS }, 'Stripped sensitive metadata');
 
   // Write to file
   const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
   writeFileSync(outputFile, strippedNdjson);
-  log.info({ outputFile }, "Dashboard exported successfully");
+  log.info({ outputFile }, 'Dashboard exported successfully');
 }
 
 /**
@@ -364,12 +332,9 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
  * @param outputName - Name for the output file
  * @returns Promise that resolves when export is complete
  */
-async function exportDashboard(
-  dashboardId: string,
-  outputName: string,
-): Promise<void> {
+async function exportDashboard(dashboardId: string, outputName: string): Promise<void> {
   return withSpan(
-    "export_dashboard",
+    'export_dashboard',
     {
       [SpanAttributes.DASHBOARD_ID]: dashboardId,
       [SpanAttributes.DASHBOARD_NAME]: outputName,
@@ -411,23 +376,23 @@ Examples:
 export async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
-  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     printUsage();
     process.exit(0);
   }
 
-  if (args.includes("--list")) {
+  if (args.includes('--list')) {
     await listDashboards();
     process.exit(0);
   }
 
-  const dashboardName = args.join(" ");
+  const dashboardName = args.join(' ');
 
   try {
     const dashboard = await findDashboardByName(dashboardName);
 
     if (!dashboard) {
-      log.info("Use --list to see available dashboards");
+      log.info('Use --list to see available dashboards');
       process.exit(1);
     }
 

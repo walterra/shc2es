@@ -26,7 +26,7 @@ export abstract class SHC2ESError extends Error {
 
     // Maintains proper stack trace for where our error was thrown (V8-specific)
     // Note: Error.captureStackTrace is defined in @types/node but not standard JavaScript
-    if (typeof Error.captureStackTrace === "function") {
+    if (typeof Error.captureStackTrace === 'function') {
       Error.captureStackTrace(this, this.constructor);
     }
   }
@@ -74,12 +74,7 @@ export class ValidationError extends SHC2ESError {
   readonly code: string;
   readonly variable: string;
 
-  constructor(
-    message: string,
-    variable: string,
-    code = "VALIDATION_ERROR",
-    cause?: Error,
-  ) {
+  constructor(message: string, variable: string, code = 'VALIDATION_ERROR', cause?: Error) {
     super(message, cause);
     this.variable = variable;
     this.code = code;
@@ -140,12 +135,7 @@ export class ConfigError extends SHC2ESError {
   readonly code: string;
   readonly path?: string;
 
-  constructor(
-    message: string,
-    path: string | undefined,
-    code = "CONFIG_ERROR",
-    cause?: Error,
-  ) {
+  constructor(message: string, path: string | undefined, code = 'CONFIG_ERROR', cause?: Error) {
     super(message, cause);
     this.path = path;
     this.code = code;
@@ -208,7 +198,7 @@ export class FileSystemError extends SHC2ESError {
   readonly code: string;
   readonly path: string;
 
-  constructor(message: string, path: string, code = "FS_ERROR", cause?: Error) {
+  constructor(message: string, path: string, code = 'FS_ERROR', cause?: Error) {
     super(message, cause);
     this.path = path;
     this.code = code;

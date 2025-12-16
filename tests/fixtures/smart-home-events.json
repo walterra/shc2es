@@ -47,12 +47,7 @@
     "supportedProfiles": [],
     "profile": "GENERIC",
     "installationTimestamp": 1765390090707,
-    "deviceServiceIds": [
-      "CommunicationQuality",
-      "Thermostat",
-      "BatteryLevel",
-      "ValveTappet"
-    ],
+    "deviceServiceIds": ["CommunicationQuality", "Thermostat", "BatteryLevel", "ValveTappet"],
     "roomId": "hz_1",
     "manufacturer": "BOSCH",
     "serial": "F0FD45FFFE557345",
@@ -84,10 +79,7 @@
     "sourceId": "hdm:ZigBee:f0fd45fffe51fa08",
     "sourceType": "DEVICE",
     "@type": "message",
-    "flags": [
-      "STATUS",
-      "STICKY"
-    ],
+    "flags": ["STATUS", "STICKY"],
     "messageCode": {
       "name": "VALVE_NO_BODY_ERROR",
       "category": "ERROR"
@@ -121,9 +113,7 @@
       "ROLE_UPDATE_CLIENT_ROLE"
     ],
     "primaryRole": "ROLE_DEFAULT_CLIENT",
-    "dynamicRoles": [
-      "ROLE_CLIENT_USE_TUNNEL"
-    ],
+    "dynamicRoles": ["ROLE_CLIENT_USE_TUNNEL"],
     "pushNotificationToken": "352e07eb52cad88b4fddbc44a85ea8d39ceb0811280b60afe1ebb5ff826dd3c9",
     "clientType": "MOBILE",
     "createdDate": "2025-12-09T19:01:18.621+00:00",

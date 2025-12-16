@@ -6,18 +6,18 @@ import { Observable } from 'rxjs';
 
 export class MockBshcClient {
   subscribe = jest.fn(() => {
-    return new Observable(subscriber => {
+    return new Observable((subscriber) => {
       subscriber.next({
-        parsedResponse: { result: 'test-subscription-id' }
+        parsedResponse: { result: 'test-subscription-id' },
       });
       subscriber.complete();
     });
   });
 
   longPolling = jest.fn((subscriptionId: string) => {
-    return new Observable(subscriber => {
+    return new Observable((subscriber) => {
       subscriber.next({
-        parsedResponse: { result: [] }
+        parsedResponse: { result: [] },
       });
       subscriber.complete();
     });
@@ -30,7 +30,7 @@ export class MockBoschSmartHomeBridge {
   getBshcClient = jest.fn(() => this.client);
 
   pairIfNeeded = jest.fn(() => {
-    return new Observable(subscriber => {
+    return new Observable((subscriber) => {
       subscriber.next(true);
       subscriber.complete();
     });

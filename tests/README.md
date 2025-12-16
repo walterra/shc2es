@@ -36,6 +36,7 @@ yarn test:ci
 ## Coverage Thresholds
 
 The test suite enforces minimum coverage thresholds:
+
 - Branches: 70%
 - Functions: 70%
 - Lines: 70%
@@ -46,12 +47,14 @@ The test suite enforces minimum coverage thresholds:
 ### Unit Tests
 
 Unit tests should:
+
 - Test a single module or function in isolation
 - Mock all external dependencies
 - Use the mocks provided in `tests/mocks/`
 - Be fast and deterministic
 
 Example:
+
 ```typescript
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 
@@ -75,6 +78,7 @@ describe('myModule', () => {
 ### Test Helpers
 
 Use the utilities in `tests/utils/test-helpers.ts`:
+
 - `createTempDir()` - Create temporary directory for test isolation
 - `cleanupTempDir()` - Clean up temporary directory
 - `suppressConsole()` - Suppress console output during tests
@@ -82,6 +86,7 @@ Use the utilities in `tests/utils/test-helpers.ts`:
 ### Mocks
 
 #### Bosch Smart Home Bridge
+
 ```typescript
 import { mockBoschSmartHomeBridge } from '../mocks/bosch-smart-home-bridge.mock';
 
@@ -91,6 +96,7 @@ jest.mock('bosch-smart-home-bridge', () => mockBoschSmartHomeBridge);
 ## Test Environment
 
 Tests run with:
+
 - `NODE_ENV=test`
 - `LOG_LEVEL=silent` (suppress logs)
 - `OTEL_SDK_DISABLED=true` (disable OpenTelemetry)
@@ -124,6 +130,7 @@ node --inspect-brk node_modules/.bin/jest --runInBand
 ## CI/CD Integration
 
 Tests run automatically in GitHub Actions on:
+
 - Every push to main
 - Every pull request
 - Node.js versions: 20.x, 22.x

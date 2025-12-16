@@ -107,7 +107,7 @@ describe('poll module', () => {
 
     it('should be case-sensitive', () => {
       expect(isTransientError('timeout')).toBe(false); // lowercase
-      expect(isTransientError('TIMEOUT')).toBe(true);  // uppercase
+      expect(isTransientError('TIMEOUT')).toBe(true); // uppercase
     });
   });
 
@@ -138,7 +138,7 @@ describe('poll module', () => {
   describe('createBridge', () => {
     it('should create a bridge with host, cert, and key', () => {
       const { createBridge } = require('../../src/poll');
-      
+
       const host = '192.168.1.100';
       const cert = 'mock-cert';
       const key = 'mock-key';
@@ -152,7 +152,7 @@ describe('poll module', () => {
 
     it('should return bridge with getBshcClient method', () => {
       const { createBridge } = require('../../src/poll');
-      
+
       const bridge = createBridge('192.168.1.1', 'cert', 'key');
       const client = bridge.getBshcClient();
 
@@ -174,7 +174,7 @@ describe('poll module', () => {
         '@type': 'DeviceServiceData',
         id: 'HumidityLevel',
         deviceId: 'hdm:ZigBee:001e5e0902b94515',
-        state: { humidity: 42.71 }
+        state: { humidity: 42.71 },
       };
 
       processEvent(event);
@@ -187,7 +187,7 @@ describe('poll module', () => {
         '@type': 'device',
         id: 'hdm:ZigBee:f0fd45fffe557345',
         deviceId: 'hdm:ZigBee:f0fd45fffe557345',
-        name: 'Test Thermostat'
+        name: 'Test Thermostat',
       };
 
       processEvent(event);
@@ -199,7 +199,7 @@ describe('poll module', () => {
       const event = {
         '@type': 'room',
         id: 'hz_1',
-        name: 'Living Room'
+        name: 'Living Room',
       };
 
       processEvent(event);
@@ -211,7 +211,7 @@ describe('poll module', () => {
       const event = {
         '@type': 'DeviceServiceData',
         id: 'test',
-        deviceId: 'device-123'
+        deviceId: 'device-123',
       };
 
       processEvent(event);
@@ -219,16 +219,16 @@ describe('poll module', () => {
       expect(appLogger.debug).toHaveBeenCalledWith(
         {
           eventType: 'DeviceServiceData',
-          deviceId: 'device-123'
+          deviceId: 'device-123',
         },
-        'Event received'
+        'Event received',
       );
     });
 
     it('should handle events without deviceId', () => {
       const event = {
         '@type': 'message',
-        id: 'msg-123'
+        id: 'msg-123',
       };
 
       processEvent(event);
@@ -237,9 +237,9 @@ describe('poll module', () => {
       expect(appLogger.debug).toHaveBeenCalledWith(
         {
           eventType: 'message',
-          deviceId: undefined
+          deviceId: undefined,
         },
-        'Event received'
+        'Event received',
       );
     });
   });
@@ -275,10 +275,7 @@ describe('poll module', () => {
 
       processEvents(events);
 
-      expect(appLogger.info).toHaveBeenCalledWith(
-        { count: 2 },
-        'Events processed'
-      );
+      expect(appLogger.info).toHaveBeenCalledWith({ count: 2 }, 'Events processed');
     });
 
     it('should handle empty event array', () => {
@@ -289,17 +286,12 @@ describe('poll module', () => {
     });
 
     it('should process single event', () => {
-      const events = [
-        { '@type': 'DeviceServiceData', id: 'test' }
-      ];
+      const events = [{ '@type': 'DeviceServiceData', id: 'test' }];
 
       processEvents(events);
 
       expect(dataLogger.info).toHaveBeenCalledTimes(1);
-      expect(appLogger.info).toHaveBeenCalledWith(
-        { count: 1 },
-        'Events processed'
-      );
+      expect(appLogger.info).toHaveBeenCalledWith({ count: 1 }, 'Events processed');
     });
 
     it('should process events in order', () => {
