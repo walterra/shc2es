@@ -93,7 +93,7 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Pull Docker images (cache for faster startup)
+      - name: Cache Docker images for E2E tests
         run: |
           docker pull docker.elastic.co/elasticsearch/elasticsearch:9.2.2
           docker pull docker.elastic.co/kibana/kibana:9.2.2
