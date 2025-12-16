@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 5949fa9: Improve E2E test infrastructure with health checks and consistent linting
+
 ## 0.4.0
 
 ### Minor Changes
