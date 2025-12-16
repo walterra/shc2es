@@ -68,6 +68,16 @@ export default tseslint.config(
       'jsdoc/check-types': 'off', // TypeScript handles this
       'jsdoc/require-example': 'off', // Too strict for all functions, enable selectively if needed
       'jsdoc/no-undefined-types': 'off', // TypeScript handles this
+      
+      // Ban overused words in JSDoc descriptions
+      // TODO: Re-enable as 'error' after fixing existing violations
+      'jsdoc/match-description': [
+        'warn',
+        {
+          matchDescription: '^(?!.*\\bcomprehensive\\b).*$',
+          message: 'Avoid "comprehensive" - remove adjective or be specific.',
+        },
+      ],
 
       // Strict TypeScript rules for type safety
       '@typescript-eslint/no-explicit-any': 'error', // Prevent explicit any types

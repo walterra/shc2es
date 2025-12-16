@@ -121,9 +121,12 @@ Kibana (time series visualization)
 ### Testing
 
 - `jest`: Test framework with ts-jest
+- `testcontainers`: Docker-based integration testing
+- `@testcontainers/elasticsearch`: Official Elasticsearch container
+- `express`: Mock HTTP server for E2E tests
 - Coverage thresholds: 70% statements/functions/lines, 60% branches
-- Unit tests for core modules (config, logger)
-- Integration tests planned for ingest/dashboard features
+- **Unit tests:** 218 tests for core modules (config, logger, validation, transforms, types)
+- **E2E tests:** 18 tests with real Elasticsearch/Kibana containers validating complete data flows
 
 ## Configuration
 
@@ -178,8 +181,12 @@ OTEL_TLS_VERIFY=false     # Disable cert verification (dev only)
 - **Status**: Alpha/Beta (v0.3.1)
 - **Primary use case**: Educational and personal home automation monitoring
 - **License**: MIT
-- **Testing coverage**: 70%+ on core modules, integration tests in progress
-- **Documentation**: README, spec files for architecture/APIs/logging standards (spec/LOGGING.md)
+- **Testing coverage**: 
+  - 218 unit tests (70%+ coverage on core modules)
+  - 18 E2E tests (complete data pipeline validation with TestContainers)
+- **Documentation**: 
+  - README, spec files for architecture/APIs/logging standards (spec/LOGGING.md)
+  - E2E testing guide (spec/E2E-TESTING.md)
 
 ## Known Limitations
 
