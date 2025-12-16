@@ -138,18 +138,6 @@
   - Examples: "subscription_successful", "polling_started", "events_batch_processed"
   - Add to: `poll.ts`, `ingest.ts` (watch mode)
 
-### Code Formatting and Linting
-
-- **ESLint: Enable additional strict rules**
-  - Add to `eslint.config.mjs`:
-    - `@typescript-eslint/no-explicit-any`: 'error'
-    - `@typescript-eslint/no-unsafe-*` rules: 'error'
-    - `@typescript-eslint/explicit-function-return-type`: 'error'
-    - `@typescript-eslint/consistent-type-imports`: 'error'
-  - Fix all violations before enforcing
-
-
-
 ## Medium Priority: Features and Enhancements
 
 ### Configuration Management

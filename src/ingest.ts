@@ -10,14 +10,15 @@ import { DATA_DIR } from './config';
 import { createLogger, logErrorAndExit } from './logger';
 import { validateIngestConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation'; // withSpan for high-level operations only
-import {
+import type {
   ImportResponse,
   ExportMetadata,
-  isExportMetadata,
   KibanaSavedObject,
 } from './types/kibana-saved-objects';
-import { SmartHomeEvent } from './types/smart-home-events';
-import { extractMetric, generateDocId, Metric } from './transforms';
+import { isExportMetadata } from './types/kibana-saved-objects';
+import type { SmartHomeEvent } from './types/smart-home-events';
+import type { Metric } from './transforms';
+import { extractMetric, generateDocId } from './transforms';
 
 const log = createLogger('ingest');
 

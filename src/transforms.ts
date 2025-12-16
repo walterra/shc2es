@@ -5,7 +5,7 @@
  * events from the Bosch Smart Home Controller II before indexing to Elasticsearch.
  */
 
-import { SmartHomeEvent } from './types/smart-home-events';
+import type { SmartHomeEvent } from './types/smart-home-events';
 
 /**
  * Normalized sensor reading extracted from a smart home event.

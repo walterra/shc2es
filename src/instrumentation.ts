@@ -20,7 +20,8 @@
  * ```
  */
 
-import { trace, Span, SpanStatusCode, Attributes } from '@opentelemetry/api';
+import type { Span, Attributes } from '@opentelemetry/api';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 
 // Get tracer for this service
 // Note: Service name is set via OTEL_SERVICE_NAME in package.json scripts

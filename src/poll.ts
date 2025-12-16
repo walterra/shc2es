@@ -1,9 +1,6 @@
 import * as fs from 'fs';
-import {
-  BoschSmartHomeBridge,
-  BoschSmartHomeBridgeBuilder,
-  BshbUtils,
-} from 'bosch-smart-home-bridge';
+import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
+import { BoschSmartHomeBridgeBuilder, BshbUtils } from 'bosch-smart-home-bridge';
 import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from './config';
 import { appLogger, dataLogger, BshbLogger, logErrorAndExit } from './logger';
 import { validatePollConfig } from './validation';

@@ -5,14 +5,14 @@ import './config'; // Load env vars from ~/.shc2es/.env
 import { createLogger, logErrorAndExit } from './logger';
 import { validateDashboardConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
-import {
+import type {
   SavedObject,
   DashboardAttributes,
   FindResponse,
   ExportMetadata,
-  isExportMetadata,
   KibanaSavedObject,
 } from './types/kibana-saved-objects';
+import { isExportMetadata } from './types/kibana-saved-objects';
 
 const log = createLogger('export-dashboard');
 
