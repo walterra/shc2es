@@ -68,6 +68,15 @@ export default tseslint.config(
       'jsdoc/check-types': 'off', // TypeScript handles this
       'jsdoc/require-example': 'off', // Too strict for all functions, enable selectively if needed
       'jsdoc/no-undefined-types': 'off', // TypeScript handles this
+
+      // Strict TypeScript rules for type safety
+      '@typescript-eslint/no-explicit-any': 'error', // Prevent explicit any types
+      '@typescript-eslint/no-unsafe-assignment': 'error', // Prevent assignments from any
+      '@typescript-eslint/no-unsafe-call': 'error', // Prevent calling any values
+      '@typescript-eslint/no-unsafe-member-access': 'error', // Prevent accessing properties on any
+      '@typescript-eslint/no-unsafe-return': 'error', // Prevent returning any from functions
+      '@typescript-eslint/explicit-function-return-type': 'error', // Require explicit return types on functions
+      '@typescript-eslint/consistent-type-imports': 'error', // Separate type-only imports using import type
     },
   },
   {

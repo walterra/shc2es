@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
-import { Result, ok, err } from 'neverthrow';
+import type { Result } from 'neverthrow';
+import { ok, err } from 'neverthrow';
 import { findEnvFile } from './config';
 import { ValidationError } from './types/errors';
 
