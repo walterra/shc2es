@@ -280,6 +280,9 @@ export interface GenericEvent extends BaseEvent {
 /**
  * Check if an event is a known SmartHomeEvent type.
  * Returns true if the @type matches a known event type.
+ *
+ * @param event - Event object with @type field
+ * @returns True if the event type is known, false otherwise
  */
 export function isKnownEventType(event: { '@type': string }): boolean {
   const knownTypes = ['DeviceServiceData', 'device', 'room', 'message', 'client', 'light'];

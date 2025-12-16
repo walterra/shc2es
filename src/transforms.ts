@@ -173,7 +173,7 @@ export function generateDocId(doc: SmartHomeEvent | GenericEvent): string {
       // Format: light-<id>-<timestamp>
       return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
-    default:
+    default: {
       // Unknown event type - try to extract ID from common fields
       log.warn(
         { eventType: doc['@type'] },
@@ -187,5 +187,6 @@ export function generateDocId(doc: SmartHomeEvent | GenericEvent): string {
             ? toString(doc.deviceId)
             : 'unknown';
       return [doc['@type'], entityId, toString(timestamp)].join('-');
+    }
   }
 }
