@@ -2,6 +2,10 @@
  * Unit tests for poll module
  * Tests pure functions and business logic with mocked dependencies
  */
+/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+// Disabled for Jest mocks - jest.fn() mocks don't have TypeScript types
 
 // Mock logger before importing poll to prevent file writes
 jest.mock('./logger', () => {
@@ -44,22 +48,44 @@ jest.mock('./config', () => {
 // Mock validation to prevent actual config validation
 jest.mock('./validation', () => {
   return {
-    validatePollConfig: jest.fn(() => ({
-      isErr: () => false,
-      value: {
-        bshHost: '192.168.1.100',
-        bshPassword: 'test-password',
-        bshClientName: 'test-client',
-        bshClientId: 'test-id',
-      },
-    })),
+    validatePollConfig: jest.fn(
+      (): {
+        isErr: () => boolean;
+        value: {
+          bshHost: string;
+          bshPassword: string;
+          bshClientName: string;
+          bshClientId: string;
+        };
+      } => ({
+        isErr: () => false,
+        value: {
+          bshHost: '192.168.1.100',
+          bshPassword: 'test-password',
+          bshClientName: 'test-client',
+          bshClientId: 'test-id',
+        },
+      }),
+    ),
   };
 });
 
 // Mock bosch-smart-home-bridge using our existing mock
 jest.mock('bosch-smart-home-bridge', () => {
+  // Note: Dynamic import in jest.mock() factory
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
   return require('../tests/mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
 });
+
+// Import poll functions and loggers after mocks are set up
+import {
+  isTransientError,
+  isPairingButtonError,
+  createBridge,
+  processEvent,
+  processEvents,
+} from './poll';
+import { dataLogger, appLogger } from './logger';
 
 // Disable OpenTelemetry
 process.env.OTEL_SDK_DISABLED = 'true';
@@ -70,8 +96,6 @@ describe('poll module', () => {
   });
 
   describe('isTransientError', () => {
-    const { isTransientError } = require('./poll');
-
     it('should identify TIMEOUT as transient', () => {
       expect(isTransientError('Request TIMEOUT')).toBe(true);
       expect(isTransientError('TIMEOUT occurred')).toBe(true);
@@ -112,8 +136,6 @@ describe('poll module', () => {
   });
 
   describe('isPairingButtonError', () => {
-    const { isPairingButtonError } = require('./poll');
-
     it('should identify pairing button messages', () => {
       expect(isPairingButtonError('press the button on Controller II')).toBe(true);
     });
@@ -137,8 +159,6 @@ describe('poll module', () => {
 
   describe('createBridge', () => {
     it('should create a bridge with host, cert, and key', () => {
-      const { createBridge } = require('./poll');
-
       const host = '192.168.1.100';
       const cert = 'mock-cert';
       const key = 'mock-key';
@@ -151,8 +171,6 @@ describe('poll module', () => {
     });
 
     it('should return bridge with getBshcClient method', () => {
-      const { createBridge } = require('./poll');
-
       const bridge = createBridge('192.168.1.1', 'cert', 'key');
       const client = bridge.getBshcClient();
 
@@ -162,9 +180,6 @@ describe('poll module', () => {
   });
 
   describe('processEvent', () => {
-    const { processEvent } = require('./poll');
-    const { dataLogger, appLogger } = require('./logger');
-
     beforeEach(() => {
       jest.clearAllMocks();
     });
@@ -245,9 +260,6 @@ describe('poll module', () => {
   });
 
   describe('processEvents', () => {
-    const { processEvents } = require('./poll');
-    const { dataLogger, appLogger } = require('./logger');
-
     beforeEach(() => {
       jest.clearAllMocks();
     });

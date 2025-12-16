@@ -6,9 +6,10 @@ import split from 'split2';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { Tail } from 'tail';
 import * as path from 'path';
-import { DATA_DIR } from './config';
+import { getDataDir } from './config';
 import { createLogger, logErrorAndExit } from './logger';
 import { validateIngestConfig } from './validation';
+import type { IngestConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation'; // withSpan for high-level operations only
 import type {
   ImportResponse,
@@ -22,16 +23,28 @@ import { extractMetric, generateDocId } from './transforms';
 
 const log = createLogger('ingest');
 
-// Validate configuration early
-const configResult = validateIngestConfig({ requireKibana: false });
-if (configResult.isErr()) {
-  logErrorAndExit(
-    configResult.error,
-    `Configuration validation failed: ${configResult.error.message}`,
-  );
+// Lazy config loading
+let _config: IngestConfig | null = null;
+function getConfig(): IngestConfig {
+  if (_config) {
+    return _config;
+  }
+  const configResult = validateIngestConfig({ requireKibana: false });
+  if (configResult.isErr()) {
+    logErrorAndExit(
+      configResult.error,
+      `Configuration validation failed: ${configResult.error.message}`,
+    );
+  }
+  _config = configResult.value;
+  return _config;
 }
-// TypeScript now knows config is Ok
-const config = configResult.value;
+const config = new Proxy({} as IngestConfig, {
+  get(_target, prop): IngestConfig[keyof IngestConfig] {
+    const cfg = getConfig();
+    return cfg[prop as keyof IngestConfig];
+  },
+});
 
 // TLS configuration for ES client and fetch requests
 interface TlsConfig {
@@ -92,7 +105,7 @@ const INDEX_PREFIX = config.esIndexPrefix;
 const INDEX_PATTERN = `${INDEX_PREFIX}-*`;
 const PIPELINE_NAME = `${INDEX_PREFIX}-pipeline`;
 const TEMPLATE_NAME = `${INDEX_PREFIX}-template`;
-const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
+const REGISTRY_FILE = path.join(getDataDir(), 'device-registry.json');
 
 // Kibana dashboard import
 const KIBANA_NODE = config.kibanaNode;
@@ -543,15 +556,15 @@ async function batchImport(pattern?: string): Promise<void> {
   const globPattern = pattern
     ? pattern.includes('/')
       ? pattern
-      : `${DATA_DIR}/${pattern}`
-    : `${DATA_DIR}/events-*.ndjson`;
+      : `${getDataDir()}/${pattern}`
+    : `${getDataDir()}/events-*.ndjson`;
 
   log.info({ pattern: globPattern }, 'Starting batch import');
 
   const files = await glob(globPattern);
 
   if (files.length === 0) {
-    log.info({ dataDir: DATA_DIR }, 'No NDJSON files found in data directory');
+    log.info({ dataDir: getDataDir() }, 'No NDJSON files found in data directory');
     return;
   }
 
@@ -662,7 +675,7 @@ function startFileWatcher(
 function watchAndTail(): void {
   // Get current day's file
   const today = new Date().toISOString().split('T')[0] ?? '';
-  const todayFile = path.join(DATA_DIR, `events-${today}.ndjson`);
+  const todayFile = path.join(getDataDir(), `events-${today}.ndjson`);
   const indexName = getIndexName(today);
 
   log.info({ filePath: todayFile, indexName }, "Starting watch mode for current day's file");
@@ -687,6 +700,7 @@ function watchAndTail(): void {
  * Handles command-line arguments and orchestrates data ingestion
  */
 export async function main(): Promise<void> {
+  // Env already loaded by cli.ts
   const args = process.argv.slice(2);
 
   // Load device registry for enrichment (not needed for --setup)

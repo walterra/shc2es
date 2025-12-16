@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+// Disabled unbound-method for Jest mock assertions - jest.fn() mocks don't have `this` binding issues
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import type { Span } from '@opentelemetry/api';
 import { SpanStatusCode } from '@opentelemetry/api';
@@ -22,21 +24,21 @@ const mockSpan = {
 } as unknown as Span;
 
 describe('instrumentation', () => {
-  let startActiveSpanSpy: any;
+  let startActiveSpanSpy: jest.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Spy on the exported tracer's startActiveSpan method
-    // Handle all three overloads of startActiveSpan
-    startActiveSpanSpy = jest.spyOn(instrumentation.tracer, 'startActiveSpan').mockImplementation(((
-      ...args: any[]
-    ) => {
-      // Extract the callback function (last argument)
-      const fn = args[args.length - 1] as (span: Span) => unknown;
-      // Call the callback with our mock span
-      return fn(mockSpan);
-    }) as any);
+    // Handle all three overloads of startActiveSpan by using a generic implementation
+    startActiveSpanSpy = jest
+      .spyOn(instrumentation.tracer, 'startActiveSpan')
+      .mockImplementation((...args: unknown[]) => {
+        // Extract the callback function (last argument)
+        const fn = args[args.length - 1] as (span: Span) => unknown;
+        // Call the callback with our mock span
+        return fn(mockSpan);
+      }) as jest.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
   });
 
   afterEach(() => {
@@ -91,13 +93,14 @@ describe('instrumentation', () => {
       });
 
       it('should handle non-Error exceptions', () => {
+        const stringError = new Error('string error');
         expect(() => {
           withSpan('test_operation', {}, () => {
-            throw 'string error';
+            throw stringError;
           });
         }).toThrow('string error');
 
-        expect(mockSpan.recordException).toHaveBeenCalledWith(new Error('string error'));
+        expect(mockSpan.recordException).toHaveBeenCalledWith(stringError);
         expect(mockSpan.setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.ERROR });
       });
 
@@ -141,6 +144,7 @@ describe('instrumentation', () => {
       it('should handle async throws', async () => {
         await expect(
           withSpan('async_operation', {}, async () => {
+            await Promise.resolve(); // Make function actually async
             throw new Error('Async throw');
           }),
         ).rejects.toThrow('Async throw');

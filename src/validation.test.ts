@@ -261,7 +261,7 @@ describe('validation module', () => {
     beforeEach(() => {
       originalEnv = { ...process.env };
       // Mock console.error for error tests
-      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
@@ -327,7 +327,7 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
@@ -421,7 +421,7 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
@@ -453,7 +453,7 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {

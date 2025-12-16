@@ -1,7 +1,7 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { Agent, fetch as undiciFetch } from 'undici';
-import './config'; // Load env vars from ~/.shc2es/.env
+
 import { createLogger, logErrorAndExit } from './logger';
 import { validateDashboardConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
@@ -374,6 +374,7 @@ Examples:
  * Handles command-line arguments and orchestrates dashboard operations
  */
 export async function main(): Promise<void> {
+  // Env already loaded by cli.ts
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {

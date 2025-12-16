@@ -87,14 +87,13 @@ export default tseslint.config(
     },
   },
   {
-    // Test files don't need JSDoc comments and may use require() for Jest patterns
+    // Test files don't need JSDoc comments
     files: ['**/*.test.ts'],
     rules: {
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-description': 'off',
       'jsdoc/require-param': 'off',
       'jsdoc/require-returns': 'off',
-      '@typescript-eslint/no-require-imports': 'off', // Jest isolateModules pattern needs require()
     },
   },
   {

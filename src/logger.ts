@@ -1,7 +1,7 @@
 import pino from 'pino';
 import * as path from 'path';
 import * as fs from 'fs';
-import { DATA_DIR, LOGS_DIR, ensureConfigDirs } from './config';
+import { getDataDir, getLogsDir, ensureConfigDirs } from './config';
 
 // Ensure config directories exist before creating file loggers
 ensureConfigDirs();
@@ -47,7 +47,7 @@ const dateStamp = new Date().toISOString().split('T')[0] ?? '1970-01-01';
  * ```
  */
 export function createLogger(logFilePrefix: string): pino.Logger {
-  const logFile = path.join(LOGS_DIR, `${logFilePrefix}-${dateStamp}.log`);
+  const logFile = path.join(getLogsDir(), `${logFilePrefix}-${dateStamp}.log`);
   const loggerName = buildLoggerName(); // Uses SERVICE_NAME directly
 
   const targets: pino.TransportTargetOptions[] = [
@@ -108,40 +108,63 @@ export function createLogger(logFilePrefix: string): pino.Logger {
  * appLogger.error({ err }, 'Fatal error occurred');
  * ```
  */
-const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
+// Lazy logger initialization to support mocking in tests
+let _appLogger: pino.Logger | undefined;
 
-// Build transport targets array
-const appLoggerTargets: pino.TransportTargetOptions[] = [
-  // Console output (pretty in dev)
-  {
-    target: 'pino-pretty',
-    options: { colorize: true },
-    level: LOG_LEVEL,
-  },
-  // File output (JSON for Claude Code to parse)
-  {
-    target: 'pino/file',
-    options: { destination: appLogFile },
-    level: LOG_LEVEL,
-  },
-];
+function getAppLogger(): pino.Logger {
+  if (_appLogger) {
+    return _appLogger;
+  }
 
-// Add OpenTelemetry transport if enabled
-if (OTEL_LOGS_ENABLED) {
-  appLoggerTargets.push({
-    target: 'pino-opentelemetry-transport',
-    options: {
-      // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
+  const appLogFile = path.join(getLogsDir(), `poll-${dateStamp}.log`);
+
+  // Build transport targets array
+  const appLoggerTargets: pino.TransportTargetOptions[] = [
+    // Console output (pretty in dev)
+    {
+      target: 'pino-pretty',
+      options: { colorize: true },
+      level: LOG_LEVEL,
     },
+    // File output (JSON for Claude Code to parse)
+    {
+      target: 'pino/file',
+      options: { destination: appLogFile },
+      level: LOG_LEVEL,
+    },
+  ];
+
+  // Add OpenTelemetry transport if enabled
+  if (OTEL_LOGS_ENABLED) {
+    appLoggerTargets.push({
+      target: 'pino-opentelemetry-transport',
+      options: {
+        // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
+      },
+      level: LOG_LEVEL,
+    });
+  }
+
+  _appLogger = pino({
+    name: buildLoggerName(), // Uses SERVICE_NAME (shc2es-poll)
     level: LOG_LEVEL,
+    transport: {
+      targets: appLoggerTargets,
+    },
   });
+
+  _appLogger.info({ logFile: appLogFile }, 'App logging initialized');
+  return _appLogger;
 }
 
-export const appLogger = pino({
-  name: buildLoggerName(), // Uses SERVICE_NAME (shc2es-poll)
-  level: LOG_LEVEL,
-  transport: {
-    targets: appLoggerTargets,
+export const appLogger = new Proxy({} as pino.Logger, {
+  get(_target, prop): unknown {
+    const logger = getAppLogger();
+    const value = logger[prop as keyof pino.Logger];
+    if (typeof value === 'function') {
+      return value.bind(logger);
+    }
+    return value;
   },
 });
 
@@ -173,24 +196,43 @@ export const appLogger = pino({
  * });
  * ```
  */
-const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
+// Lazy data logger initialization
+let _dataLogger: pino.Logger | undefined;
 
-export const dataLogger = pino(
-  {
-    name: buildLoggerName('data'), // shc2es-poll:data
-    level: 'info',
-    // Minimal formatting - just the event data
-    formatters: {
-      level: () => ({}), // Omit level from data logs
-      bindings: () => ({}), // Omit pid, hostname
+function getDataLogger(): pino.Logger {
+  if (_dataLogger) {
+    return _dataLogger;
+  }
+
+  const dataLogFile = path.join(getDataDir(), `events-${dateStamp}.ndjson`);
+
+  _dataLogger = pino(
+    {
+      name: buildLoggerName('data'), // shc2es-poll:data
+      level: 'info',
+      // Minimal formatting - just the event data
+      formatters: {
+        level: () => ({}), // Omit level from data logs
+        bindings: () => ({}), // Omit pid, hostname
+      },
+      timestamp: pino.stdTimeFunctions.isoTime,
     },
-    timestamp: pino.stdTimeFunctions.isoTime,
-  },
-  pino.destination(dataLogFile),
-);
+    pino.destination(dataLogFile),
+  );
 
-// Log file locations for reference
-appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
+  return _dataLogger;
+}
+
+export const dataLogger = new Proxy({} as pino.Logger, {
+  get(_target, prop): unknown {
+    const logger = getDataLogger();
+    const value = logger[prop as keyof pino.Logger];
+    if (typeof value === 'function') {
+      return value.bind(logger);
+    }
+    return value;
+  },
+});
 
 // Note: If validation fails immediately, you may see "Fatal error: sonic boom is not ready yet"
 // This is a harmless internal pino message - the error was already written via errorLogger
@@ -201,14 +243,26 @@ appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
  * Uses fs.openSync to avoid "sonic boom is not ready yet" error
  * See: https://github.com/pinojs/pino/issues/871
  */
-const errorLogFd = fs.openSync(appLogFile, 'a');
-const errorLogger = pino(
-  {
-    name: buildLoggerName(),
-    level: 'error',
-  },
-  pino.destination({ fd: errorLogFd, sync: true }),
-);
+let _errorLogger: pino.Logger | undefined;
+
+function getErrorLogger(): pino.Logger {
+  if (_errorLogger) {
+    return _errorLogger;
+  }
+
+  const appLogFile = path.join(getLogsDir(), `poll-${dateStamp}.log`);
+  const errorLogFd = fs.openSync(appLogFile, 'a');
+
+  _errorLogger = pino(
+    {
+      name: buildLoggerName(),
+      level: 'error',
+    },
+    pino.destination({ fd: errorLogFd, sync: true }),
+  );
+
+  return _errorLogger;
+}
 
 /**
  * Log a fatal error and exit the process immediately.
@@ -247,7 +301,7 @@ const errorLogger = pino(
  */
 export function logErrorAndExit(errorObj: unknown, message: string): never {
   // Log to file synchronously
-  errorLogger.error({ error: errorObj }, message);
+  getErrorLogger().error({ error: errorObj }, message);
 
   // Also write to stderr for immediate visibility
   process.stderr.write(`[ERROR] ${message}\n`);

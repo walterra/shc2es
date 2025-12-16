@@ -1,44 +1,34 @@
 import * as fs from 'fs';
 import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
 import { BoschSmartHomeBridgeBuilder, BshbUtils } from 'bosch-smart-home-bridge';
-import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from './config';
+import { getCertsDir, getCertFile, getKeyFile, getConfigPaths } from './config';
 import { appLogger, dataLogger, BshbLogger, logErrorAndExit } from './logger';
 import { validatePollConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
-
-// Import PollConfig type from validation
-import type { PollConfig } from './validation';
-
-// Validate configuration
-const configResult = validatePollConfig();
-if (configResult.isErr()) {
-  logErrorAndExit(
-    configResult.error,
-    `Configuration validation failed: ${configResult.error.message}`,
-  );
-}
-const config: PollConfig = configResult.value;
 
 /**
  * Load existing client certificate or generate a new one
  * @returns Certificate and private key pair
  */
 export function loadOrGenerateCertificate(): { cert: string; key: string } {
-  if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
-    appLogger.debug({ certFile: CERT_FILE }, 'Loading existing certificate');
+  const certFile = getCertFile();
+  const keyFile = getKeyFile();
+
+  if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+    appLogger.debug({ certFile }, 'Loading existing certificate');
     return {
-      cert: fs.readFileSync(CERT_FILE, 'utf-8'),
-      key: fs.readFileSync(KEY_FILE, 'utf-8'),
+      cert: fs.readFileSync(certFile, 'utf-8'),
+      key: fs.readFileSync(keyFile, 'utf-8'),
     };
   }
 
   appLogger.info('Generating new client certificate');
   const generated = BshbUtils.generateClientCertificate();
 
-  // CERTS_DIR is already created by ensureConfigDirs()
-  fs.writeFileSync(CERT_FILE, generated.cert);
-  fs.writeFileSync(KEY_FILE, generated.private);
-  appLogger.info({ certPath: CERTS_DIR }, 'Certificate saved');
+  // Certs directory is already created by ensureConfigDirs()
+  fs.writeFileSync(certFile, generated.cert);
+  fs.writeFileSync(keyFile, generated.private);
+  appLogger.info({ certPath: getCertsDir() }, 'Certificate saved');
 
   return { cert: generated.cert, key: generated.private };
 }
@@ -216,6 +206,16 @@ export function isPairingButtonError(message: string): boolean {
  * Initializes connection, pairs if needed, and starts long polling loop
  */
 export function main(): void {
+  // Validate configuration (env already loaded by cli.ts)
+  const configResult = validatePollConfig();
+  if (configResult.isErr()) {
+    logErrorAndExit(
+      configResult.error,
+      `Configuration validation failed: ${configResult.error.message}`,
+    );
+  }
+  const config = configResult.value;
+
   appLogger.info('Bosch Smart Home Long Polling Client');
   appLogger.info(getConfigPaths(), 'Configuration');
 
