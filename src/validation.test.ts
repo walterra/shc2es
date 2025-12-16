@@ -4,7 +4,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
+import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
+import type { LogLevel } from './validation';
 import {
   validateRequired,
   validateUrl,
@@ -15,9 +16,8 @@ import {
   validateIngestConfig,
   validateRegistryConfig,
   validateDashboardConfig,
-  LogLevel,
-} from '../../src/validation';
-import { ValidationError } from '../../src/types/errors';
+} from './validation';
+import { ValidationError } from './types/errors';
 
 describe('validation module', () => {
   let tempDir: string;

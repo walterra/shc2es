@@ -4,7 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
+import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
 
 // Mock the config module's paths before importing
 let tempDir: string;
@@ -36,7 +36,7 @@ describe('config module', () => {
         const cwdDir = createTempDir('cwd-test-');
         process.cwd = jest.fn(() => cwdDir);
 
-        const config = require('../../src/config');
+        const config = require('./config');
 
         // Directories shouldn't exist yet
         expect(fs.existsSync(config.USER_CONFIG_DIR)).toBe(false);
@@ -69,7 +69,7 @@ describe('config module', () => {
         const cwdDir = createTempDir('cwd-test-');
         process.cwd = jest.fn(() => cwdDir);
 
-        const config = require('../../src/config');
+        const config = require('./config');
 
         // Call twice to test idempotency
         expect(() => config.ensureConfigDirs()).not.toThrow();
@@ -100,7 +100,7 @@ describe('config module', () => {
         process.cwd = jest.fn(() => testDir);
         process.env.HOME = testDir;
 
-        const config = require('../../src/config');
+        const config = require('./config');
         const envFile = config.findEnvFile();
 
         expect(envFile).toBe(localEnvPath);
@@ -129,7 +129,7 @@ describe('config module', () => {
         const cwdDir = createTempDir('cwd-test-');
         process.cwd = jest.fn(() => cwdDir);
 
-        const config = require('../../src/config');
+        const config = require('./config');
         const envFile = config.findEnvFile();
 
         // Should return the global env file since local doesn't exist
@@ -155,7 +155,7 @@ describe('config module', () => {
         const cwdDir = createTempDir('cwd-test-');
         process.cwd = jest.fn(() => cwdDir);
 
-        const config = require('../../src/config');
+        const config = require('./config');
         const envFile = config.findEnvFile();
 
         // Should return null when no env files exist
@@ -183,7 +183,7 @@ describe('config module', () => {
         const cwdDir = createTempDir('cwd-test-');
         process.cwd = jest.fn(() => cwdDir);
 
-        const config = require('../../src/config');
+        const config = require('./config');
         const paths = config.getConfigPaths();
 
         expect(paths).toHaveProperty('configDir');
@@ -220,7 +220,7 @@ describe('config module', () => {
         delete process.env.ANOTHER_VAR;
 
         // Require config which auto-loads env
-        require('../../src/config');
+        require('./config');
 
         expect(process.env.TEST_VAR).toBe('test_value');
         expect(process.env.ANOTHER_VAR).toBe('another_value');
@@ -240,7 +240,7 @@ describe('config module', () => {
 
         // Require config which auto-loads env
         // Should not throw when no .env exists
-        expect(() => require('../../src/config')).not.toThrow();
+        expect(() => require('./config')).not.toThrow();
 
         process.cwd = originalCwd;
         cleanupTempDir(testDir);
@@ -263,7 +263,7 @@ describe('config module', () => {
         process.argv = ['node', '/path/to/ts-node', 'script.ts'];
 
         // Require config which auto-loads env
-        require('../../src/config');
+        require('./config');
 
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Loaded config from:'));
 

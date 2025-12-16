@@ -2,7 +2,7 @@
  * Unit tests for logger module
  */
 
-import { createTempDir, cleanupTempDir, suppressConsole } from '../utils/test-helpers';
+import { createTempDir, cleanupTempDir, suppressConsole } from '../tests/utils/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -40,13 +40,13 @@ describe('logger module', () => {
         fs.mkdirSync(dataDir, { recursive: true });
 
         // Mock config to use temp directory
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         const logger = createLogger('test');
 
         expect(logger).toBeDefined();
@@ -66,13 +66,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         const logger = createLogger('test');
 
         expect(logger.level).toBe('error');
@@ -86,13 +86,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         createLogger('myapp');
 
         const dateStamp = new Date().toISOString().split('T')[0];
@@ -113,13 +113,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { BshbLogger } = require('../../src/logger');
+        const { BshbLogger } = require('./logger');
         const logger = new BshbLogger();
 
         expect(logger.fine).toBeDefined();
@@ -144,13 +144,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { BshbLogger } = require('../../src/logger');
+        const { BshbLogger } = require('./logger');
         const logger = new BshbLogger();
 
         const testError = new Error('Test error');
@@ -166,13 +166,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { BshbLogger } = require('../../src/logger');
+        const { BshbLogger } = require('./logger');
         const logger = new BshbLogger();
 
         expect(() => logger.info('Message', { key: 'value' }, 'another param')).not.toThrow();
@@ -186,13 +186,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { BshbLogger } = require('../../src/logger');
+        const { BshbLogger } = require('./logger');
         const logger = new BshbLogger();
 
         // Test with nested arrays to trigger recursive serializeParams
@@ -220,13 +220,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { appLogger } = require('../../src/logger');
+        const { appLogger } = require('./logger');
         expect(appLogger).toBeDefined();
         expect(appLogger.info).toBeDefined();
       });
@@ -239,13 +239,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { dataLogger } = require('../../src/logger');
+        const { dataLogger } = require('./logger');
         expect(dataLogger).toBeDefined();
         expect(dataLogger.info).toBeDefined();
       });
@@ -262,13 +262,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         const logger = createLogger('test');
 
         expect(logger).toBeDefined();
@@ -286,13 +286,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         const logger = createLogger('test');
 
         // The logger should be created with the service name
@@ -310,13 +310,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger } = require('../../src/logger');
+        const { createLogger } = require('./logger');
         const logger = createLogger('test');
 
         expect(logger).toBeDefined();
@@ -334,13 +334,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { createLogger, appLogger } = require('../../src/logger');
+        const { createLogger, appLogger } = require('./logger');
 
         // Test both createLogger and appLogger with OTel enabled
         const logger = createLogger('test');
@@ -360,11 +360,9 @@ describe('logger module', () => {
 
     beforeEach(() => {
       // Mock process.exit to prevent test termination
-      exitSpy = jest
-        .spyOn(process, 'exit')
-        .mockImplementation((code?: string | number | null | undefined) => {
-          throw new Error(`process.exit called with code ${code}`);
-        });
+      exitSpy = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new Error(`process.exit called with code ${code}`);
+      });
 
       // Mock stderr.write to capture output
       stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -382,13 +380,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { logErrorAndExit } = require('../../src/logger');
+        const { logErrorAndExit } = require('./logger');
 
         const errorObj = { code: 'ERR_INVALID_CONFIG', details: 'Missing BSH_HOST' };
         const message = 'Configuration validation failed';
@@ -406,13 +404,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { logErrorAndExit } = require('../../src/logger');
+        const { logErrorAndExit } = require('./logger');
 
         const error = new Error('Fatal error occurred');
         const message = 'Application crashed';
@@ -430,13 +428,13 @@ describe('logger module', () => {
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
 
-        jest.mock('../../src/config', () => ({
+        jest.mock('./config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
           ensureConfigDirs: jest.fn(),
         }));
 
-        const { logErrorAndExit } = require('../../src/logger');
+        const { logErrorAndExit } = require('./logger');
 
         const errorObj = { type: 'FATAL' };
         const message = 'Fatal error';

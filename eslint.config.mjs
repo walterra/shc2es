@@ -10,7 +10,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: './tsconfig.eslint.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -84,6 +84,17 @@ export default tseslint.config(
     files: ['src/cli.ts'],
     rules: {
       'no-console': 'off',
+    },
+  },
+  {
+    // Test files don't need JSDoc comments and may use require() for Jest patterns
+    files: ['**/*.test.ts'],
+    rules: {
+      'jsdoc/require-jsdoc': 'off',
+      'jsdoc/require-description': 'off',
+      'jsdoc/require-param': 'off',
+      'jsdoc/require-returns': 'off',
+      '@typescript-eslint/no-require-imports': 'off', // Jest isolateModules pattern needs require()
     },
   },
   {

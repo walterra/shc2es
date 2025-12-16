@@ -4,7 +4,7 @@
  */
 
 // Mock logger before importing poll to prevent file writes
-jest.mock('../../src/logger', () => {
+jest.mock('./logger', () => {
   return {
     appLogger: {
       info: jest.fn(),
@@ -27,7 +27,7 @@ jest.mock('../../src/logger', () => {
 });
 
 // Mock config to prevent actual config loading
-jest.mock('../../src/config', () => {
+jest.mock('./config', () => {
   return {
     CERTS_DIR: '/mock/certs',
     CERT_FILE: '/mock/certs/client-cert.pem',
@@ -42,7 +42,7 @@ jest.mock('../../src/config', () => {
 });
 
 // Mock validation to prevent actual config validation
-jest.mock('../../src/validation', () => {
+jest.mock('./validation', () => {
   return {
     validatePollConfig: jest.fn(() => ({
       isErr: () => false,
@@ -58,7 +58,7 @@ jest.mock('../../src/validation', () => {
 
 // Mock bosch-smart-home-bridge using our existing mock
 jest.mock('bosch-smart-home-bridge', () => {
-  return require('../mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
+  return require('../tests/mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
 });
 
 // Disable OpenTelemetry
@@ -70,7 +70,7 @@ describe('poll module', () => {
   });
 
   describe('isTransientError', () => {
-    const { isTransientError } = require('../../src/poll');
+    const { isTransientError } = require('./poll');
 
     it('should identify TIMEOUT as transient', () => {
       expect(isTransientError('Request TIMEOUT')).toBe(true);
@@ -112,7 +112,7 @@ describe('poll module', () => {
   });
 
   describe('isPairingButtonError', () => {
-    const { isPairingButtonError } = require('../../src/poll');
+    const { isPairingButtonError } = require('./poll');
 
     it('should identify pairing button messages', () => {
       expect(isPairingButtonError('press the button on Controller II')).toBe(true);
@@ -137,7 +137,7 @@ describe('poll module', () => {
 
   describe('createBridge', () => {
     it('should create a bridge with host, cert, and key', () => {
-      const { createBridge } = require('../../src/poll');
+      const { createBridge } = require('./poll');
 
       const host = '192.168.1.100';
       const cert = 'mock-cert';
@@ -151,7 +151,7 @@ describe('poll module', () => {
     });
 
     it('should return bridge with getBshcClient method', () => {
-      const { createBridge } = require('../../src/poll');
+      const { createBridge } = require('./poll');
 
       const bridge = createBridge('192.168.1.1', 'cert', 'key');
       const client = bridge.getBshcClient();
@@ -162,8 +162,8 @@ describe('poll module', () => {
   });
 
   describe('processEvent', () => {
-    const { processEvent } = require('../../src/poll');
-    const { dataLogger, appLogger } = require('../../src/logger');
+    const { processEvent } = require('./poll');
+    const { dataLogger, appLogger } = require('./logger');
 
     beforeEach(() => {
       jest.clearAllMocks();
@@ -245,8 +245,8 @@ describe('poll module', () => {
   });
 
   describe('processEvents', () => {
-    const { processEvents } = require('../../src/poll');
-    const { dataLogger, appLogger } = require('../../src/logger');
+    const { processEvents } = require('./poll');
+    const { dataLogger, appLogger } = require('./logger');
 
     beforeEach(() => {
       jest.clearAllMocks();

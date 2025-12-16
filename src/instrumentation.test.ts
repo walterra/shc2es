@@ -1,7 +1,8 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { Span, SpanStatusCode } from '@opentelemetry/api';
-import * as instrumentation from '../../src/instrumentation';
-import { withSpan, SpanAttributes } from '../../src/instrumentation';
+import type { Span } from '@opentelemetry/api';
+import { SpanStatusCode } from '@opentelemetry/api';
+import * as instrumentation from './instrumentation';
+import { withSpan, SpanAttributes } from './instrumentation';
 
 // Create mock span
 const mockSpan = {

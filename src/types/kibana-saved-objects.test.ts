@@ -1,14 +1,12 @@
-import {
+import type {
   SavedObject,
   DashboardAttributes,
   IndexPatternAttributes,
   ExportMetadata,
   ImportResponse,
   FindResponse,
-  isExportMetadata,
-  isDashboard,
-  isIndexPattern,
-} from '../../src/types/kibana-saved-objects';
+} from './kibana-saved-objects';
+import { isExportMetadata, isDashboard, isIndexPattern } from './kibana-saved-objects';
 
 describe('Kibana Saved Objects Types', () => {
   describe('Type Guards', () => {

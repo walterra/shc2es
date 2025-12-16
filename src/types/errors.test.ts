@@ -2,12 +2,7 @@
  * Unit tests for error types
  */
 
-import {
-  SHC2ESError,
-  ValidationError,
-  ConfigError,
-  FileSystemError,
-} from '../../../src/types/errors';
+import { SHC2ESError, ValidationError, ConfigError, FileSystemError } from './errors';
 
 describe('Error types', () => {
   describe('SHC2ESError', () => {
@@ -64,7 +59,7 @@ describe('Error types', () => {
       const error = new ValidationError('Validation failed', 'TEST_VAR', 'INVALID_VALUE', cause);
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toBe('Root cause');
+      expect(error.cause!.message).toBe('Root cause');
     });
 
     it('should be catchable as Error', () => {
@@ -124,7 +119,7 @@ describe('Error types', () => {
       );
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toContain('ENOENT');
+      expect(error.cause!.message).toContain('ENOENT');
     });
 
     it('should be catchable as ConfigError', () => {
@@ -176,7 +171,7 @@ describe('Error types', () => {
       );
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toContain('EACCES');
+      expect(error.cause!.message).toContain('EACCES');
     });
 
     it('should be catchable as FileSystemError', () => {
@@ -253,9 +248,7 @@ describe('Error types', () => {
 
       expect(configError.cause).toBe(fsCause);
       expect((configError.cause as FileSystemError).cause).toBe(rootCause);
-      expect(((configError.cause as FileSystemError).cause as Error).message).toBe(
-        'Network timeout',
-      );
+      expect((configError.cause as FileSystemError).cause!.message).toBe('Network timeout');
     });
   });
 

@@ -173,7 +173,6 @@
 ### Misc
 
 - evaluate vitest vs jest
-- move unit tests next to code files
 - split out functions into separate files, ideally one function per file
 
 ## Notes

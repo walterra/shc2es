@@ -3,9 +3,9 @@
  *
  * These tests verify the actual transformation logic used during data ingestion.
  */
-import { SmartHomeEvent } from '../../src/types/smart-home-events';
-import { extractMetric, generateDocId } from '../../src/transforms';
-import * as fixtures from '../fixtures/smart-home-events.json';
+import type { SmartHomeEvent } from './types/smart-home-events';
+import { extractMetric, generateDocId } from './transforms';
+import * as fixtures from '../tests/fixtures/smart-home-events.json';
 
 describe('Ingest transformation functions', () => {
   describe('extractMetric', () => {
