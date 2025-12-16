@@ -4,121 +4,153 @@ import * as os from 'os';
 import * as dotenv from 'dotenv';
 
 /**
- * User configuration directory.
+ * Get user configuration directory path.
  *
  * All application data, logs, and configuration files are stored under this directory
  * to keep user data separate from the application installation.
  *
+ * @returns Path to user config directory
+ *
  * @example
  * ```typescript
- * import { USER_CONFIG_DIR } from './config';
- * console.log(USER_CONFIG_DIR); // "/Users/username/.shc2es"
+ * import { getUserConfigDir } from './config';
+ * console.log(getUserConfigDir()); // "/Users/username/.shc2es"
  * ```
  */
-export const USER_CONFIG_DIR = path.join(os.homedir(), '.shc2es');
+export function getUserConfigDir(): string {
+  return path.join(os.homedir(), '.shc2es');
+}
 
 /**
- * Directory for TLS certificates used to authenticate with the Smart Home Controller.
+ * Get certificates directory path.
  *
  * Contains client certificate and private key files generated during initial pairing.
  *
+ * @returns Path to certificates directory
+ *
  * @example
  * ```typescript
- * import { CERTS_DIR } from './config';
- * console.log(CERTS_DIR); // "/Users/username/.shc2es/certs"
+ * import { getCertsDir } from './config';
+ * console.log(getCertsDir()); // "/Users/username/.shc2es/certs"
  * ```
  */
-export const CERTS_DIR = path.join(USER_CONFIG_DIR, 'certs');
+export function getCertsDir(): string {
+  return path.join(getUserConfigDir(), 'certs');
+}
 
 /**
- * Directory for data files (NDJSON event logs and device registry).
+ * Get data directory path.
  *
  * Contains:
  * - `events-YYYY-MM-DD.ndjson` - Daily smart home event logs
  * - `device-registry.json` - Device and room metadata for enrichment
  *
+ * @returns Path to data directory
+ *
  * @example
  * ```typescript
- * import { DATA_DIR } from './config';
- * console.log(DATA_DIR); // "/Users/username/.shc2es/data"
+ * import { getDataDir } from './config';
+ * console.log(getDataDir()); // "/Users/username/.shc2es/data"
  * ```
  */
-export const DATA_DIR = path.join(USER_CONFIG_DIR, 'data');
+export function getDataDir(): string {
+  return path.join(getUserConfigDir(), 'data');
+}
 
 /**
- * Directory for application logs (debug/error logs).
+ * Get logs directory path.
  *
  * Contains:
  * - `poll-YYYY-MM-DD.log` - Application debug logs in JSON format
  * - Other script-specific logs (e.g., `ingest-YYYY-MM-DD.log`)
  *
+ * @returns Path to logs directory
+ *
  * @example
  * ```typescript
- * import { LOGS_DIR } from './config';
- * console.log(LOGS_DIR); // "/Users/username/.shc2es/logs"
+ * import { getLogsDir } from './config';
+ * console.log(getLogsDir()); // "/Users/username/.shc2es/logs"
  * ```
  */
-export const LOGS_DIR = path.join(USER_CONFIG_DIR, 'logs');
+export function getLogsDir(): string {
+  return path.join(getUserConfigDir(), 'logs');
+}
 
 /**
- * Path to the client certificate file used for Smart Home Controller authentication.
+ * Get client certificate file path.
  *
  * Generated during initial pairing with the controller. Required for all API requests.
  *
+ * @returns Path to client certificate file
+ *
  * @example
  * ```typescript
- * import { CERT_FILE } from './config';
+ * import { getCertFile } from './config';
  * import { readFileSync } from 'fs';
- * const cert = readFileSync(CERT_FILE, 'utf-8');
+ * const cert = readFileSync(getCertFile(), 'utf-8');
  * ```
  */
-export const CERT_FILE = path.join(CERTS_DIR, 'client-cert.pem');
+export function getCertFile(): string {
+  return path.join(getCertsDir(), 'client-cert.pem');
+}
 
 /**
- * Path to the private key file used for Smart Home Controller authentication.
+ * Get private key file path.
  *
  * Generated during initial pairing with the controller. Must be kept secure.
  *
+ * @returns Path to private key file
+ *
  * @example
  * ```typescript
- * import { KEY_FILE } from './config';
+ * import { getKeyFile } from './config';
  * import { readFileSync } from 'fs';
- * const key = readFileSync(KEY_FILE, 'utf-8');
+ * const key = readFileSync(getKeyFile(), 'utf-8');
  * ```
  */
-export const KEY_FILE = path.join(CERTS_DIR, 'client-key.pem');
+export function getKeyFile(): string {
+  return path.join(getCertsDir(), 'client-key.pem');
+}
 
 /**
- * Path to the user environment configuration file.
+ * Get user environment configuration file path.
  *
  * Contains environment variables like BSH_HOST, ES_NODE, credentials, etc.
  * This is the primary configuration file for production use.
  *
+ * @returns Path to user .env file
+ *
  * @example
  * ```typescript
- * import { ENV_FILE } from './config';
- * console.log(ENV_FILE); // "/Users/username/.shc2es/.env"
+ * import { getEnvFile } from './config';
+ * console.log(getEnvFile()); // "/Users/username/.shc2es/.env"
  * ```
  */
-export const ENV_FILE = path.join(USER_CONFIG_DIR, '.env');
-
-// Check if running in development (ts-node or local)
-const isDev =
-  process.argv[1]?.includes('ts-node') ?? process.argv[1]?.includes('node_modules') ?? false;
+export function getEnvFile(): string {
+  return path.join(getUserConfigDir(), '.env');
+}
 
 /**
- * Path to the local development environment configuration file.
+ * Get local development environment configuration file path.
  *
  * Used during development to override user configuration. Takes precedence over
  * the user's ~/.shc2es/.env file when it exists.
  *
+ * @returns Path to local .env file
+ *
  * @example
  * ```typescript
- * import { LOCAL_ENV_FILE } from './config';
- * console.log(LOCAL_ENV_FILE); // "/path/to/project/.env"
+ * import { getLocalEnvFile } from './config';
+ * console.log(getLocalEnvFile()); // "/path/to/project/.env"
  * ```
  */
-export const LOCAL_ENV_FILE = path.join(process.cwd(), '.env');
+export function getLocalEnvFile(): string {
+  return path.join(process.cwd(), '.env');
+}
+
+// Check if running in development (ts-node or local)
+const isDev =
+  process.argv[1]?.includes('ts-node') ?? process.argv[1]?.includes('node_modules') ?? false;
 
 /**
  * Ensure all configuration directories exist.
@@ -135,11 +167,11 @@ export const LOCAL_ENV_FILE = path.join(process.cwd(), '.env');
  *
  * // Create all config directories before writing files
  * ensureConfigDirs();
- * // Now safe to write to DATA_DIR, LOGS_DIR, etc.
+ * // Now safe to write to getDataDir(), getLogsDir(), etc.
  * ```
  */
 export function ensureConfigDirs(): void {
-  for (const dir of [USER_CONFIG_DIR, CERTS_DIR, DATA_DIR, LOGS_DIR]) {
+  for (const dir of [getUserConfigDir(), getCertsDir(), getDataDir(), getLogsDir()]) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -169,11 +201,13 @@ export function ensureConfigDirs(): void {
  */
 export function findEnvFile(): string | null {
   // In dev mode or if local .env exists, prefer it
-  if (fs.existsSync(LOCAL_ENV_FILE)) {
-    return LOCAL_ENV_FILE;
+  const localEnvFile = getLocalEnvFile();
+  if (fs.existsSync(localEnvFile)) {
+    return localEnvFile;
   }
-  if (fs.existsSync(ENV_FILE)) {
-    return ENV_FILE;
+  const envFile = getEnvFile();
+  if (fs.existsSync(envFile)) {
+    return envFile;
   }
   return null;
 }
@@ -181,9 +215,9 @@ export function findEnvFile(): string | null {
 /**
  * Load environment variables from the appropriate .env file.
  *
- * This function is called automatically when this module is imported, so environment
- * variables are available to all modules that import from config. It uses dotenv to
- * parse the .env file and add variables to process.env.
+ * This function should be called early in application startup (by cli.ts)
+ * to ensure environment variables are available. It uses dotenv to parse
+ * the .env file and add variables to process.env.
  *
  * **Side effects:**
  * - Modifies process.env with variables from .env file
@@ -191,11 +225,9 @@ export function findEnvFile(): string | null {
  *
  * @example
  * ```typescript
- * // Typically not called directly - runs automatically on import
- * import './config'; // loadEnv() runs here
- *
- * // But can be called manually if needed
  * import { loadEnv } from './config';
+ *
+ * // Call at application startup (done by cli.ts)
  * loadEnv();
  * console.log(process.env.BSH_HOST);
  * ```
@@ -212,10 +244,6 @@ export function loadEnv(): void {
     }
   }
 }
-
-// Auto-load env vars when this module is imported
-// This ensures env vars are available for logger.ts and other modules
-loadEnv();
 
 /**
  * Get configuration paths summary for logging and debugging.
@@ -243,10 +271,13 @@ loadEnv();
  */
 export function getConfigPaths(): Record<string, string> {
   return {
-    configDir: USER_CONFIG_DIR,
-    certsDir: CERTS_DIR,
-    dataDir: DATA_DIR,
-    logsDir: LOGS_DIR,
+    configDir: getUserConfigDir(),
+    certsDir: getCertsDir(),
+    dataDir: getDataDir(),
+    logsDir: getLogsDir(),
     envFile: findEnvFile() ?? '(not found)',
   };
 }
+
+// Note: Legacy constant exports removed
+// All code now uses functions: getUserConfigDir(), getCertsDir(), etc.

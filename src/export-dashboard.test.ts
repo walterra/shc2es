@@ -1,18 +1,16 @@
 import { readFileSync } from 'fs';
 import * as path from 'path';
-import {
+import type {
   SavedObject,
   DashboardAttributes,
   IndexPatternAttributes,
   ExportMetadata,
-  isExportMetadata,
-  isDashboard,
-  isIndexPattern,
   KibanaSavedObject,
-} from '../../src/types/kibana-saved-objects';
+} from './types/kibana-saved-objects';
+import { isExportMetadata, isDashboard, isIndexPattern } from './types/kibana-saved-objects';
 
 describe('Dashboard NDJSON Integration', () => {
-  const DASHBOARD_FILE = path.join(__dirname, '..', '..', 'dashboards', 'smart-home.ndjson');
+  const DASHBOARD_FILE = path.join(__dirname, '..', 'dashboards', 'smart-home.ndjson');
 
   let ndjsonContent: string;
   let objects: (KibanaSavedObject | ExportMetadata)[];

@@ -1,12 +1,12 @@
-import {
+import type {
   SmartHomeEvent,
   DeviceServiceDataEvent,
   DeviceEvent,
   RoomEvent,
   MessageEvent,
   ClientEvent,
-} from '../../../src/types/smart-home-events';
-import * as fixtures from '../../fixtures/smart-home-events.json';
+} from './smart-home-events';
+import * as fixtures from '../../tests/fixtures/smart-home-events.json';
 
 describe('SmartHomeEvent types', () => {
   describe('DeviceServiceDataEvent', () => {
@@ -111,7 +111,7 @@ describe('SmartHomeEvent types', () => {
 
   describe('ClientEvent', () => {
     it('should parse a client event', () => {
-      const event = fixtures.client as import('../../../src/types/smart-home-events').ClientEvent;
+      const event = fixtures.client as ClientEvent;
 
       expect(event['@type']).toBe('client');
       expect(event.id).toBe('64D3FCCA-7AD5-4786-BDE6-F533EB989C92');

@@ -3,26 +3,16 @@ import * as path from 'path';
 import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
 import type { BshcClient } from 'bosch-smart-home-bridge/dist/api/bshc-client';
 import { firstValueFrom } from 'rxjs';
-import { CERT_FILE, KEY_FILE, DATA_DIR } from './config';
+import { getCertFile, getKeyFile, getDataDir } from './config';
 import { createLogger, logErrorAndExit } from './logger';
 import { validateRegistryConfig } from './validation';
 import { withSpan } from './instrumentation';
 
 const log = createLogger('registry');
 
-// Validate configuration early
-const configResult = validateRegistryConfig();
-if (configResult.isErr()) {
-  logErrorAndExit(
-    configResult.error,
-    `Configuration validation failed: ${configResult.error.message}`,
-  );
+function getRegistryFile(): string {
+  return path.join(getDataDir(), 'device-registry.json');
 }
-// TypeScript now knows config is Ok
-const config = configResult.value;
-
-const CONTROLLER_HOST = config.bshHost;
-const REGISTRY_FILE = path.join(DATA_DIR, 'device-registry.json');
 
 interface BshRoom {
   id: string;
@@ -44,10 +34,13 @@ interface DeviceRegistry {
 }
 
 function loadCertificate(): { cert: string; key: string } {
-  if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
+  const certFile = getCertFile();
+  const keyFile = getKeyFile();
+
+  if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     return {
-      cert: fs.readFileSync(CERT_FILE, 'utf-8'),
-      key: fs.readFileSync(KEY_FILE, 'utf-8'),
+      cert: fs.readFileSync(certFile, 'utf-8'),
+      key: fs.readFileSync(keyFile, 'utf-8'),
     };
   }
   throw new Error('Certificate not found. Run yarn poll first to generate certificates.');
@@ -142,8 +135,9 @@ function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegist
  * @param registry - Registry data to save
  */
 function saveRegistry(registry: DeviceRegistry): void {
-  fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-  log.info({ registryFile: REGISTRY_FILE }, 'Registry saved');
+  const registryFile = getRegistryFile();
+  fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2));
+  log.info({ registryFile }, 'Registry saved');
 }
 
 /**
@@ -151,12 +145,22 @@ function saveRegistry(registry: DeviceRegistry): void {
  * @returns Promise that resolves when registry is saved
  */
 export async function main(): Promise<void> {
+  // Validate configuration (env already loaded by cli.ts)
+  const configResult = validateRegistryConfig();
+  if (configResult.isErr()) {
+    logErrorAndExit(
+      configResult.error,
+      `Configuration validation failed: ${configResult.error.message}`,
+    );
+  }
+  const config = configResult.value;
+
   log.info('Fetching device and room registry from Bosch Smart Home Controller');
 
   const { cert, key } = loadCertificate();
 
   const bshb = BoschSmartHomeBridgeBuilder.builder()
-    .withHost(CONTROLLER_HOST)
+    .withHost(config.bshHost)
     .withClientCert(cert)
     .withClientPrivateKey(key)
     .build();

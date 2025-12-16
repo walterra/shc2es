@@ -4,18 +4,37 @@ This directory contains the test suite for shc2es.
 
 ## Structure
 
+**Co-located tests** (following 2025 best practices):
+
+Unit tests are co-located with their source files in `src/`:
+
+```
+src/
+├── config.ts
+├── config.test.ts         # Unit tests for config.ts
+├── logger.ts
+├── logger.test.ts         # Unit tests for logger.ts
+├── validation.ts
+├── validation.test.ts     # Unit tests for validation.ts
+└── types/
+    ├── errors.ts
+    └── errors.test.ts     # Unit tests for errors.ts
+```
+
+**Shared test infrastructure** (in `tests/`):
+
 ```
 tests/
-├── unit/              # Unit tests for individual modules
-│   ├── config.test.ts
-│   ├── logger.test.ts
-│   └── poll.test.ts
 ├── mocks/            # Mock implementations of external dependencies
 │   └── bosch-smart-home-bridge.mock.ts
+├── fixtures/         # Test data fixtures
+│   └── smart-home-events.json
 ├── utils/            # Test utilities and helpers
 │   └── test-helpers.ts
 └── setup.ts          # Global test setup
 ```
+
+**Rationale**: Co-locating tests with source files reduces cognitive load, simplifies imports, and follows modern TypeScript conventions (similar to React, Angular, Vue). Tests become "part of the code" rather than living in a separate directory tree.
 
 ## Running Tests
 
@@ -48,15 +67,16 @@ The test suite enforces minimum coverage thresholds:
 
 Unit tests should:
 
+- Be co-located with the source file they test (e.g., `config.test.ts` next to `config.ts`)
 - Test a single module or function in isolation
 - Mock all external dependencies
 - Use the mocks provided in `tests/mocks/`
 - Be fast and deterministic
 
-Example:
+Example (`src/my-module.test.ts`):
 
 ```typescript
-import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
+import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
 
 describe('myModule', () => {
   let tempDir: string;
@@ -83,14 +103,28 @@ Use the utilities in `tests/utils/test-helpers.ts`:
 - `cleanupTempDir()` - Clean up temporary directory
 - `suppressConsole()` - Suppress console output during tests
 
+Import from co-located tests:
+
+```typescript
+import { createTempDir } from '../tests/utils/test-helpers';
+```
+
+Import from nested tests (e.g., `src/types/*.test.ts`):
+
+```typescript
+import { createTempDir } from '../../tests/utils/test-helpers';
+```
+
 ### Mocks
 
 #### Bosch Smart Home Bridge
 
-```typescript
-import { mockBoschSmartHomeBridge } from '../mocks/bosch-smart-home-bridge.mock';
+From co-located tests:
 
-jest.mock('bosch-smart-home-bridge', () => mockBoschSmartHomeBridge);
+```typescript
+jest.mock('bosch-smart-home-bridge', () => {
+  return require('../tests/mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
+});
 ```
 
 ## Test Environment
@@ -115,7 +149,10 @@ Tests run with:
 
 ```bash
 # Run a specific test file
-yarn jest tests/unit/config.test.ts
+yarn jest src/config.test.ts
+
+# Run all tests in a directory
+yarn jest src/types/
 
 # Run tests matching a pattern
 yarn jest --testNamePattern="should load existing certificates"

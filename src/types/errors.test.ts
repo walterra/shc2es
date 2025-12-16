@@ -2,12 +2,7 @@
  * Unit tests for error types
  */
 
-import {
-  SHC2ESError,
-  ValidationError,
-  ConfigError,
-  FileSystemError,
-} from '../../../src/types/errors';
+import { SHC2ESError, ValidationError, ConfigError, FileSystemError } from './errors';
 
 describe('Error types', () => {
   describe('SHC2ESError', () => {
@@ -64,7 +59,8 @@ describe('Error types', () => {
       const error = new ValidationError('Validation failed', 'TEST_VAR', 'INVALID_VALUE', cause);
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toBe('Root cause');
+      if (!error.cause) throw new Error('Expected cause to be defined');
+      expect(error.cause.message).toBe('Root cause');
     });
 
     it('should be catchable as Error', () => {
@@ -124,7 +120,8 @@ describe('Error types', () => {
       );
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toContain('ENOENT');
+      if (!error.cause) throw new Error('Expected cause to be defined');
+      expect(error.cause.message).toContain('ENOENT');
     });
 
     it('should be catchable as ConfigError', () => {
@@ -176,7 +173,8 @@ describe('Error types', () => {
       );
 
       expect(error.cause).toBe(cause);
-      expect((error.cause as Error).message).toContain('EACCES');
+      if (!error.cause) throw new Error('Expected cause to be defined');
+      expect(error.cause.message).toContain('EACCES');
     });
 
     it('should be catchable as FileSystemError', () => {
@@ -251,11 +249,13 @@ describe('Error types', () => {
         fsCause,
       );
 
-      expect(configError.cause).toBe(fsCause);
-      expect((configError.cause as FileSystemError).cause).toBe(rootCause);
-      expect(((configError.cause as FileSystemError).cause as Error).message).toBe(
-        'Network timeout',
-      );
+      const fsCauseActual = configError.cause as FileSystemError;
+      const rootCauseActual = fsCauseActual.cause;
+
+      expect(fsCauseActual).toBe(fsCause);
+      expect(rootCauseActual).toBe(rootCause);
+      if (!rootCauseActual) throw new Error('Expected root cause to be defined');
+      expect(rootCauseActual.message).toBe('Network timeout');
     });
   });
 

@@ -15,6 +15,7 @@ if (!noOtel) {
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { loadEnv } from './config';
 
 const COMMANDS: Record<string, { description: string; module: string; usage?: string }> = {
   poll: {
@@ -96,6 +97,9 @@ async function main(): Promise<void> {
     console.error(`Run 'shc2es --help' for usage information.`);
     process.exit(1);
   }
+
+  // Load environment variables before executing any command
+  loadEnv();
 
   // Remove the command and --no-otel from argv so submodules see correct args
   const subArgs = args.filter((arg) => arg !== command && arg !== '--no-otel');
