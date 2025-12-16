@@ -1,19 +1,19 @@
-import pino from "pino";
-import * as path from "path";
-import * as fs from "fs";
-import { DATA_DIR, LOGS_DIR, ensureConfigDirs } from "./config";
+import pino from 'pino';
+import * as path from 'path';
+import * as fs from 'fs';
+import { DATA_DIR, LOGS_DIR, ensureConfigDirs } from './config';
 
 // Ensure config directories exist before creating file loggers
 ensureConfigDirs();
 
-const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
+const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 
 // Service name from OTEL_SERVICE_NAME (set per-script in package.json)
 // Falls back to 'shc2es' if not set
-const SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? "shc2es";
+const SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? 'shc2es';
 
 // Check if OTel is enabled (SDK not disabled)
-const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== "true";
+const OTEL_LOGS_ENABLED = process.env.OTEL_SDK_DISABLED !== 'true';
 
 // Build logger name - uses full service name (e.g., shc2es-poll)
 // and appends component for sub-loggers (e.g., shc2es-poll:data)
@@ -21,7 +21,7 @@ function buildLoggerName(component?: string): string {
   return component ? `${SERVICE_NAME}:${component}` : SERVICE_NAME;
 }
 
-const dateStamp = new Date().toISOString().split("T")[0] ?? "1970-01-01";
+const dateStamp = new Date().toISOString().split('T')[0] ?? '1970-01-01';
 
 /**
  * Create a script-specific logger with multiple transports.
@@ -53,13 +53,13 @@ export function createLogger(logFilePrefix: string): pino.Logger {
   const targets: pino.TransportTargetOptions[] = [
     // Console output (pretty in dev)
     {
-      target: "pino-pretty",
+      target: 'pino-pretty',
       options: { colorize: true },
       level: LOG_LEVEL,
     },
     // File output (JSON for Claude Code to parse)
     {
-      target: "pino/file",
+      target: 'pino/file',
       options: { destination: logFile },
       level: LOG_LEVEL,
     },
@@ -68,7 +68,7 @@ export function createLogger(logFilePrefix: string): pino.Logger {
   // Add OpenTelemetry transport if enabled
   if (OTEL_LOGS_ENABLED) {
     targets.push({
-      target: "pino-opentelemetry-transport",
+      target: 'pino-opentelemetry-transport',
       options: {
         // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
       },
@@ -84,7 +84,7 @@ export function createLogger(logFilePrefix: string): pino.Logger {
     },
   });
 
-  logger.info({ logFile, serviceName: SERVICE_NAME }, "Logging initialized");
+  logger.info({ logFile, serviceName: SERVICE_NAME }, 'Logging initialized');
   return logger;
 }
 
@@ -114,13 +114,13 @@ const appLogFile = path.join(LOGS_DIR, `poll-${dateStamp}.log`);
 const appLoggerTargets: pino.TransportTargetOptions[] = [
   // Console output (pretty in dev)
   {
-    target: "pino-pretty",
+    target: 'pino-pretty',
     options: { colorize: true },
     level: LOG_LEVEL,
   },
   // File output (JSON for Claude Code to parse)
   {
-    target: "pino/file",
+    target: 'pino/file',
     options: { destination: appLogFile },
     level: LOG_LEVEL,
   },
@@ -129,7 +129,7 @@ const appLoggerTargets: pino.TransportTargetOptions[] = [
 // Add OpenTelemetry transport if enabled
 if (OTEL_LOGS_ENABLED) {
   appLoggerTargets.push({
-    target: "pino-opentelemetry-transport",
+    target: 'pino-opentelemetry-transport',
     options: {
       // Uses OTEL_EXPORTER_OTLP_ENDPOINT or defaults to http://localhost:4318
     },
@@ -177,8 +177,8 @@ const dataLogFile = path.join(DATA_DIR, `events-${dateStamp}.ndjson`);
 
 export const dataLogger = pino(
   {
-    name: buildLoggerName("data"), // shc2es-poll:data
-    level: "info",
+    name: buildLoggerName('data'), // shc2es-poll:data
+    level: 'info',
     // Minimal formatting - just the event data
     formatters: {
       level: () => ({}), // Omit level from data logs
@@ -190,7 +190,7 @@ export const dataLogger = pino(
 );
 
 // Log file locations for reference
-appLogger.info({ appLogFile, dataLogFile }, "Logging initialized");
+appLogger.info({ appLogFile, dataLogFile }, 'Logging initialized');
 
 // Note: If validation fails immediately, you may see "Fatal error: sonic boom is not ready yet"
 // This is a harmless internal pino message - the error was already written via errorLogger
@@ -201,11 +201,11 @@ appLogger.info({ appLogFile, dataLogFile }, "Logging initialized");
  * Uses fs.openSync to avoid "sonic boom is not ready yet" error
  * See: https://github.com/pinojs/pino/issues/871
  */
-const errorLogFd = fs.openSync(appLogFile, "a");
+const errorLogFd = fs.openSync(appLogFile, 'a');
 const errorLogger = pino(
   {
     name: buildLoggerName(),
-    level: "error",
+    level: 'error',
   },
   pino.destination({ fd: errorLogFd, sync: true }),
 );
@@ -257,7 +257,7 @@ export function logErrorAndExit(errorObj: unknown, message: string): never {
 
 // Bridge logger for bosch-smart-home-bridge library
 // Implements the library's Logger interface and forwards to pino
-import type { Logger as BshbLoggerInterface } from "bosch-smart-home-bridge";
+import type { Logger as BshbLoggerInterface } from 'bosch-smart-home-bridge';
 
 // Serialize params, extracting Error details properly
 function serializeParams(params: unknown[]): unknown[] {
@@ -309,37 +309,22 @@ function serializeParams(params: unknown[]): unknown[] {
  */
 export class BshbLogger implements BshbLoggerInterface {
   fine(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.trace(
-      { bshb: true, params: serializeParams(optionalParams) },
-      String(message),
-    );
+    appLogger.trace({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   debug(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.debug(
-      { bshb: true, params: serializeParams(optionalParams) },
-      String(message),
-    );
+    appLogger.debug({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   info(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.info(
-      { bshb: true, params: serializeParams(optionalParams) },
-      String(message),
-    );
+    appLogger.info({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   warn(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.warn(
-      { bshb: true, params: serializeParams(optionalParams) },
-      String(message),
-    );
+    appLogger.warn({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 
   error(message?: unknown, ...optionalParams: unknown[]): void {
-    appLogger.error(
-      { bshb: true, params: serializeParams(optionalParams) },
-      String(message),
-    );
+    appLogger.error({ bshb: true, params: serializeParams(optionalParams) }, String(message));
   }
 }

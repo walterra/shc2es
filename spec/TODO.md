@@ -148,10 +148,7 @@
     - `@typescript-eslint/consistent-type-imports`: 'error'
   - Fix all violations before enforcing
 
-- **Prettier: Update to match coding style**
-  - Current: Default 2-space indent, unknown line width
-  - Required: 2-space indent ✅, 100-char line width
-  - Update `.prettierrc` or add to `package.json`
+
 
 ## Medium Priority: Features and Enhancements
 
@@ -174,7 +171,6 @@
 
 ### Logging (from existing TODO)
 
-- **Logging Consistency Audit** - Already covered above in High Priority
 - **ECS Alignment** - Align field names with [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/index.html)
 
 ## Low Priority: Documentation and Polish

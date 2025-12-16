@@ -1,16 +1,16 @@
-import * as fs from "fs";
+import * as fs from 'fs';
 import {
   BoschSmartHomeBridge,
   BoschSmartHomeBridgeBuilder,
   BshbUtils,
-} from "bosch-smart-home-bridge";
-import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from "./config";
-import { appLogger, dataLogger, BshbLogger, logErrorAndExit } from "./logger";
-import { validatePollConfig } from "./validation";
-import { withSpan, SpanAttributes } from "./instrumentation";
+} from 'bosch-smart-home-bridge';
+import { CERTS_DIR, CERT_FILE, KEY_FILE, getConfigPaths } from './config';
+import { appLogger, dataLogger, BshbLogger, logErrorAndExit } from './logger';
+import { validatePollConfig } from './validation';
+import { withSpan, SpanAttributes } from './instrumentation';
 
 // Import PollConfig type from validation
-import type { PollConfig } from "./validation";
+import type { PollConfig } from './validation';
 
 // Validate configuration
 const configResult = validatePollConfig();
@@ -28,20 +28,20 @@ const config: PollConfig = configResult.value;
  */
 export function loadOrGenerateCertificate(): { cert: string; key: string } {
   if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
-    appLogger.debug({ certFile: CERT_FILE }, "Loading existing certificate");
+    appLogger.debug({ certFile: CERT_FILE }, 'Loading existing certificate');
     return {
-      cert: fs.readFileSync(CERT_FILE, "utf-8"),
-      key: fs.readFileSync(KEY_FILE, "utf-8"),
+      cert: fs.readFileSync(CERT_FILE, 'utf-8'),
+      key: fs.readFileSync(KEY_FILE, 'utf-8'),
     };
   }
 
-  appLogger.info("Generating new client certificate");
+  appLogger.info('Generating new client certificate');
   const generated = BshbUtils.generateClientCertificate();
 
   // CERTS_DIR is already created by ensureConfigDirs()
   fs.writeFileSync(CERT_FILE, generated.cert);
   fs.writeFileSync(KEY_FILE, generated.private);
-  appLogger.info({ certPath: CERTS_DIR }, "Certificate saved");
+  appLogger.info({ certPath: CERTS_DIR }, 'Certificate saved');
 
   return { cert: generated.cert, key: generated.private };
 }
@@ -54,12 +54,11 @@ export function processEvent(event: unknown): void {
   const eventObj = event as Record<string, unknown>;
 
   withSpan(
-    "process_event",
+    'process_event',
     {
       [SpanAttributes.EVENT_TYPE]:
-        typeof eventObj["@type"] === "string" ? eventObj["@type"] : "unknown",
-      [SpanAttributes.DEVICE_ID]:
-        typeof eventObj.deviceId === "string" ? eventObj.deviceId : "",
+        typeof eventObj['@type'] === 'string' ? eventObj['@type'] : 'unknown',
+      [SpanAttributes.DEVICE_ID]: typeof eventObj.deviceId === 'string' ? eventObj.deviceId : '',
     },
     () => {
       // Log to data file (NDJSON)
@@ -67,10 +66,10 @@ export function processEvent(event: unknown): void {
       // Also log summary to app logger
       appLogger.debug(
         {
-          eventType: eventObj["@type"],
+          eventType: eventObj['@type'],
           deviceId: eventObj.deviceId,
         },
-        "Event received",
+        'Event received',
       );
     },
   );
@@ -83,16 +82,12 @@ export function processEvent(event: unknown): void {
 export function processEvents(events: unknown[]): void {
   if (events.length === 0) return;
 
-  withSpan(
-    "process_events",
-    { [SpanAttributes.EVENT_COUNT]: events.length },
-    () => {
-      for (const event of events) {
-        processEvent(event);
-      }
-      appLogger.info({ count: events.length }, "Events processed");
-    },
-  );
+  withSpan('process_events', { [SpanAttributes.EVENT_COUNT]: events.length }, () => {
+    for (const event of events) {
+      processEvent(event);
+    }
+    appLogger.info({ count: events.length }, 'Events processed');
+  });
 }
 
 /**
@@ -103,7 +98,7 @@ export function processEvents(events: unknown[]): void {
 function handleTransientError(error: unknown, retryCallback: () => void): void {
   const message = error instanceof Error ? error.message : String(error);
   appLogger.error({ err: message }, `Long polling error: ${message}`);
-  appLogger.info("Reconnecting in 5 seconds");
+  appLogger.info('Reconnecting in 5 seconds');
   setTimeout(retryCallback, 5000);
 }
 
@@ -114,7 +109,7 @@ function handleTransientError(error: unknown, retryCallback: () => void): void {
  * @param bshb - Bridge instance for reconnection
  */
 function handlePollingLoop(
-  client: ReturnType<BoschSmartHomeBridge["getBshcClient"]>,
+  client: ReturnType<BoschSmartHomeBridge['getBshcClient']>,
   subscriptionId: string,
   bshb: BoschSmartHomeBridge,
 ): void {
@@ -144,32 +139,26 @@ function handlePollingLoop(
  * @param bshb - Bridge instance for reconnection
  */
 function subscribeToEvents(
-  client: ReturnType<BoschSmartHomeBridge["getBshcClient"]>,
+  client: ReturnType<BoschSmartHomeBridge['getBshcClient']>,
   bshb: BoschSmartHomeBridge,
 ): void {
   client.subscribe().subscribe({
     next: (response) => {
       const subscriptionId = response.parsedResponse.result;
-      appLogger.info({ subscriptionId }, "Subscribed successfully");
-      appLogger.info("Starting long polling (Ctrl+C to stop)");
+      appLogger.info({ subscriptionId }, 'Subscribed successfully');
+      appLogger.info('Starting long polling (Ctrl+C to stop)');
       handlePollingLoop(client, subscriptionId, bshb);
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
 
       if (isTransientError(message)) {
-        appLogger.error(
-          { err: message },
-          `Subscription error (transient): ${message}`,
-        );
+        appLogger.error({ err: message }, `Subscription error (transient): ${message}`);
         handleTransientError(err, () => {
           startPolling(bshb);
         });
       } else {
-        appLogger.fatal(
-          { err: message },
-          `Subscription error (fatal): ${message}`,
-        );
+        appLogger.fatal({ err: message }, `Subscription error (fatal): ${message}`);
         process.exit(1);
       }
     },
@@ -181,7 +170,7 @@ function subscribeToEvents(
  * @param bshb - Bosch Smart Home Bridge instance
  */
 export function startPolling(bshb: BoschSmartHomeBridge): void {
-  appLogger.info("Subscribing to events");
+  appLogger.info('Subscribing to events');
   const client = bshb.getBshcClient();
   subscribeToEvents(client, bshb);
 }
@@ -193,11 +182,7 @@ export function startPolling(bshb: BoschSmartHomeBridge): void {
  * @param key - Client private key
  * @returns Configured bridge instance
  */
-export function createBridge(
-  host: string,
-  cert: string,
-  key: string,
-): BoschSmartHomeBridge {
+export function createBridge(host: string, cert: string, key: string): BoschSmartHomeBridge {
   return BoschSmartHomeBridgeBuilder.builder()
     .withHost(host)
     .withClientCert(cert)
@@ -213,10 +198,10 @@ export function createBridge(
  */
 export function isTransientError(message: string): boolean {
   return (
-    message.includes("TIMEOUT") ||
-    message.includes("ECONNRESET") ||
-    message.includes("ENOTFOUND") ||
-    message.includes("EHOSTUNREACH")
+    message.includes('TIMEOUT') ||
+    message.includes('ECONNRESET') ||
+    message.includes('ENOTFOUND') ||
+    message.includes('EHOSTUNREACH')
   );
 }
 
@@ -226,7 +211,7 @@ export function isTransientError(message: string): boolean {
  * @returns True if pairing button error
  */
 export function isPairingButtonError(message: string): boolean {
-  return message.includes("press the button");
+  return message.includes('press the button');
 }
 
 /**
@@ -234,41 +219,37 @@ export function isPairingButtonError(message: string): boolean {
  * Initializes connection, pairs if needed, and starts long polling loop
  */
 export function main(): void {
-  appLogger.info("Bosch Smart Home Long Polling Client");
-  appLogger.info(getConfigPaths(), "Configuration");
+  appLogger.info('Bosch Smart Home Long Polling Client');
+  appLogger.info(getConfigPaths(), 'Configuration');
 
   const { cert, key } = loadOrGenerateCertificate();
 
-  appLogger.info({ host: config.bshHost }, "Connecting to controller");
+  appLogger.info({ host: config.bshHost }, 'Connecting to controller');
 
   const bshb = createBridge(config.bshHost, cert, key);
 
-  appLogger.info("Checking pairing status");
+  appLogger.info('Checking pairing status');
 
-  bshb
-    .pairIfNeeded(config.bshClientName, config.bshClientId, config.bshPassword)
-    .subscribe({
-      next: () => {
-        appLogger.info("Pairing successful or already paired");
-        startPolling(bshb);
-      },
-      error: (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        if (isPairingButtonError(message)) {
-          appLogger.warn(
-            "Press the pairing button on Controller II, then run again",
-          );
-        } else {
-          appLogger.fatal({ err: message }, `Pairing error: ${message}`);
-        }
-        process.exit(1);
-      },
-    });
+  bshb.pairIfNeeded(config.bshClientName, config.bshClientId, config.bshPassword).subscribe({
+    next: () => {
+      appLogger.info('Pairing successful or already paired');
+      startPolling(bshb);
+    },
+    error: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (isPairingButtonError(message)) {
+        appLogger.warn('Press the pairing button on Controller II, then run again');
+      } else {
+        appLogger.fatal({ err: message }, `Pairing error: ${message}`);
+      }
+      process.exit(1);
+    },
+  });
 }
 
 // Handle graceful shutdown
-process.on("SIGINT", () => {
-  appLogger.info("Shutting down");
+process.on('SIGINT', () => {
+  appLogger.info('Shutting down');
   process.exit(0);
 });
 

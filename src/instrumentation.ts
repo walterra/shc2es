@@ -20,12 +20,12 @@
  * ```
  */
 
-import { trace, Span, SpanStatusCode, Attributes } from "@opentelemetry/api";
+import { trace, Span, SpanStatusCode, Attributes } from '@opentelemetry/api';
 
 // Get tracer for this service
 // Note: Service name is set via OTEL_SERVICE_NAME in package.json scripts
 // Export for testing purposes
-export const tracer = trace.getTracer("shc2es");
+export const tracer = trace.getTracer('shc2es');
 
 /**
  * Execute a function within a custom span.
@@ -60,9 +60,7 @@ export function withSpan<T>(
             return value;
           })
           .catch((error: unknown) => {
-            span.recordException(
-              error instanceof Error ? error : new Error(String(error)),
-            );
+            span.recordException(error instanceof Error ? error : new Error(String(error)));
             span.setStatus({ code: SpanStatusCode.ERROR });
             throw error;
           })
@@ -77,9 +75,7 @@ export function withSpan<T>(
       return result;
     } catch (error) {
       // Synchronous error
-      span.recordException(
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      span.recordException(error instanceof Error ? error : new Error(String(error)));
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.end();
       throw error;
@@ -116,34 +112,34 @@ export function withSpan<T>(
  */
 export const SpanAttributes = {
   // Event attributes
-  EVENT_TYPE: "event.type",
-  EVENT_COUNT: "event.count",
+  EVENT_TYPE: 'event.type',
+  EVENT_COUNT: 'event.count',
 
   // Device attributes
-  DEVICE_ID: "device.id",
-  DEVICE_NAME: "device.name",
+  DEVICE_ID: 'device.id',
+  DEVICE_NAME: 'device.name',
 
   // Room attributes
-  ROOM_ID: "room.id",
-  ROOM_NAME: "room.name",
+  ROOM_ID: 'room.id',
+  ROOM_NAME: 'room.name',
 
   // Document attributes
-  DOC_TYPE: "doc.type",
-  DOCUMENTS_COUNT: "documents.count",
+  DOC_TYPE: 'doc.type',
+  DOCUMENTS_COUNT: 'documents.count',
 
   // Elasticsearch attributes
-  INDEX_NAME: "index.name",
+  INDEX_NAME: 'index.name',
 
   // File attributes
-  FILE_PATH: "file.path",
+  FILE_PATH: 'file.path',
 
   // Dashboard attributes
-  DASHBOARD_ID: "dashboard.id",
-  DASHBOARD_NAME: "dashboard.name",
-  OBJECTS_COUNT: "objects.count",
+  DASHBOARD_ID: 'dashboard.id',
+  DASHBOARD_NAME: 'dashboard.name',
+  OBJECTS_COUNT: 'objects.count',
 
   // Generic attributes
-  OPERATION: "operation",
-  ERROR: "error",
-  ERROR_TYPE: "error.type",
+  OPERATION: 'operation',
+  ERROR: 'error',
+  ERROR_TYPE: 'error.type',
 } as const;

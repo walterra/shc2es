@@ -12,7 +12,7 @@ describe('logger module', () => {
   beforeEach(() => {
     suppressConsole();
     tempDir = createTempDir('logger-test-');
-    
+
     // Mock config paths
     process.env.HOME = tempDir;
   });
@@ -20,11 +20,11 @@ describe('logger module', () => {
   afterEach(async () => {
     // Reset modules first to stop any ongoing operations
     jest.resetModules();
-    
+
     // Wait for async file operations to complete
     // Pino uses worker threads that may still be writing
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     // Now clean up temp directory
     cleanupTempDir(tempDir);
   });
@@ -34,11 +34,11 @@ describe('logger module', () => {
       jest.isolateModules(() => {
         const logsDir = path.join(tempDir, 'logs');
         const dataDir = path.join(tempDir, 'data');
-        
+
         // Create directories before mocking
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         // Mock config to use temp directory
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
@@ -60,12 +60,12 @@ describe('logger module', () => {
     it('should respect LOG_LEVEL environment variable', () => {
       jest.isolateModules(() => {
         process.env.LOG_LEVEL = 'error';
-        
+
         const logsDir = path.join(tempDir, 'logs');
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -85,7 +85,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -97,7 +97,7 @@ describe('logger module', () => {
 
         const dateStamp = new Date().toISOString().split('T')[0];
         const expectedLogFile = path.join(logsDir, `myapp-${dateStamp}.log`);
-        
+
         // Log file is created lazily, so we need to log something
         // In practice, the file may not exist until first log
         expect(logsDir).toBeDefined();
@@ -112,7 +112,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -143,7 +143,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -154,7 +154,7 @@ describe('logger module', () => {
         const logger = new BshbLogger();
 
         const testError = new Error('Test error');
-        
+
         expect(() => logger.error('Error occurred', testError)).not.toThrow();
       });
     });
@@ -165,7 +165,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -187,7 +187,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -206,7 +206,7 @@ describe('logger module', () => {
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -224,12 +224,12 @@ describe('logger module', () => {
     it('should disable OTel when OTEL_SDK_DISABLED is true', () => {
       jest.isolateModules(() => {
         process.env.OTEL_SDK_DISABLED = 'true';
-        
+
         const logsDir = path.join(tempDir, 'logs');
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,
@@ -248,12 +248,12 @@ describe('logger module', () => {
     it('should use OTEL_SERVICE_NAME for logger naming', () => {
       jest.isolateModules(() => {
         process.env.OTEL_SERVICE_NAME = 'custom-service';
-        
+
         const logsDir = path.join(tempDir, 'logs');
         const dataDir = path.join(tempDir, 'data');
         fs.mkdirSync(logsDir, { recursive: true });
         fs.mkdirSync(dataDir, { recursive: true });
-        
+
         jest.mock('../../src/config', () => ({
           LOGS_DIR: logsDir,
           DATA_DIR: dataDir,

@@ -1,7 +1,7 @@
-import { existsSync } from "fs";
-import { Result, ok, err } from "neverthrow";
-import { findEnvFile } from "./config";
-import { ValidationError } from "./types/errors";
+import { existsSync } from 'fs';
+import { Result, ok, err } from 'neverthrow';
+import { findEnvFile } from './config';
+import { ValidationError } from './types/errors';
 
 /**
  * Configuration validation utilities
@@ -18,7 +18,7 @@ function getEnvFileHint(): string {
   if (envFile) {
     return `Set it in ${envFile}`;
   }
-  return "Set it in ~/.shc2es/.env or create a local .env file";
+  return 'Set it in ~/.shc2es/.env or create a local .env file';
 }
 
 /**
@@ -42,13 +42,9 @@ export function validateRequired(
   name: string,
   value: string | undefined,
 ): Result<string, ValidationError> {
-  if (!value || value.trim() === "") {
+  if (!value || value.trim() === '') {
     return err(
-      new ValidationError(
-        `${name} is required. ${getEnvFileHint()}`,
-        name,
-        "MISSING_REQUIRED",
-      ),
+      new ValidationError(`${name} is required. ${getEnvFileHint()}`, name, 'MISSING_REQUIRED'),
     );
   }
   return ok(value);
@@ -79,13 +75,13 @@ export function validateUrl(
   value: string | undefined,
   options: { required: boolean } = { required: true },
 ): Result<string | undefined, ValidationError> {
-  if (!value || value.trim() === "") {
+  if (!value || value.trim() === '') {
     if (options.required) {
       return err(
         new ValidationError(
           `${name} is required and must be a valid URL (e.g., https://localhost:9200). ${getEnvFileHint()}`,
           name,
-          "MISSING_REQUIRED",
+          'MISSING_REQUIRED',
         ),
       );
     }
@@ -101,7 +97,7 @@ export function validateUrl(
       new ValidationError(
         `${name} must start with http:// or https:// (got: ${trimmed}). ${getEnvFileHint()}`,
         name,
-        "INVALID_URL_PROTOCOL",
+        'INVALID_URL_PROTOCOL',
       ),
     );
   }
@@ -114,12 +110,12 @@ export function validateUrl(
     // Note: We check the original trimmed string, not url.pathname
     // because URL parsing changes the path
     const trailingSlashRegex = /^https?:\/\/[^/]+\/$/;
-    if (trimmed.endsWith("/") && !trailingSlashRegex.exec(trimmed)) {
+    if (trimmed.endsWith('/') && !trailingSlashRegex.exec(trimmed)) {
       return err(
         new ValidationError(
           `${name} should not have a trailing slash (got: ${trimmed}). ${getEnvFileHint()}`,
           name,
-          "INVALID_URL_TRAILING_SLASH",
+          'INVALID_URL_TRAILING_SLASH',
         ),
       );
     }
@@ -130,7 +126,7 @@ export function validateUrl(
       new ValidationError(
         `${name} is not a valid URL (got: ${trimmed}). ${getEnvFileHint()}`,
         name,
-        "INVALID_URL_FORMAT",
+        'INVALID_URL_FORMAT',
         parseErr instanceof Error ? parseErr : undefined,
       ),
     );
@@ -159,14 +155,10 @@ export function validateFilePath(
   value: string | undefined,
   options: { required: boolean } = { required: false },
 ): Result<string | undefined, ValidationError> {
-  if (!value || value.trim() === "") {
+  if (!value || value.trim() === '') {
     if (options.required) {
       return err(
-        new ValidationError(
-          `${name} is required. ${getEnvFileHint()}`,
-          name,
-          "MISSING_REQUIRED",
-        ),
+        new ValidationError(`${name} is required. ${getEnvFileHint()}`, name, 'MISSING_REQUIRED'),
       );
     }
     return ok(undefined);
@@ -179,7 +171,7 @@ export function validateFilePath(
       new ValidationError(
         `${name} file not found: ${trimmed}. ${getEnvFileHint()}`,
         name,
-        "FILE_NOT_FOUND",
+        'FILE_NOT_FOUND',
       ),
     );
   }
@@ -208,17 +200,17 @@ export function validateBoolean(
   value: string | undefined,
   defaultValue = false,
 ): Result<boolean, ValidationError> {
-  if (!value || value.trim() === "") {
+  if (!value || value.trim() === '') {
     return ok(defaultValue);
   }
 
   const trimmed = value.trim().toLowerCase();
 
-  if (trimmed === "true" || trimmed === "1" || trimmed === "yes") {
+  if (trimmed === 'true' || trimmed === '1' || trimmed === 'yes') {
     return ok(true);
   }
 
-  if (trimmed === "false" || trimmed === "0" || trimmed === "no") {
+  if (trimmed === 'false' || trimmed === '0' || trimmed === 'no') {
     return ok(false);
   }
 
@@ -226,7 +218,7 @@ export function validateBoolean(
     new ValidationError(
       `${name} must be 'true' or 'false' (got: ${value}). ${getEnvFileHint()}`,
       name,
-      "INVALID_BOOLEAN",
+      'INVALID_BOOLEAN',
     ),
   );
 }
@@ -234,7 +226,7 @@ export function validateBoolean(
 /**
  * Log level type
  */
-export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 /**
  * Validate log level
@@ -253,28 +245,21 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 export function validateLogLevel(
   name: string,
   value: string | undefined,
-  defaultValue: LogLevel = "info",
+  defaultValue: LogLevel = 'info',
 ): Result<LogLevel, ValidationError> {
-  if (!value || value.trim() === "") {
+  if (!value || value.trim() === '') {
     return ok(defaultValue);
   }
 
   const trimmed = value.trim().toLowerCase();
-  const validLevels: LogLevel[] = [
-    "trace",
-    "debug",
-    "info",
-    "warn",
-    "error",
-    "fatal",
-  ];
+  const validLevels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
 
   if (!validLevels.includes(trimmed as LogLevel)) {
     return err(
       new ValidationError(
-        `${name} must be one of: ${validLevels.join(", ")} (got: ${value}). ${getEnvFileHint()}`,
+        `${name} must be one of: ${validLevels.join(', ')} (got: ${value}). ${getEnvFileHint()}`,
         name,
-        "INVALID_LOG_LEVEL",
+        'INVALID_LOG_LEVEL',
       ),
     );
   }
@@ -367,16 +352,9 @@ export interface DashboardConfig {
  * ```
  */
 export function validatePollConfig(): Result<PollConfig, ValidationError> {
-  const bshHostResult = validateRequired("BSH_HOST", process.env.BSH_HOST);
-  const bshPasswordResult = validateRequired(
-    "BSH_PASSWORD",
-    process.env.BSH_PASSWORD,
-  );
-  const logLevelResult = validateLogLevel(
-    "LOG_LEVEL",
-    process.env.LOG_LEVEL,
-    "info",
-  );
+  const bshHostResult = validateRequired('BSH_HOST', process.env.BSH_HOST);
+  const bshPasswordResult = validateRequired('BSH_PASSWORD', process.env.BSH_PASSWORD);
+  const logLevelResult = validateLogLevel('LOG_LEVEL', process.env.LOG_LEVEL, 'info');
 
   // Combine all results - fail on first error
   return bshHostResult.andThen((bshHost) =>
@@ -384,10 +362,8 @@ export function validatePollConfig(): Result<PollConfig, ValidationError> {
       logLevelResult.map((logLevel) => ({
         bshHost,
         bshPassword,
-        bshClientName:
-          process.env.BSH_CLIENT_NAME ?? "oss_bosch_smart_home_poll",
-        bshClientId:
-          process.env.BSH_CLIENT_ID ?? "oss_bosch_smart_home_poll_client",
+        bshClientName: process.env.BSH_CLIENT_NAME ?? 'oss_bosch_smart_home_poll',
+        bshClientId: process.env.BSH_CLIENT_ID ?? 'oss_bosch_smart_home_poll_client',
         logLevel,
       })),
     ),
@@ -418,27 +394,16 @@ export function validateIngestConfig(
     requireKibana?: boolean;
   } = {},
 ): Result<IngestConfig, ValidationError> {
-  const esNodeResult = validateUrl("ES_NODE", process.env.ES_NODE, {
+  const esNodeResult = validateUrl('ES_NODE', process.env.ES_NODE, {
     required: true,
   });
-  const esPasswordResult = validateRequired(
-    "ES_PASSWORD",
-    process.env.ES_PASSWORD,
-  );
-  const esCaCertResult = validateFilePath(
-    "ES_CA_CERT",
-    process.env.ES_CA_CERT,
-    {
-      required: false,
-    },
-  );
-  const esTlsVerifyResult = validateBoolean(
-    "ES_TLS_VERIFY",
-    process.env.ES_TLS_VERIFY,
-    true,
-  );
+  const esPasswordResult = validateRequired('ES_PASSWORD', process.env.ES_PASSWORD);
+  const esCaCertResult = validateFilePath('ES_CA_CERT', process.env.ES_CA_CERT, {
+    required: false,
+  });
+  const esTlsVerifyResult = validateBoolean('ES_TLS_VERIFY', process.env.ES_TLS_VERIFY, true);
 
-  const kibanaNodeResult = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+  const kibanaNodeResult = validateUrl('KIBANA_NODE', process.env.KIBANA_NODE, {
     required: !!options.requireKibana,
   });
 
@@ -452,10 +417,10 @@ export function validateIngestConfig(
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             esNode: esNode!,
             esPassword,
-            esUser: process.env.ES_USER ?? "elastic",
+            esUser: process.env.ES_USER ?? 'elastic',
             esCaCert,
             esTlsVerify,
-            esIndexPrefix: process.env.ES_INDEX_PREFIX ?? "smart-home-events",
+            esIndexPrefix: process.env.ES_INDEX_PREFIX ?? 'smart-home-events',
             kibanaNode,
           })),
         ),
@@ -479,11 +444,8 @@ export function validateIngestConfig(
  * const config = result.value;
  * ```
  */
-export function validateRegistryConfig(): Result<
-  RegistryConfig,
-  ValidationError
-> {
-  return validateRequired("BSH_HOST", process.env.BSH_HOST).map((bshHost) => ({
+export function validateRegistryConfig(): Result<RegistryConfig, ValidationError> {
+  return validateRequired('BSH_HOST', process.env.BSH_HOST).map((bshHost) => ({
     bshHost,
   }));
 }
@@ -505,29 +467,15 @@ export function validateRegistryConfig(): Result<
  * );
  * ```
  */
-export function validateDashboardConfig(): Result<
-  DashboardConfig,
-  ValidationError
-> {
-  const kibanaNodeResult = validateUrl("KIBANA_NODE", process.env.KIBANA_NODE, {
+export function validateDashboardConfig(): Result<DashboardConfig, ValidationError> {
+  const kibanaNodeResult = validateUrl('KIBANA_NODE', process.env.KIBANA_NODE, {
     required: true,
   });
-  const esPasswordResult = validateRequired(
-    "ES_PASSWORD",
-    process.env.ES_PASSWORD,
-  );
-  const esCaCertResult = validateFilePath(
-    "ES_CA_CERT",
-    process.env.ES_CA_CERT,
-    {
-      required: false,
-    },
-  );
-  const esTlsVerifyResult = validateBoolean(
-    "ES_TLS_VERIFY",
-    process.env.ES_TLS_VERIFY,
-    true,
-  );
+  const esPasswordResult = validateRequired('ES_PASSWORD', process.env.ES_PASSWORD);
+  const esCaCertResult = validateFilePath('ES_CA_CERT', process.env.ES_CA_CERT, {
+    required: false,
+  });
+  const esTlsVerifyResult = validateBoolean('ES_TLS_VERIFY', process.env.ES_TLS_VERIFY, true);
 
   // Combine all results - fail on first error
   return kibanaNodeResult.andThen((kibanaNode) =>
@@ -538,7 +486,7 @@ export function validateDashboardConfig(): Result<
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           kibanaNode: kibanaNode!,
           esPassword,
-          esUser: process.env.ES_USER ?? "elastic",
+          esUser: process.env.ES_USER ?? 'elastic',
           esCaCert,
           esTlsVerify,
         })),

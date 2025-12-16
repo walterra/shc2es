@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# User data
+certs/
+data/
+logs/
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Generated files
+.changeset/
+
+# Misc
+.env
+*.log

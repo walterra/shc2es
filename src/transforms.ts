@@ -5,7 +5,7 @@
  * events from the Bosch Smart Home Controller II before indexing to Elasticsearch.
  */
 
-import { SmartHomeEvent } from "./types/smart-home-events";
+import { SmartHomeEvent } from './types/smart-home-events';
 
 /**
  * Normalized sensor reading extracted from a smart home event.
@@ -62,12 +62,12 @@ export interface Metric {
  */
 export function extractMetric(doc: SmartHomeEvent): Metric | null {
   // Use type narrowing with discriminated union
-  switch (doc["@type"]) {
-    case "DeviceServiceData": {
+  switch (doc['@type']) {
+    case 'DeviceServiceData': {
       // Extract from state object
       if (doc.state) {
         for (const [key, val] of Object.entries(doc.state)) {
-          if (key !== "@type" && typeof val === "number") {
+          if (key !== '@type' && typeof val === 'number') {
             return { name: key, value: val };
           }
         }
@@ -75,7 +75,7 @@ export function extractMetric(doc: SmartHomeEvent): Metric | null {
       return null;
     }
 
-    case "room": {
+    case 'room': {
       // Extract from extProperties (values are strings)
       if (doc.extProperties) {
         for (const [key, val] of Object.entries(doc.extProperties)) {
@@ -88,9 +88,9 @@ export function extractMetric(doc: SmartHomeEvent): Metric | null {
       return null;
     }
 
-    case "device":
-    case "message":
-    case "client":
+    case 'device':
+    case 'message':
+    case 'client':
       // These event types don't contain metrics
       return null;
 
@@ -129,40 +129,37 @@ export function generateDocId(doc: SmartHomeEvent): string {
   // Helper to ensure value is a string (not an object)
   const toString = (val: unknown): string => {
     if (val === null || val === undefined) {
-      return "unknown";
+      return 'unknown';
     }
-    if (typeof val === "string") {
+    if (typeof val === 'string') {
       return val;
     }
     // If it's an object, use JSON.stringify (shouldn't happen with proper types)
     return JSON.stringify(val);
   };
 
-  switch (doc["@type"]) {
-    case "DeviceServiceData":
+  switch (doc['@type']) {
+    case 'DeviceServiceData':
       // Format: DeviceServiceData-<deviceId>-<serviceId>-<timestamp>
-      return [
-        doc["@type"],
-        toString(doc.deviceId),
-        toString(doc.id),
-        toString(timestamp),
-      ].join("-");
+      return [doc['@type'], toString(doc.deviceId), toString(doc.id), toString(timestamp)].join(
+        '-',
+      );
 
-    case "device":
+    case 'device':
       // Format: device-<id>-<timestamp>
-      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+      return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
-    case "room":
+    case 'room':
       // Format: room-<id>-<timestamp>
-      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+      return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
-    case "message":
+    case 'message':
       // Format: message-<id>-<timestamp>
-      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+      return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
-    case "client":
+    case 'client':
       // Format: client-<id>-<timestamp>
-      return [doc["@type"], toString(doc.id), toString(timestamp)].join("-");
+      return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
     default: {
       // Exhaustiveness check
