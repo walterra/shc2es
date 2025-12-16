@@ -41,6 +41,21 @@ jest.mock('../../src/config', () => {
   };
 });
 
+// Mock validation to prevent actual config validation
+jest.mock('../../src/validation', () => {
+  return {
+    validatePollConfig: jest.fn(() => ({
+      isErr: () => false,
+      value: {
+        bshHost: '192.168.1.100',
+        bshPassword: 'test-password',
+        bshClientName: 'test-client',
+        bshClientId: 'test-id',
+      },
+    })),
+  };
+});
+
 // Mock bosch-smart-home-bridge using our existing mock
 jest.mock('bosch-smart-home-bridge', () => {
   return require('../mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;

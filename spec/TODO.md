@@ -2,32 +2,7 @@
 
 ## High Priority: Coding Style Compliance
 
-### Type Safety Improvements
-
-
-
-
-
 ### Function Length and Complexity
-
-- **Extract long functions (>20 lines) into smaller units**
-  - `src/export-dashboard.ts`: `exportDashboard()` (109 lines) - split into:
-    - `fetchDashboardExport()` - API call
-    - `parseDashboardExport()` - parse and validate NDJSON
-    - `saveDashboardFile()` - file I/O with stripped metadata
-  - `src/fetch-registry.ts`: `main()` (86 lines) - split into:
-    - `fetchDevicesAndRooms()` - API calls
-    - `buildRegistryData()` - data transformation
-    - `saveRegistry()` - file I/O
-  - `src/poll.ts`: `startPolling()` (103 lines) - split into:
-    - `subscribeToEvents()` - subscription logic
-    - `handlePollingLoop()` - recursive polling
-    - `processEventBatch()` - event processing (already uses withSpan but can be extracted)
-    - `handleTransientError()` - error retry logic
-  - `src/ingest.ts`: `watchAndTail()` (82 lines) - split into:
-    - `startFileWatcher()` - chokidar setup
-    - `startTailing()` - Tail setup
-    - `indexSingleEvent()` - event indexing
 
 - **Refactor validation functions for better readability**
   - `src/validation.ts`: `validateUrl()` (54 lines), `validateIngestConfig()` (54 lines) - consider extracting:
@@ -215,6 +190,12 @@
 - **Testing Infrastructure** - Add `@elastic/mockotlpserver` for OTel integration tests
 - **Performance Tuning Documentation** - Document production batch processing settings
 - **Docker Healthchecks** - Add healthcheck to `docker-compose.otel.yml`
+
+### Misc
+
+- evaluate vitest vs jest
+- move unit tests next to code files
+- split out functions into separate files, ideally one function per file
 
 ## Notes
 

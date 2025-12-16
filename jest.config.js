@@ -9,7 +9,6 @@ module.exports = {
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
-    'tests/unit/poll.test.ts', // TODO: Fix after refactoring poll.ts module initialization
   ],
   collectCoverageFrom: [
     'src/**/*.ts',
