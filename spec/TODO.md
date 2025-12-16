@@ -92,11 +92,6 @@
 
 ### Testing
 
-- **Increase test coverage to 70% branch coverage**
-  - Current: 70% threshold (statements, functions, lines), 60% (branches)
-  - Target: 70% branch coverage with fast-check property-based tests for edge cases
-  - Priority: Add tests for `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`
-
 - **Property-based testing with fast-check**
   - Add `fast-check` dependency
   - Test validation functions with arbitrary inputs
