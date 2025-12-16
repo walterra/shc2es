@@ -1,0 +1,52 @@
+[
+  {
+    "rootDeviceId": "64-da-a0-42-eb-0a",
+    "@type": "device",
+    "id": "hdm:ZigBee:001e5e0902b94515",
+    "deviceServiceIds": [
+      "CommunicationQuality",
+      "HumidityLevel",
+      "TemperatureLevel",
+      "BatteryLevel"
+    ],
+    "manufacturer": "BOSCH",
+    "roomId": "hz_1",
+    "deviceModel": "THB",
+    "serial": "001E5E0902B94515",
+    "profile": "GENERIC",
+    "name": "EG WZ Climate Sensor",
+    "status": "AVAILABLE",
+    "parentDeviceId": "roomClimateControl_hz_1",
+    "childDeviceIds": []
+  },
+  {
+    "rootDeviceId": "64-da-a0-42-eb-0a",
+    "@type": "device",
+    "id": "hdm:ZigBee:f0fd45fffe51fa08",
+    "deviceServiceIds": ["CommunicationQuality", "Thermostat", "BatteryLevel", "ValveTappet"],
+    "manufacturer": "BOSCH",
+    "roomId": "hz_2",
+    "deviceModel": "TRV_GEN2_DUAL",
+    "serial": "F0FD45FFFE51FA08",
+    "profile": "GENERIC",
+    "name": "UG Fitness Thermostat",
+    "status": "AVAILABLE",
+    "parentDeviceId": "roomClimateControl_hz_2",
+    "childDeviceIds": []
+  },
+  {
+    "rootDeviceId": "64-da-a0-42-eb-0a",
+    "@type": "device",
+    "id": "hdm:ZigBee:f0fd45fffe557345",
+    "deviceServiceIds": ["CommunicationQuality", "Thermostat", "BatteryLevel", "ValveTappet"],
+    "manufacturer": "BOSCH",
+    "roomId": "hz_1",
+    "deviceModel": "TRV_GEN2_DUAL",
+    "serial": "F0FD45FFFE557345",
+    "profile": "GENERIC",
+    "name": "EG WZ Thermostat 3",
+    "status": "AVAILABLE",
+    "parentDeviceId": "roomClimateControl_hz_1",
+    "childDeviceIds": []
+  }
+]

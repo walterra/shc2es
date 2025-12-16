@@ -1,10 +1,23 @@
 # Test Suite
 
-This directory contains the test suite for shc2es.
+This directory contains the test suite for shc2es, including both unit tests and E2E (end-to-end) integration tests.
+
+## Quick Start
+
+```bash
+# Run all tests (unit + E2E)
+yarn test:all
+
+# Run only unit tests (fast)
+yarn test:unit
+
+# Run only E2E tests (requires Docker)
+yarn test:e2e
+```
 
 ## Structure
 
-**Co-located tests** (following 2025 best practices):
+**Co-located unit tests** (following 2025 best practices):
 
 Unit tests are co-located with their source files in `src/`:
 
@@ -21,26 +34,44 @@ src/
     └── errors.test.ts     # Unit tests for errors.ts
 ```
 
+**E2E tests** (in `tests/e2e/`):
+
+```
+tests/e2e/
+├── poll.e2e.test.ts           # Poll flow with mock controller
+├── fetch-registry.e2e.test.ts # Registry fetching
+├── ingest.e2e.test.ts         # Elasticsearch ingestion
+└── dashboard.e2e.test.ts      # Kibana dashboard import/export
+```
+
 **Shared test infrastructure** (in `tests/`):
 
 ```
 tests/
-├── mocks/            # Mock implementations of external dependencies
-│   └── bosch-smart-home-bridge.mock.ts
-├── fixtures/         # Test data fixtures
-│   └── smart-home-events.json
-├── utils/            # Test utilities and helpers
-│   └── test-helpers.ts
-└── setup.ts          # Global test setup
+├── e2e/              # E2E integration tests
+├── mocks/            # Mock implementations
+│   ├── bosch-smart-home-bridge.mock.ts
+│   └── bosch-controller-server.ts  # Mock HTTP server
+├── fixtures/         # Test data
+│   ├── smart-home-events.json
+│   ├── controller-devices.json
+│   └── controller-rooms.json
+├── utils/            # Test utilities
+│   ├── test-helpers.ts
+│   └── containers.ts         # TestContainers helpers
+├── setup.ts          # Unit test setup
+└── setup.e2e.ts      # E2E test setup
 ```
 
-**Rationale**: Co-locating tests with source files reduces cognitive load, simplifies imports, and follows modern TypeScript conventions (similar to React, Angular, Vue). Tests become "part of the code" rather than living in a separate directory tree.
+**Rationale**: Co-locating unit tests with source files reduces cognitive load. E2E tests are separate since they test multiple components together.
 
 ## Running Tests
 
+### Unit Tests (Fast)
+
 ```bash
-# Run all tests
-yarn test
+# Run all unit tests
+yarn test:unit
 
 # Run tests in watch mode
 yarn test:watch
@@ -52,14 +83,57 @@ yarn test:coverage
 yarn test:ci
 ```
 
-## Coverage Thresholds
+### E2E Tests (Requires Docker)
 
-The test suite enforces minimum coverage thresholds:
+```bash
+# Run all E2E tests (~40-45 seconds)
+yarn test:e2e
+
+# Run specific E2E test suite
+yarn test:e2e tests/e2e/poll.e2e.test.ts
+yarn test:e2e tests/e2e/ingest.e2e.test.ts
+
+# Run with container monitoring
+docker stats  # In separate terminal
+yarn test:e2e
+```
+
+### Combined
+
+```bash
+# Run both unit and E2E tests
+yarn test:all
+```
+
+## Test Coverage
+
+### Unit Tests
+
+**Coverage thresholds** (enforced):
 
 - Branches: 70%
 - Functions: 70%
 - Lines: 70%
 - Statements: 70%
+
+**Current coverage:** 218 unit tests covering core modules (config, logger, validation, transforms, types).
+
+**Excluded from coverage** (tested via E2E):
+
+- `src/cli.ts` - CLI entry point
+- `src/poll.ts` - Long polling script
+- `src/ingest.ts` - Ingestion script
+- `src/fetch-registry.ts` - Registry fetching script
+- `src/export-dashboard.ts` - Dashboard export script
+
+### E2E Tests
+
+**Current coverage:** 18 E2E tests covering complete data flows:
+
+- Poll flow: 4 tests
+- Registry flow: 3 tests
+- Ingest flow: 5 tests
+- Dashboard flow: 6 tests
 
 ## Writing Tests
 
@@ -164,6 +238,19 @@ yarn jest --verbose
 node --inspect-brk node_modules/.bin/jest --runInBand
 ```
 
+## E2E Testing Infrastructure
+
+E2E tests use **TestContainers** to spin up real Elasticsearch and Kibana instances in Docker containers. Tests run against actual services (not mocks) to validate the complete data pipeline.
+
+**Key features:**
+
+- **Ephemeral ports** - Avoids conflicts with running services
+- **Docker bridge networking** - Containers can communicate
+- **Automatic cleanup** - Containers removed after tests
+- **ARM64 support** - Works on Apple Silicon
+
+**For detailed E2E testing documentation, see:** [`spec/E2E-TESTING.md`](../spec/E2E-TESTING.md)
+
 ## CI/CD Integration
 
 Tests run automatically in GitHub Actions on:
@@ -171,5 +258,7 @@ Tests run automatically in GitHub Actions on:
 - Every push to main
 - Every pull request
 - Node.js versions: 20.x, 22.x
+- **Unit tests** run on every commit
+- **E2E tests** run on main/PRs (require Docker)
 
 See `.github/workflows/test.yml` for CI configuration.

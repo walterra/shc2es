@@ -1,0 +1,20 @@
+[
+  {
+    "@type": "room",
+    "id": "hz_1",
+    "name": "EG Wohnzimmer",
+    "iconId": "icon_room_living_room",
+    "extProperties": {
+      "humidity": "39.8"
+    }
+  },
+  {
+    "@type": "room",
+    "id": "hz_2",
+    "name": "UG Fitness",
+    "iconId": "icon_room_fitness",
+    "extProperties": {
+      "humidity": "45.2"
+    }
+  }
+]

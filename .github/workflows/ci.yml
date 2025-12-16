@@ -33,6 +33,9 @@ jobs:
       - name: Run linter
         run: yarn lint
 
+      - name: Lint documentation
+        run: yarn lint:docs
+
       - name: Check formatting
         run: yarn format:check
 
@@ -65,3 +68,38 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Pull Docker images (cache for faster startup)
+        run: |
+          docker pull docker.elastic.co/elasticsearch/elasticsearch:9.2.2
+          docker pull docker.elastic.co/kibana/kibana:9.2.2
+
+      - name: Run E2E tests
+        run: yarn test:e2e
+
+      - name: Cleanup containers
+        if: always()
+        run: docker ps -aq | xargs -r docker rm -f

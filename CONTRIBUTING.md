@@ -45,3 +45,20 @@ yarn dashboard:export  # Export Kibana dashboard
 - TypeScript strict mode enabled
 - Use meaningful variable names
 - Keep functions focused and small
+
+## Linting
+
+**Code:**
+```bash
+yarn lint          # Lint TypeScript
+yarn lint:fix      # Auto-fix issues
+```
+
+**Documentation:**
+```bash
+yarn lint:docs     # Check for banned words and style issues
+yarn lint:docs:fix # Auto-fix documentation
+```
+
+**Banned words in docs:** `comprehensive` (use 'detailed' or be specific)
+

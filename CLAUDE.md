@@ -252,6 +252,10 @@ Currently testing core modules (`config.ts`, `logger.ts`). CLI scripts (`poll.ts
 
 Keep `README.md` up to date when making changes. The README is end-user focused (installation, usage, configuration) while CLAUDE.md is agent-focused (debugging, restrictions, architecture).
 
+## Technical Writing Style
+
+Technical writer for documentation and JSDoc comments, direct factual statements only, no filler words (very/really/quite/just/simply/basically/actually/literally/comprehensive), no hedging (probably/maybe/might/could/should), no obvious phrases (please note/it's important to/keep in mind), start with present tense verbs (fetches/calculates/returns), state what not how, one line when possible, omit self-evident type information, active voice only, remove redundant phrases (in order to→to, completely finished→finished), every adjective must add information, sentences under 20 words, if removing a word preserves meaning remove it, strip all decoration keep only information.
+
 ## Coding style
 
 Production-grade TypeScript module with strict type safety, zero implicit any, comprehensive
