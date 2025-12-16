@@ -121,7 +121,7 @@ export async function startKibanaContainer(
   const version = config.kibanaVersion ?? '9.2.2'; // Using 9.2.2 for ARM64 support
 
   console.log(`[TestContainers] Starting Kibana ${version}...`);
-  console.log('[TestContainers] Note: First run may take 5-10 minutes');
+  console.log('[TestContainers] Note: Might take a few minutes');
 
   // TestContainers automatically maps container port 5601 to a random available host port
   // This avoids conflicts with any Kibana running on localhost:5601

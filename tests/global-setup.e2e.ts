@@ -33,14 +33,14 @@ export default async function globalSetup(): Promise<void> {
   global.__E2E_CONTAINERS__ = {};
 
   // Start Elasticsearch
-  const { container: esContainer, url: esUrl } =
+  const { container: esContainer, url: esUrl, containerUrl: esContainerUrl } =
     await startElasticsearchContainer();
   global.__E2E_CONTAINERS__.elasticsearch = esContainer;
   global.__E2E_CONTAINERS__.elasticsearchUrl = esUrl;
 
-  // Start Kibana (depends on Elasticsearch)
+  // Start Kibana (use containerUrl for inter-container communication)
   const { container: kibanaContainer, url: kibanaUrl } =
-    await startKibanaContainer(esUrl);
+    await startKibanaContainer(esContainerUrl);
   global.__E2E_CONTAINERS__.kibana = kibanaContainer;
   global.__E2E_CONTAINERS__.kibanaUrl = kibanaUrl;
 
