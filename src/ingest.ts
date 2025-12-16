@@ -641,8 +641,7 @@ function indexSingleEvent(doc: GenericEvent, indexName: string): void {
       let deviceId: string | undefined;
       if (isKnownEventType(doc)) {
         const knownDoc = doc as unknown as SmartHomeEvent;
-        deviceId =
-          knownDoc['@type'] === 'DeviceServiceData' ? knownDoc.deviceId : undefined;
+        deviceId = knownDoc['@type'] === 'DeviceServiceData' ? knownDoc.deviceId : undefined;
       } else if ('deviceId' in doc && typeof doc.deviceId === 'string') {
         deviceId = doc.deviceId;
       }
