@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
 import { BoschSmartHomeBridgeBuilder, BshbUtils } from 'bosch-smart-home-bridge';
 import { getCertsDir, getCertFile, getKeyFile, getConfigPaths } from './config';
-import { appLogger, dataLogger, BshbLogger, logErrorAndExit } from './logger';
+import { appLogger, dataLogger, BshbLogger, logErrorAndExit, serializeError } from './logger';
 import { validatePollConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
 
@@ -15,20 +15,20 @@ export function loadOrGenerateCertificate(): { cert: string; key: string } {
   const keyFile = getKeyFile();
 
   if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
-    appLogger.debug({ certFile }, 'Loading existing certificate');
+    appLogger.debug({ 'file.path': certFile }, `Loading existing certificate from ${certFile}`);
     return {
       cert: fs.readFileSync(certFile, 'utf-8'),
       key: fs.readFileSync(keyFile, 'utf-8'),
     };
   }
 
-  appLogger.info('Generating new client certificate');
+  appLogger.info('Generating new client certificate for controller authentication');
   const generated = BshbUtils.generateClientCertificate();
 
   // Certs directory is already created by ensureConfigDirs()
   fs.writeFileSync(certFile, generated.cert);
   fs.writeFileSync(keyFile, generated.private);
-  appLogger.info({ certPath: getCertsDir() }, 'Certificate saved');
+  appLogger.info({ 'file.path': getCertsDir() }, `Certificate saved to ${getCertsDir()}`);
 
   return { cert: generated.cert, key: generated.private };
 }
@@ -53,10 +53,10 @@ export function processEvent(event: unknown): void {
       // Also log summary to app logger
       appLogger.debug(
         {
-          eventType: eventObj['@type'],
-          deviceId: eventObj.deviceId,
+          'event.type': eventObj['@type'],
+          'device.id': eventObj.deviceId,
         },
-        'Event received',
+        `Received ${String(eventObj['@type'])} event from device ${String(eventObj.deviceId)}`,
       );
     },
   );
@@ -73,7 +73,10 @@ export function processEvents(events: unknown[]): void {
     for (const event of events) {
       processEvent(event);
     }
-    appLogger.info({ count: events.length }, 'Events processed');
+    appLogger.info(
+      { 'event.count': events.length },
+      `Processed ${String(events.length)} events from controller`,
+    );
   });
 }
 
@@ -84,8 +87,8 @@ export function processEvents(events: unknown[]): void {
  */
 function handleTransientError(error: unknown, retryCallback: () => void): void {
   const message = error instanceof Error ? error.message : String(error);
-  appLogger.error({ err: message }, `Long polling error: ${message}`);
-  appLogger.info('Reconnecting in 5 seconds');
+  appLogger.error(serializeError(error), `Long polling error: ${message}`);
+  appLogger.info('Reconnecting to controller in 5 seconds');
   setTimeout(retryCallback, 5000);
 }
 
@@ -132,20 +135,23 @@ function subscribeToEvents(
   client.subscribe().subscribe({
     next: (response) => {
       const subscriptionId = response.parsedResponse.result;
-      appLogger.info({ subscriptionId }, 'Subscribed successfully');
-      appLogger.info('Starting long polling (Ctrl+C to stop)');
+      appLogger.info(
+        { 'subscription.id': subscriptionId },
+        `Subscribed successfully with ID ${subscriptionId}`,
+      );
+      appLogger.info('Starting long polling for smart home events (Ctrl+C to stop)');
       handlePollingLoop(client, subscriptionId, bshb);
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
 
       if (isTransientError(message)) {
-        appLogger.error({ err: message }, `Subscription error (transient): ${message}`);
+        appLogger.error(serializeError(err), `Subscription error (transient): ${message}`);
         handleTransientError(err, () => {
           startPolling(bshb);
         });
       } else {
-        appLogger.fatal({ err: message }, `Subscription error (fatal): ${message}`);
+        appLogger.fatal(serializeError(err), `Subscription error (fatal): ${message}`);
         process.exit(1);
       }
     },
@@ -157,7 +163,7 @@ function subscribeToEvents(
  * @param bshb - Bosch Smart Home Bridge instance
  */
 export function startPolling(bshb: BoschSmartHomeBridge): void {
-  appLogger.info('Subscribing to events');
+  appLogger.info('Subscribing to smart home events from controller');
   const client = bshb.getBshcClient();
   subscribeToEvents(client, bshb);
 }
@@ -216,20 +222,20 @@ export function main(): void {
   }
   const config = configResult.value;
 
-  appLogger.info('Bosch Smart Home Long Polling Client');
-  appLogger.info(getConfigPaths(), 'Configuration');
+  appLogger.info('Bosch Smart Home Long Polling Client starting');
+  appLogger.info(getConfigPaths(), 'Using configuration paths');
 
   const { cert, key } = loadOrGenerateCertificate();
 
-  appLogger.info({ host: config.bshHost }, 'Connecting to controller');
+  appLogger.info({ 'host.ip': config.bshHost }, `Connecting to controller at ${config.bshHost}`);
 
   const bshb = createBridge(config.bshHost, cert, key);
 
-  appLogger.info('Checking pairing status');
+  appLogger.info('Checking pairing status with controller');
 
   bshb.pairIfNeeded(config.bshClientName, config.bshClientId, config.bshPassword).subscribe({
     next: () => {
-      appLogger.info('Pairing successful or already paired');
+      appLogger.info('Pairing successful or already paired with controller');
       startPolling(bshb);
     },
     error: (err: unknown) => {
@@ -237,7 +243,7 @@ export function main(): void {
       if (isPairingButtonError(message)) {
         appLogger.warn('Press the pairing button on Controller II, then run again');
       } else {
-        appLogger.fatal({ err: message }, `Pairing error: ${message}`);
+        appLogger.fatal(serializeError(err), `Pairing error: ${message}`);
       }
       process.exit(1);
     },
@@ -246,7 +252,7 @@ export function main(): void {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  appLogger.info('Shutting down');
+  appLogger.info('Shutting down long polling client');
   process.exit(0);
 });
 

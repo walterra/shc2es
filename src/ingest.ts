@@ -7,7 +7,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { Tail } from 'tail';
 import * as path from 'path';
 import { getDataDir } from './config';
-import { createLogger, logErrorAndExit } from './logger';
+import { createLogger, logErrorAndExit, serializeError } from './logger';
 import { validateIngestConfig } from './validation';
 import type { IngestConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation'; // withSpan for high-level operations only
@@ -55,12 +55,15 @@ interface TlsConfig {
 // Build TLS config based on validated configuration
 function buildTlsConfig(): TlsConfig {
   if (!config.esTlsVerify) {
-    log.debug('TLS verification disabled via ES_TLS_VERIFY=false');
+    log.debug('TLS verification disabled via ES_TLS_VERIFY=false (development mode)');
     return { rejectUnauthorized: false };
   }
 
   if (config.esCaCert) {
-    log.debug({ path: config.esCaCert }, 'Using custom CA certificate');
+    log.debug(
+      { 'file.path': config.esCaCert },
+      `Using custom CA certificate from ${config.esCaCert}`,
+    );
     return { ca: readFileSync(config.esCaCert) };
   }
 
@@ -151,8 +154,8 @@ function loadRegistry(): void {
   withSpan('load_registry', {}, () => {
     if (!existsSync(REGISTRY_FILE)) {
       log.warn(
-        { registryFile: REGISTRY_FILE },
-        "Registry not found. Run 'yarn registry' to generate it. Events will be indexed without device/room names.",
+        { 'file.path': REGISTRY_FILE },
+        `Registry file not found at ${REGISTRY_FILE}. Run 'yarn registry' to generate it. Events will be indexed without device/room names.`,
       );
       return;
     }
@@ -163,11 +166,14 @@ function loadRegistry(): void {
       registry = parsed;
       const deviceCount = Object.keys(parsed.devices).length;
       const roomCount = Object.keys(parsed.rooms).length;
-      log.info({ deviceCount, roomCount, fetchedAt: parsed.fetchedAt }, 'Loaded device registry');
+      log.info(
+        { 'device.count': deviceCount, 'room.count': roomCount, fetchedAt: parsed.fetchedAt },
+        `Loaded device registry: ${String(deviceCount)} devices, ${String(roomCount)} rooms (fetched at ${parsed.fetchedAt})`,
+      );
     } catch (err) {
       log.warn(
-        { err },
-        'Failed to load registry. Events will be indexed without device/room names.',
+        serializeError(err),
+        'Failed to load device registry. Events will be indexed without device/room names.',
       );
     }
   });
@@ -278,8 +284,8 @@ function parseLine(line: string): SmartHomeEvent | null {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(
-      { linePreview: line.slice(0, 100), err: message },
-      `Failed to parse line: ${message}`,
+      { ...serializeError(err), linePreview: line.slice(0, 100) },
+      `Failed to parse NDJSON line: ${message}`,
     );
     return null;
   }
@@ -334,22 +340,27 @@ function prefixSavedObjectIds(ndjson: string, prefix: string): string {
 async function importDashboard(): Promise<void> {
   return withSpan('import_dashboard', { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX }, async () => {
     if (!KIBANA_NODE) {
-      log.info('KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE to enable.');
+      log.info(
+        'KIBANA_NODE not configured, skipping dashboard import. Set KIBANA_NODE environment variable to enable automatic dashboard setup.',
+      );
       return;
     }
 
     if (!existsSync(DASHBOARD_FILE)) {
-      log.info({ dashboardFile: DASHBOARD_FILE }, 'Dashboard file not found, skipping import');
+      log.info(
+        { 'file.path': DASHBOARD_FILE },
+        `Dashboard file not found at ${DASHBOARD_FILE}, skipping import`,
+      );
       return;
     }
 
     log.info(
       {
-        dashboardFile: DASHBOARD_FILE,
-        kibanaNode: KIBANA_NODE,
+        'file.path': DASHBOARD_FILE,
+        'url.full': KIBANA_NODE,
         prefix: INDEX_PREFIX,
       },
-      'Importing Kibana dashboard with prefixed IDs',
+      `Importing Kibana dashboard from ${DASHBOARD_FILE} to ${KIBANA_NODE} with prefix '${INDEX_PREFIX}'`,
     );
 
     // Read and prefix all saved object IDs
@@ -382,8 +393,8 @@ async function importDashboard(): Promise<void> {
     if (!response.ok) {
       const text = await response.text();
       log.error(
-        { status: response.status, body: text },
-        `Dashboard import failed: HTTP ${String(response.status)}`,
+        { 'http.response.status_code': response.status, 'http.response.body': text },
+        `Dashboard import failed with HTTP ${String(response.status)}`,
       );
       return;
     }
@@ -393,20 +404,26 @@ async function importDashboard(): Promise<void> {
     if (result.success) {
       log.info(
         { successCount: result.successCount, prefix: INDEX_PREFIX },
-        'Dashboard imported successfully',
+        `Dashboard imported successfully: ${String(result.successCount)} objects with prefix '${INDEX_PREFIX}'`,
       );
     } else {
-      log.error({ errors: result.errors }, 'Dashboard import had errors');
+      log.error(
+        { errors: result.errors },
+        `Dashboard import completed with errors: ${String(result.errors?.length ?? 0)} errors`,
+      );
     }
   });
 }
 
 async function setup(): Promise<void> {
   return withSpan('setup', { [SpanAttributes.INDEX_NAME]: INDEX_PREFIX }, async () => {
-    log.info('Setting up Elasticsearch pipeline and index template');
+    log.info('Setting up Elasticsearch ingest pipeline and index template');
 
     // Create ingest pipeline
-    log.info({ pipelineName: PIPELINE_NAME }, 'Creating ingest pipeline');
+    log.info(
+      { 'elasticsearch.pipeline': PIPELINE_NAME },
+      `Creating ingest pipeline '${PIPELINE_NAME}'`,
+    );
     await client.ingest.putPipeline({
       id: PIPELINE_NAME,
       description: 'Add event.ingested timestamp to smart home events',
@@ -419,12 +436,15 @@ async function setup(): Promise<void> {
         },
       ],
     });
-    log.info('Pipeline created successfully');
+    log.info(
+      { 'elasticsearch.pipeline': PIPELINE_NAME },
+      `Ingest pipeline '${PIPELINE_NAME}' created successfully`,
+    );
 
     // Create index template (applies to smart-home-events-* indices)
     log.info(
-      { templateName: TEMPLATE_NAME, indexPattern: INDEX_PATTERN },
-      'Creating index template',
+      { 'elasticsearch.template': TEMPLATE_NAME, 'elasticsearch.index_pattern': INDEX_PATTERN },
+      `Creating index template '${TEMPLATE_NAME}' for pattern '${INDEX_PATTERN}'`,
     );
     await client.indices.putIndexTemplate({
       name: TEMPLATE_NAME,
@@ -471,8 +491,8 @@ async function setup(): Promise<void> {
       },
     });
     log.info(
-      { indexPattern: INDEX_PATTERN },
-      'Index template created. New indices will automatically use the template.',
+      { 'elasticsearch.index_pattern': INDEX_PATTERN, 'elasticsearch.template': TEMPLATE_NAME },
+      `Index template '${TEMPLATE_NAME}' created successfully. New indices matching '${INDEX_PATTERN}' will automatically use this template.`,
     );
 
     // Import Kibana dashboard (if configured)
@@ -489,7 +509,10 @@ async function bulkImportFile(filePath: string): Promise<number> {
     async () => {
       const dateStr = extractDateFromFilename(filePath);
       const indexName = getIndexName(dateStr);
-      log.info({ filePath, indexName }, 'Importing file');
+      log.info(
+        { 'file.path': filePath, 'elasticsearch.index': indexName },
+        `Importing ${filePath} to index ${indexName}`,
+      );
 
       const documents: { doc: TransformedEvent; id: string }[] = [];
 
@@ -523,22 +546,23 @@ async function bulkImportFile(filePath: string): Promise<number> {
                   const errors = result.items.filter((item) => item.index?.error);
                   log.error(
                     {
-                      errorCount: errors.length,
+                      'error.count': errors.length,
+                      'elasticsearch.index': indexName,
                       errors: errors.slice(0, 3).map((item) => item.index?.error),
                     },
-                    `Documents failed to index: ${String(errors.length)} error(s)`,
+                    `Failed to index ${String(errors.length)} documents to ${indexName}`,
                   );
                 }
 
                 const indexed = result.items.filter((item) => !item.index?.error).length;
                 log.info(
                   {
-                    indexed,
-                    indexName,
+                    'document.count': indexed,
+                    'elasticsearch.index': indexName,
                     [SpanAttributes.DOCUMENTS_COUNT]: documents.length,
                     [SpanAttributes.INDEX_NAME]: indexName,
                   },
-                  'Indexed documents',
+                  `Indexed ${String(indexed)} documents to ${indexName}`,
                 );
                 resolve(indexed);
               })
@@ -559,16 +583,19 @@ async function batchImport(pattern?: string): Promise<void> {
       : `${getDataDir()}/${pattern}`
     : `${getDataDir()}/events-*.ndjson`;
 
-  log.info({ pattern: globPattern }, 'Starting batch import');
+  log.info({ 'file.pattern': globPattern }, `Starting batch import with pattern: ${globPattern}`);
 
   const files = await glob(globPattern);
 
   if (files.length === 0) {
-    log.info({ dataDir: getDataDir() }, 'No NDJSON files found in data directory');
+    log.info(
+      { 'file.path': getDataDir() },
+      `No NDJSON files found in data directory: ${getDataDir()}`,
+    );
     return;
   }
 
-  log.info({ fileCount: files.length }, 'Found files to import');
+  log.info({ 'file.count': files.length }, `Found ${String(files.length)} files to import`);
 
   let totalIndexed = 0;
   for (const file of files.sort()) {
@@ -576,7 +603,10 @@ async function batchImport(pattern?: string): Promise<void> {
     totalIndexed += indexed;
   }
 
-  log.info({ totalIndexed }, 'Batch import complete');
+  log.info(
+    { 'document.count': totalIndexed },
+    `Batch import complete: indexed ${String(totalIndexed)} documents`,
+  );
 }
 
 /**
@@ -594,11 +624,14 @@ function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
     })
     .then(() => {
       const deviceId = doc['@type'] === 'DeviceServiceData' ? doc.deviceId : undefined;
-      log.debug({ eventType: doc['@type'], deviceId, indexName }, 'Indexed event');
+      log.debug(
+        { 'event.type': doc['@type'], 'device.id': deviceId, 'elasticsearch.index': indexName },
+        `Indexed ${doc['@type']} event${deviceId ? ` from device ${deviceId}` : ''} to ${indexName}`,
+      );
     })
     .catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
-      log.error({ err: message }, `Index error: ${message}`);
+      log.error(serializeError(err), `Failed to index event: ${message}`);
     });
 }
 
@@ -609,7 +642,10 @@ function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
  * @returns Tail instance
  */
 function startTailing(filePath: string, indexName: string): Tail {
-  log.info({ filePath, indexName }, 'Tailing file');
+  log.info(
+    { 'file.path': filePath, 'elasticsearch.index': indexName },
+    `Tailing ${filePath} to index ${indexName}`,
+  );
 
   const tail = new Tail(filePath, { fromBeginning: false, follow: true });
 
@@ -622,7 +658,10 @@ function startTailing(filePath: string, indexName: string): Tail {
 
   tail.on('error', (err) => {
     const message = err instanceof Error ? err.message : String(err);
-    log.error({ err: message, filePath }, `Tail error: ${message}`);
+    log.error(
+      { ...serializeError(err), 'file.path': filePath },
+      `Tail error for ${filePath}: ${message}`,
+    );
   });
 
   return tail;
@@ -646,12 +685,12 @@ function startFileWatcher(
   });
 
   watcher.on('ready', () => {
-    log.info('Watcher ready');
+    log.info(`File watcher ready, monitoring ${filePath}`);
   });
 
   watcher.on('error', (err) => {
     const message = err instanceof Error ? err.message : String(err);
-    log.error({ err: message }, `Watcher error: ${message}`);
+    log.error(serializeError(err), `File watcher error: ${message}`);
   });
 
   watcher.on('add', (addedPath) => {
@@ -662,7 +701,10 @@ function startFileWatcher(
     if (tailRef.current) {
       tailRef.current.unwatch();
       tailRef.current = null;
-      log.info({ filePath: unlinkedPath }, 'Stopped tailing file');
+      log.info(
+        { 'file.path': unlinkedPath },
+        `Stopped tailing ${unlinkedPath} (file removed or rotated)`,
+      );
     }
   });
 
@@ -678,13 +720,16 @@ function watchAndTail(): void {
   const todayFile = path.join(getDataDir(), `events-${today}.ndjson`);
   const indexName = getIndexName(today);
 
-  log.info({ filePath: todayFile, indexName }, "Starting watch mode for current day's file");
+  log.info(
+    { 'file.path': todayFile, 'elasticsearch.index': indexName },
+    `Starting watch mode for ${todayFile} → ${indexName}`,
+  );
 
   const { watcher, tailRef } = startFileWatcher(todayFile, indexName);
 
   // Graceful shutdown
   process.on('SIGINT', () => {
-    log.info('Shutting down');
+    log.info('Shutting down watch mode');
     void watcher.close();
     if (tailRef.current) {
       tailRef.current.unwatch();
@@ -692,7 +737,7 @@ function watchAndTail(): void {
     process.exit(0);
   });
 
-  log.info('Watch mode active. Press Ctrl+C to stop.');
+  log.info('Watch mode active for real-time ingestion. Press Ctrl+C to stop.');
 }
 
 /**
@@ -711,10 +756,13 @@ export async function main(): Promise<void> {
   try {
     // Test connection
     await client.ping();
-    log.info({ esNode: config.esNode }, 'Connected to Elasticsearch');
+    log.info({ 'url.full': config.esNode }, `Connected to Elasticsearch at ${config.esNode}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.fatal({ err: message }, `Failed to connect to Elasticsearch: ${message}`);
+    log.fatal(
+      serializeError(err),
+      `Failed to connect to Elasticsearch at ${config.esNode}: ${message}`,
+    );
     process.exit(1);
   }
 

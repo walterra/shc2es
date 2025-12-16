@@ -39,11 +39,16 @@ const dateStamp = new Date().toISOString().split('T')[0] ?? '1970-01-01';
  *
  * @example
  * ```typescript
- * import { createLogger } from './logger';
+ * import { createLogger, serializeError } from './logger';
  *
  * const log = createLogger('ingest');
- * log.info({ esNode: 'https://localhost:9200' }, 'Starting ingestion');
- * log.error({ err }, 'Failed to connect to Elasticsearch');
+ * log.info({ 'url.full': 'https://localhost:9200' }, 'Connected to Elasticsearch at https://localhost:9200');
+ *
+ * try {
+ *   await connectToES();
+ * } catch (error) {
+ *   log.error(serializeError(error), `Failed to connect: ${error instanceof Error ? error.message : String(error)}`);
+ * }
  * ```
  */
 export function createLogger(logFilePrefix: string): pino.Logger {
@@ -101,11 +106,16 @@ export function createLogger(logFilePrefix: string): pino.Logger {
  *
  * @example
  * ```typescript
- * import { appLogger } from './logger';
+ * import { appLogger, serializeError } from './logger';
  *
- * appLogger.info({ controller: '192.168.1.10' }, 'Connected to controller');
- * appLogger.warn({ retries: 3 }, 'Retrying failed request');
- * appLogger.error({ err }, 'Fatal error occurred');
+ * appLogger.info({ 'host.ip': '192.168.1.10' }, 'Connected to controller at 192.168.1.10');
+ * appLogger.warn({ 'retry.count': 3 }, 'Retrying failed request (attempt 3)');
+ *
+ * try {
+ *   await operation();
+ * } catch (error) {
+ *   appLogger.error(serializeError(error), `Operation failed: ${error instanceof Error ? error.message : String(error)}`);
+ * }
  * ```
  */
 // Lazy logger initialization to support mocking in tests
@@ -307,6 +317,90 @@ export function logErrorAndExit(errorObj: unknown, message: string): never {
   process.stderr.write(`[ERROR] ${message}\n`);
 
   process.exit(1);
+}
+
+/**
+ * Serialize an error object to ECS-compliant fields.
+ *
+ * Extracts error details into Elastic Common Schema (ECS) format for consistent
+ * error logging across the application. Returns an object with dotted field names
+ * that can be spread into log calls.
+ *
+ * **ECS fields returned:**
+ * - `error.message` - Human-readable error message
+ * - `error.stack_trace` - Full stack trace (if available)
+ * - `error.type` - Error class name (e.g., "TypeError", "ConnectionError")
+ * - `error.code` - Error code (if available, e.g., "ECONNREFUSED")
+ * - `error.cause` - Nested cause error (recursively serialized)
+ *
+ * @param error - Error object, string, or unknown value to serialize
+ * @returns Object with ECS-compliant error fields
+ *
+ * @example
+ * ```typescript
+ * import { serializeError } from './logger';
+ *
+ * try {
+ *   await connectToDatabase();
+ * } catch (error) {
+ *   log.error(
+ *     serializeError(error),
+ *     `Failed to connect to database: ${error instanceof Error ? error.message : String(error)}`
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link https://www.elastic.co/guide/en/ecs/current/ecs-error.html|ECS Error Fields}
+ */
+export function serializeError(error: unknown): Record<string, unknown> {
+  // Handle non-Error values
+  if (typeof error === 'string') {
+    return {
+      'error.message': error,
+      'error.type': 'string',
+    };
+  }
+
+  if (!(error instanceof Error)) {
+    return {
+      'error.message': String(error),
+      'error.type': typeof error,
+    };
+  }
+
+  // Serialize Error object with ECS fields
+  const err = error as Error & {
+    cause?: unknown;
+    code?: string;
+    errno?: number;
+  };
+
+  const result: Record<string, unknown> = {
+    'error.message': err.message,
+    'error.type': err.name || err.constructor.name,
+  };
+
+  // Add stack trace if available
+  if (err.stack) {
+    result['error.stack_trace'] = err.stack;
+  }
+
+  // Add error code if available
+  if (err.code) {
+    result['error.code'] = err.code;
+  }
+
+  // Add errno if available (for Node.js system errors)
+  if (err.errno !== undefined) {
+    result['error.errno'] = err.errno;
+  }
+
+  // Recursively serialize cause if present
+  if (err.cause) {
+    result['error.cause'] = serializeError(err.cause);
+  }
+
+  return result;
 }
 
 // Bridge logger for bosch-smart-home-bridge library
