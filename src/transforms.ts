@@ -5,7 +5,10 @@
  * events from the Bosch Smart Home Controller II before indexing to Elasticsearch.
  */
 
-import type { SmartHomeEvent } from './types/smart-home-events';
+import type { SmartHomeEvent, GenericEvent } from './types/smart-home-events';
+import { createLogger } from './logger';
+
+const log = createLogger('transforms');
 
 /**
  * Normalized sensor reading extracted from a smart home event.
@@ -46,7 +49,7 @@ export interface Metric {
  *
  * For DeviceServiceData events, extracts from the state object.
  * For room events, extracts from extProperties (parsing string values).
- * Returns null for device and message events.
+ * Returns null for device, message, client, light, and unknown events.
  *
  * @param doc - Smart home event to extract metric from
  * @returns Metric object with name and value, or null if no metric found
@@ -60,7 +63,7 @@ export interface Metric {
  * extractMetric(event); // { name: "humidity", value: 42.5 }
  * ```
  */
-export function extractMetric(doc: SmartHomeEvent): Metric | null {
+export function extractMetric(doc: SmartHomeEvent | GenericEvent): Metric | null {
   // Use type narrowing with discriminated union
   switch (doc['@type']) {
     case 'DeviceServiceData': {
@@ -91,14 +94,17 @@ export function extractMetric(doc: SmartHomeEvent): Metric | null {
     case 'device':
     case 'message':
     case 'client':
+    case 'light':
       // These event types don't contain metrics
       return null;
 
-    default: {
-      // Exhaustiveness check - ensures all event types are handled
-      const _exhaustive: never = doc;
-      return _exhaustive;
-    }
+    default:
+      // Unknown event type - log warning and return null
+      log.warn(
+        { eventType: doc['@type'] },
+        `Unknown event type encountered in extractMetric: ${doc['@type']}`,
+      );
+      return null;
   }
 }
 
@@ -108,7 +114,9 @@ export function extractMetric(doc: SmartHomeEvent): Metric | null {
  * Uses event type, entity ID, and timestamp to create a deterministic ID.
  * This allows for idempotent ingestion (re-ingesting same event won't duplicate).
  *
- * @param doc - Smart home event to generate ID for
+ * For unknown event types, attempts to extract an ID from common fields.
+ *
+ * @param doc - Smart home event to extract metric from
  * @returns Unique document ID string
  *
  * @example
@@ -122,7 +130,7 @@ export function extractMetric(doc: SmartHomeEvent): Metric | null {
  * // Returns: "DeviceServiceData-hdm:ZigBee:001-HumidityLevel-2025-12-15T10:00:00Z"
  * ```
  */
-export function generateDocId(doc: SmartHomeEvent): string {
+export function generateDocId(doc: SmartHomeEvent | GenericEvent): string {
   // Generate unique document ID based on event type
   const timestamp = doc.time;
 
@@ -161,10 +169,24 @@ export function generateDocId(doc: SmartHomeEvent): string {
       // Format: client-<id>-<timestamp>
       return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
 
+    case 'light':
+      // Format: light-<id>-<timestamp>
+      return [doc['@type'], toString(doc.id), toString(timestamp)].join('-');
+
     default: {
-      // Exhaustiveness check
-      const _exhaustive: never = doc;
-      return _exhaustive;
+      // Unknown event type - try to extract ID from common fields
+      log.warn(
+        { eventType: doc['@type'] },
+        `Unknown event type encountered in generateDocId: ${doc['@type']}`,
+      );
+      // Try common ID fields: id, deviceId, or fall back to timestamp only
+      const entityId =
+        'id' in doc && doc.id
+          ? toString(doc.id)
+          : 'deviceId' in doc && doc.deviceId
+            ? toString(doc.deviceId)
+            : 'unknown';
+      return [doc['@type'], entityId, toString(timestamp)].join('-');
     }
   }
 }

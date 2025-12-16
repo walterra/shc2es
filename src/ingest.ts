@@ -17,7 +17,8 @@ import type {
   KibanaSavedObject,
 } from './types/kibana-saved-objects';
 import { isExportMetadata } from './types/kibana-saved-objects';
-import type { SmartHomeEvent } from './types/smart-home-events';
+import type { SmartHomeEvent, GenericEvent } from './types/smart-home-events';
+import { isKnownEventType } from './types/smart-home-events';
 import type { Metric } from './transforms';
 import { extractMetric, generateDocId } from './transforms';
 
@@ -205,24 +206,43 @@ interface TransformedEvent {
   metric?: Metric;
 }
 
-function transformDoc(doc: SmartHomeEvent): TransformedEvent {
+function transformDoc(doc: GenericEvent): TransformedEvent {
   // Fast in-memory transformation - no span needed to avoid overwhelming OTel queue
   const result: TransformedEvent = {
     '@timestamp': doc.time,
     '@type': doc['@type'],
-    id: doc.id,
+    id: typeof doc.id === 'string' ? doc.id : undefined,
   };
 
+  // Check if this is a known event type - if not, log warning and index with basic fields
+  if (!isKnownEventType(doc)) {
+    log.warn(
+      { eventType: doc['@type'], eventId: doc.id },
+      `Unknown event type encountered: ${doc['@type']}. Indexing with basic field extraction only.`,
+    );
+    // Try to extract deviceId for unknown types (common field)
+    if ('deviceId' in doc && typeof doc.deviceId === 'string') {
+      result.deviceId = doc.deviceId;
+    }
+    // Try to extract metric from unknown types
+    const metric = extractMetric(doc);
+    if (metric) result.metric = metric;
+    return result;
+  }
+
+  // At this point we know it's a known event type, cast for type safety
+  const knownDoc = doc as unknown as SmartHomeEvent;
+
   // Use type narrowing for type-specific field handling
-  switch (doc['@type']) {
+  switch (knownDoc['@type']) {
     case 'DeviceServiceData':
       // Add device service data specific fields
-      result.deviceId = doc.deviceId;
-      result.path = doc.path;
+      result.deviceId = knownDoc.deviceId;
+      result.path = knownDoc.path;
 
       // Enrich with device/room info from registry
-      if (registry && doc.deviceId in registry.devices) {
-        const deviceInfo = registry.devices[doc.deviceId];
+      if (registry && knownDoc.deviceId in registry.devices) {
+        const deviceInfo = registry.devices[knownDoc.deviceId];
         if (deviceInfo) {
           result.device = { name: deviceInfo.name };
           if (deviceInfo.type) result.device.type = deviceInfo.type;
@@ -243,11 +263,11 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
 
     case 'room':
       // Enrich room events with registry info
-      if (registry && doc.id in registry.rooms) {
-        const roomInfo = registry.rooms[doc.id];
+      if (registry && knownDoc.id in registry.rooms) {
+        const roomInfo = registry.rooms[knownDoc.id];
         if (roomInfo) {
           result.room = {
-            id: doc.id,
+            id: knownDoc.id,
             name: roomInfo.name,
           };
         }
@@ -257,30 +277,25 @@ function transformDoc(doc: SmartHomeEvent): TransformedEvent {
     case 'device':
     case 'message':
     case 'client':
+    case 'light':
       // These event types don't need special field handling
       break;
-
-    default: {
-      // Exhaustiveness check - ensures all event types are handled
-      const _exhaustive: never = doc;
-      return _exhaustive;
-    }
   }
 
   // Extract and normalize metric (works for all types)
-  const metric = extractMetric(doc);
+  const metric = extractMetric(knownDoc);
   if (metric) result.metric = metric;
 
   return result;
 }
 
 // Parse NDJSON line, handling pino's leading comma issue
-function parseLine(line: string): SmartHomeEvent | null {
+function parseLine(line: string): GenericEvent | null {
   if (!line || line.trim() === '') return null;
   try {
     // Handle pino's leading comma in output
     const cleanLine = line.startsWith('{,') ? '{' + line.slice(2) : line;
-    return JSON.parse(cleanLine) as SmartHomeEvent;
+    return JSON.parse(cleanLine) as GenericEvent;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(
@@ -611,10 +626,10 @@ async function batchImport(pattern?: string): Promise<void> {
 
 /**
  * Index a single event to Elasticsearch
- * @param doc - Parsed smart home event
+ * @param doc - Parsed smart home event (known or unknown type)
  * @param indexName - Target index name
  */
-function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
+function indexSingleEvent(doc: GenericEvent, indexName: string): void {
   const transformed = transformDoc(doc);
   client
     .index({
@@ -623,7 +638,13 @@ function indexSingleEvent(doc: SmartHomeEvent, indexName: string): void {
       document: transformed,
     })
     .then(() => {
-      const deviceId = doc['@type'] === 'DeviceServiceData' ? doc.deviceId : undefined;
+      let deviceId: string | undefined;
+      if (isKnownEventType(doc)) {
+        const knownDoc = doc as unknown as SmartHomeEvent;
+        deviceId = knownDoc['@type'] === 'DeviceServiceData' ? knownDoc.deviceId : undefined;
+      } else if ('deviceId' in doc && typeof doc.deviceId === 'string') {
+        deviceId = doc.deviceId;
+      }
       log.debug(
         { 'event.type': doc['@type'], 'device.id': deviceId, 'elasticsearch.index': indexName },
         `Indexed ${doc['@type']} event${deviceId ? ` from device ${deviceId}` : ''} to ${indexName}`,

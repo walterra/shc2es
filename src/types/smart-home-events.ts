@@ -242,7 +242,55 @@ export interface ClientEvent extends BaseEvent {
 }
 
 /**
- * Discriminated union of all possible smart home event types.
+ * Light event - represents light/smart plug devices with controllable capabilities.
+ *
+ * Emitted by smart plugs and light devices to indicate their presence and
+ * available control capabilities.
+ *
+ * @example
+ * ```json
+ * {
+ *   "@type": "light",
+ *   "id": "hdm:ZigBee:880f62fffe305c3d",
+ *   "capabilities": []
+ * }
+ * ```
+ */
+export interface LightEvent extends BaseEvent {
+  '@type': 'light';
+  /** Device identifier */
+  id: string;
+  /** Array of capability identifiers (e.g., for dimming, color control) */
+  capabilities: string[];
+}
+
+/**
+ * Generic event structure for unknown/unsupported event types.
+ *
+ * Used as a fallback when processing events with unrecognized @type values.
+ * This allows graceful degradation instead of crashes when new device types are added.
+ */
+export interface GenericEvent extends BaseEvent {
+  '@type': string;
+  id?: unknown;
+  deviceId?: unknown;
+  [key: string]: unknown;
+}
+
+/**
+ * Check if an event is a known SmartHomeEvent type.
+ * Returns true if the @type matches a known event type.
+ *
+ * @param event - Event object with @type field
+ * @returns True if the event type is known, false otherwise
+ */
+export function isKnownEventType(event: { '@type': string }): boolean {
+  const knownTypes = ['DeviceServiceData', 'device', 'room', 'message', 'client', 'light'];
+  return knownTypes.includes(event['@type']);
+}
+
+/**
+ * Discriminated union of all known smart home event types.
  *
  * Use the `@type` field to narrow the type in conditionals:
  *
@@ -266,6 +314,14 @@ export interface ClientEvent extends BaseEvent {
  *       // TypeScript knows event is MessageEvent here
  *       console.log(event.messageCode.name);
  *       break;
+ *     case "client":
+ *       // TypeScript knows event is ClientEvent here
+ *       console.log(event.name, event.clientType);
+ *       break;
+ *     case "light":
+ *       // TypeScript knows event is LightEvent here
+ *       console.log(event.id, event.capabilities);
+ *       break;
  *     default:
  *       // Exhaustiveness check - ensures all cases are handled
  *       const _exhaustive: never = event;
@@ -279,4 +335,5 @@ export type SmartHomeEvent =
   | DeviceEvent
   | RoomEvent
   | MessageEvent
-  | ClientEvent;
+  | ClientEvent
+  | LightEvent;
