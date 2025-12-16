@@ -106,10 +106,18 @@ async function main(): Promise<void> {
   const subArgs = args.filter((arg) => arg !== command && arg !== "--no-otel");
   process.argv = [process.argv[0] ?? "node", process.argv[1] ?? "", ...subArgs];
 
-  // Dynamic import of the command module (command is validated above)
+  // Dynamic import of the command module and call its main() function
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const modulePath = COMMANDS[command]!.module;
-  await import(modulePath);
+  const module = (await import(modulePath)) as { main?: () => void | Promise<void> };
+  
+  // Call main() if it exists
+  if (typeof module.main === 'function') {
+    await module.main();
+  } else {
+    console.error(`Module ${modulePath} does not export a main() function`);
+    process.exit(1);
+  }
 }
 
 main().catch((err: unknown) => {

@@ -191,6 +191,12 @@
 - **Performance Tuning Documentation** - Document production batch processing settings
 - **Docker Healthchecks** - Add healthcheck to `docker-compose.otel.yml`
 
+### Misc
+
+- evaluate vitest vs jest
+- move unit tests next to code files
+- split out functions into separate files, ideally one function per file
+
 ## Notes
 
 - **Semantic versioning**: All breaking changes (e.g., replacing process.exit with exceptions, changing config validation to use Zod) should be documented in changesets

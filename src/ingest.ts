@@ -717,7 +717,11 @@ function watchAndTail(): void {
   log.info("Watch mode active. Press Ctrl+C to stop.");
 }
 
-async function main(): Promise<void> {
+/**
+ * Main entry point for the ingest CLI
+ * Handles command-line arguments and orchestrates data ingestion
+ */
+export async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   // Load device registry for enrichment (not needed for --setup)
@@ -753,8 +757,5 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  log.fatal({ err: message }, `Fatal error: ${message}`);
-  process.exit(1);
-});
+// Module exports functions - main() is called by cli.ts
+// No auto-execution on import, keeping module side-effect free for tests

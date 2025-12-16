@@ -155,7 +155,7 @@ function saveRegistry(registry: DeviceRegistry): void {
  * Main entry point - orchestrates registry fetching and saving
  * @returns Promise that resolves when registry is saved
  */
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   log.info(
     "Fetching device and room registry from Bosch Smart Home Controller",
   );
@@ -175,8 +175,5 @@ async function main(): Promise<void> {
   saveRegistry(registry);
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  log.fatal({ err: message }, `Error fetching registry: ${message}`);
-  process.exit(1);
-});
+// Module exports functions - main() is called by cli.ts
+// No auto-execution on import, keeping module side-effect free for tests

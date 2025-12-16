@@ -404,7 +404,11 @@ Examples:
 `);
 }
 
-async function main(): Promise<void> {
+/**
+ * Main entry point for the dashboard export CLI
+ * Handles command-line arguments and orchestrates dashboard operations
+ */
+export async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
@@ -436,8 +440,5 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  log.fatal({ err: message }, `Fatal error: ${message}`);
-  process.exit(1);
-});
+// Module exports functions - main() is called by cli.ts
+// No auto-execution on import, keeping module side-effect free for tests

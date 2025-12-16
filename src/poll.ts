@@ -272,4 +272,5 @@ process.on("SIGINT", () => {
   process.exit(0);
 });
 
-main();
+// Module exports functions - main() is called by cli.ts
+// No auto-execution on import, keeping module side-effect free for tests
