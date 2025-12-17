@@ -58,15 +58,15 @@ describe('logger module', () => {
       expect(typeof testLogger.warn).toBe('function');
     });
 
-    it('should create log file with correct naming', () => {
+    it('should create log file with correct naming', async () => {
       logger.createLogger('test-script');
 
       // Wait a bit for file creation
-      setTimeout(() => {
-        const files = fs.readdirSync(logsDir);
-        const hasTestLog = files.some((f) => f.startsWith('test-script-'));
-        expect(hasTestLog).toBe(true);
-      }, 100);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const files = fs.readdirSync(logsDir);
+      const hasTestLog = files.some((f) => f.startsWith('test-script-'));
+      expect(hasTestLog).toBe(true);
     });
   });
 
