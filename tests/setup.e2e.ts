@@ -1,6 +1,6 @@
 /**
- * Jest setup for E2E tests
- * Runs once before all E2E tests
+ * Vitest setup for E2E tests
+ * Runs before each E2E test file
  *
  * Unlike unit tests, E2E tests should show console output for debugging
  */
@@ -18,9 +18,6 @@ process.env.BSH_CLIENT_ID = 'test-client-id';
 process.env.ES_NODE = 'https://localhost:9200';
 process.env.ES_PASSWORD = 'test-es-password';
 process.env.ES_USER = 'elastic';
-
-// Increase timeout for E2E tests
-jest.setTimeout(180000); // 3 minutes
 
 // Increase max listeners to avoid warnings during tests
 process.setMaxListeners(20);

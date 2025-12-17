@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import type {
   SavedObject,
   DashboardAttributes,
@@ -125,7 +126,7 @@ describe('Kibana Saved Objects Types', () => {
         expect(obj.attributes.title).toBe('Test Dashboard');
         expect(obj.attributes.panelsJSON).toBe('[]');
       } else {
-        fail('Should have identified as dashboard');
+        expect.fail('Should have identified as dashboard');
       }
     });
 
@@ -144,7 +145,7 @@ describe('Kibana Saved Objects Types', () => {
         expect(obj.attributes.title).toBe('my-index-*');
         expect(obj.attributes.timeFieldName).toBe('@timestamp');
       } else {
-        fail('Should have identified as index-pattern');
+        expect.fail('Should have identified as index-pattern');
       }
     });
   });

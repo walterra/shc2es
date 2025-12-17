@@ -2,9 +2,7 @@
  * Unit tests for logger module
  */
 
-jest.mock('./config');
-
-import { jest } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
 import * as fs from 'fs';
@@ -12,7 +10,9 @@ import * as path from 'path';
 import * as config from './config';
 import * as logger from './logger';
 
-const mockedConfig = jest.mocked(config);
+vi.mock('./config');
+
+const mockedConfig = vi.mocked(config);
 
 describe('logger module', () => {
   let tempDir: string;
@@ -34,12 +34,12 @@ describe('logger module', () => {
     mockedConfig.ensureConfigDirs.mockImplementation(() => undefined);
 
     // Suppress console output
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    vi.spyOn(console, 'log').mockImplementation();
+    vi.spyOn(console, 'error').mockImplementation();
   });
 
   afterEach(async () => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
 
     // Wait for async file operations to complete
     await new Promise((resolve) => setTimeout(resolve, 200));

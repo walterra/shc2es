@@ -5,6 +5,7 @@
  * Note: Containers started once in global setup for all E2E tests
  */
 
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createElasticsearchClient, getGlobalContainers } from '../utils/global-containers';

@@ -3,6 +3,7 @@
  * Tests the complete registry fetching flow with mock data
  */
 
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MockBoschController } from '../mocks/bosch-controller-server';

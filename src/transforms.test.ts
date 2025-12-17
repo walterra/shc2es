@@ -3,6 +3,7 @@
  *
  * These tests verify the actual transformation logic used during data ingestion.
  */
+import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import type { SmartHomeEvent } from './types/smart-home-events';
 import { extractMetric, generateDocId } from './transforms';

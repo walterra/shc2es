@@ -2,6 +2,7 @@
  * Unit tests for error types
  */
 
+import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import { SHC2ESError, ValidationError, ConfigError, FileSystemError } from './errors';
 

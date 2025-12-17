@@ -2,6 +2,7 @@
  * Unit tests for validation module
  */
 
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as fc from 'fast-check';
@@ -171,12 +172,12 @@ describe('validation module', () => {
     beforeEach(() => {
       originalEnv = { ...process.env };
       // Mock console.error for error tests
-      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
       process.env = originalEnv;
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('should validate complete poll config', () => {
@@ -237,12 +238,12 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
       process.env = originalEnv;
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('should validate complete ingest config', () => {
@@ -331,12 +332,12 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
       process.env = originalEnv;
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('should validate registry config', () => {
@@ -363,12 +364,12 @@ describe('validation module', () => {
 
     beforeEach(() => {
       originalEnv = { ...process.env };
-      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
     });
 
     afterEach(() => {
       process.env = originalEnv;
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('should validate complete dashboard config', () => {

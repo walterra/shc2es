@@ -2,7 +2,7 @@
  * Unit tests for config module
  */
 
-import { jest } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -52,7 +52,7 @@ describe('config module', () => {
 
     beforeEach(() => {
       testDir = createTempDir('config-test-');
-      process.cwd = jest.fn(() => testDir);
+      process.cwd = vi.fn(() => testDir);
     });
 
     afterEach(() => {
@@ -86,7 +86,7 @@ describe('config module', () => {
       // Test in a clean directory where no .env exists
       const emptyDir = createTempDir('empty-test-');
       const originalCwd2 = process.cwd.bind(process);
-      process.cwd = jest.fn(() => emptyDir);
+      process.cwd = vi.fn(() => emptyDir);
 
       // Temporarily override getUserConfigDir to return empty dir
       // Since we can't mock os.homedir, we'll skip this test
@@ -120,7 +120,7 @@ describe('config module', () => {
 
     beforeEach(() => {
       testDir = createTempDir('config-env-test-');
-      process.cwd = jest.fn(() => testDir);
+      process.cwd = vi.fn(() => testDir);
     });
 
     afterEach(() => {

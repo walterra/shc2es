@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import type {

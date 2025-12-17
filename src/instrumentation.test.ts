@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-// Disabled unbound-method for Jest mock assertions - jest.fn() mocks don't have `this` binding issues
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+
+// Disabled for Vitest mock assertions - vi.spyOn() and mock methods don't have TypeScript types
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Span } from '@opentelemetry/api';
 import { SpanStatusCode } from '@opentelemetry/api';
 import * as instrumentation from './instrumentation';
@@ -8,15 +9,15 @@ import { withSpan, SpanAttributes } from './instrumentation';
 
 // Create mock span
 const mockSpan = {
-  setStatus: jest.fn(),
-  recordException: jest.fn(),
-  end: jest.fn(),
-  setAttribute: jest.fn(),
-  setAttributes: jest.fn(),
-  addEvent: jest.fn(),
-  updateName: jest.fn(),
-  isRecording: jest.fn(() => true),
-  spanContext: jest.fn(() => ({
+  setStatus: vi.fn(),
+  recordException: vi.fn(),
+  end: vi.fn(),
+  setAttribute: vi.fn(),
+  setAttributes: vi.fn(),
+  addEvent: vi.fn(),
+  updateName: vi.fn(),
+  isRecording: vi.fn(() => true),
+  spanContext: vi.fn(() => ({
     traceId: 'test-trace-id',
     spanId: 'test-span-id',
     traceFlags: 1,
@@ -24,25 +25,26 @@ const mockSpan = {
 } as unknown as Span;
 
 describe('instrumentation', () => {
-  let startActiveSpanSpy: jest.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
+  let startActiveSpanSpy: vi.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Spy on the exported tracer's startActiveSpan method
     // Handle all three overloads of startActiveSpan by using a generic implementation
-    startActiveSpanSpy = jest
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    startActiveSpanSpy = vi
       .spyOn(instrumentation.tracer, 'startActiveSpan')
       .mockImplementation((...args: unknown[]) => {
         // Extract the callback function (last argument)
         const fn = args[args.length - 1] as (span: Span) => unknown;
         // Call the callback with our mock span
         return fn(mockSpan);
-      }) as jest.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
+      }) as vi.SpiedFunction<typeof instrumentation.tracer.startActiveSpan>;
   });
 
   afterEach(() => {
-    startActiveSpanSpy.mockRestore();
+    vi.restoreAllMocks();
   });
 
   describe('withSpan', () => {
