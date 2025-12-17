@@ -86,18 +86,6 @@
 
 ### Testing
 
-- **Property-based testing with fast-check**
-  - Add `fast-check` dependency
-  - Test validation functions with arbitrary inputs
-  - Test transformation functions (e.g., `transformDoc`, `extractMetric`) with generated events
-  - Test file path utilities with arbitrary paths
-
-- **Integration tests with TestContainers**
-  - Add TestContainers for Elasticsearch (official ES container)
-  - Add TestContainers for Kibana (official Kibana container)
-  - Test full ingestion pipeline: NDJSON → ES → query verification
-  - Test dashboard export/import roundtrip
-
 ### SOLID Principles
 
 - **Single Responsibility: Split large modules**

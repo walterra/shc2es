@@ -78,6 +78,7 @@ jest.mock('bosch-smart-home-bridge', () => {
 });
 
 // Import poll functions and loggers after mocks are set up
+import * as fc from 'fast-check';
 import {
   isTransientError,
   isPairingButtonError,
@@ -93,68 +94,6 @@ process.env.OTEL_SDK_DISABLED = 'true';
 describe('poll module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('isTransientError', () => {
-    it('should identify TIMEOUT as transient', () => {
-      expect(isTransientError('Request TIMEOUT')).toBe(true);
-      expect(isTransientError('TIMEOUT occurred')).toBe(true);
-    });
-
-    it('should identify ECONNRESET as transient', () => {
-      expect(isTransientError('Error: ECONNRESET')).toBe(true);
-    });
-
-    it('should identify ENOTFOUND as transient', () => {
-      expect(isTransientError('getaddrinfo ENOTFOUND')).toBe(true);
-    });
-
-    it('should identify EHOSTUNREACH as transient', () => {
-      expect(isTransientError('connect EHOSTUNREACH')).toBe(true);
-    });
-
-    it('should not identify authentication errors as transient', () => {
-      expect(isTransientError('Authentication failed')).toBe(false);
-    });
-
-    it('should not identify authorization errors as transient', () => {
-      expect(isTransientError('Unauthorized')).toBe(false);
-    });
-
-    it('should not identify invalid credentials as transient', () => {
-      expect(isTransientError('Invalid credentials')).toBe(false);
-    });
-
-    it('should not identify generic errors as transient', () => {
-      expect(isTransientError('Something went wrong')).toBe(false);
-    });
-
-    it('should be case-sensitive', () => {
-      expect(isTransientError('timeout')).toBe(false); // lowercase
-      expect(isTransientError('TIMEOUT')).toBe(true); // uppercase
-    });
-  });
-
-  describe('isPairingButtonError', () => {
-    it('should identify pairing button messages', () => {
-      expect(isPairingButtonError('press the button on Controller II')).toBe(true);
-    });
-
-    it('should identify partial pairing button messages', () => {
-      expect(isPairingButtonError('Please press the button to continue')).toBe(true);
-    });
-
-    it('should not identify unrelated errors', () => {
-      expect(isPairingButtonError('Connection failed')).toBe(false);
-    });
-
-    it('should not identify timeout errors', () => {
-      expect(isPairingButtonError('TIMEOUT')).toBe(false);
-    });
-
-    it('should not identify network errors', () => {
-      expect(isPairingButtonError('ECONNRESET')).toBe(false);
-    });
   });
 
   describe('createBridge', () => {
@@ -326,6 +265,109 @@ describe('poll module', () => {
       expect(calls[0][0]).toBe(events[0]);
       expect(calls[1][0]).toBe(events[1]);
       expect(calls[2][0]).toBe(events[2]);
+    });
+  });
+
+  describe('Property-based tests', () => {
+    describe('isTransientError properties', () => {
+      it('should identify all known transient error codes', () => {
+        const transientCodes = ['TIMEOUT', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH'];
+
+        fc.assert(
+          fc.property(fc.constantFrom(...transientCodes), (code: string) => {
+            expect(isTransientError(code)).toBe(true);
+          }),
+        );
+      });
+
+      it('should identify transient errors in any message context', () => {
+        const transientCodes = ['TIMEOUT', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH'];
+
+        fc.assert(
+          fc.property(
+            fc.constantFrom(...transientCodes),
+            fc.string(),
+            fc.string(),
+            (code: string, prefix: string, suffix: string) => {
+              const message = prefix + code + suffix;
+              expect(isTransientError(message)).toBe(true);
+            },
+          ),
+        );
+      });
+
+      it('should not identify authentication/authorization errors as transient', () => {
+        const authErrors = ['Authentication', 'Unauthorized', 'Invalid credentials', 'FORBIDDEN'];
+
+        fc.assert(
+          fc.property(fc.constantFrom(...authErrors), (error: string) => {
+            expect(isTransientError(error)).toBe(false);
+          }),
+        );
+      });
+
+      it('should reject arbitrary unknown error messages', () => {
+        const knownTransient = ['TIMEOUT', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH'];
+        const unknownErrors = fc
+          .string()
+          .filter((s) => !knownTransient.some((code) => s.includes(code)));
+
+        fc.assert(
+          fc.property(unknownErrors, (error: string) => {
+            // Unknown errors should not be transient
+            if (!error.includes('Authentication') && !error.includes('Unauthorized')) {
+              expect(isTransientError(error)).toBe(false);
+            }
+          }),
+        );
+      });
+
+      it('should be case-sensitive for error codes', () => {
+        const transientCodes = ['TIMEOUT', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH'];
+
+        fc.assert(
+          fc.property(fc.constantFrom(...transientCodes), (code: string) => {
+            const lowercase = code.toLowerCase();
+            // Original uppercase should be transient
+            expect(isTransientError(code)).toBe(true);
+            // Lowercase should not be transient (case-sensitive)
+            expect(isTransientError(lowercase)).toBe(false);
+          }),
+        );
+      });
+    });
+
+    describe('isPairingButtonError properties', () => {
+      it('should identify messages containing "press the button"', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (prefix: string, suffix: string) => {
+            const message = prefix + 'press the button' + suffix;
+            expect(isPairingButtonError(message)).toBe(true);
+          }),
+        );
+      });
+
+      it('should reject messages without the exact phrase', () => {
+        const nonPairingMessages = fc.string().filter((s) => !s.includes('press the button'));
+
+        fc.assert(
+          fc.property(nonPairingMessages, (message: string) => {
+            expect(isPairingButtonError(message)).toBe(false);
+          }),
+        );
+      });
+
+      it('should be case-sensitive', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (prefix: string, suffix: string) => {
+            // Correct case should match
+            expect(isPairingButtonError(prefix + 'press the button' + suffix)).toBe(true);
+            // Wrong case should not match
+            expect(isPairingButtonError(prefix + 'PRESS THE BUTTON' + suffix)).toBe(false);
+            expect(isPairingButtonError(prefix + 'Press The Button' + suffix)).toBe(false);
+          }),
+        );
+      });
     });
   });
 });

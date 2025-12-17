@@ -1,3 +1,4 @@
+import * as fc from 'fast-check';
 import type {
   SmartHomeEvent,
   DeviceServiceDataEvent,
@@ -6,6 +7,7 @@ import type {
   MessageEvent,
   ClientEvent,
 } from './smart-home-events';
+import { isKnownEventType } from './smart-home-events';
 import * as fixtures from '../../tests/fixtures/smart-home-events.json';
 
 describe('SmartHomeEvent types', () => {
@@ -222,6 +224,59 @@ describe('SmartHomeEvent types', () => {
         expect(event.span_id).toBeDefined();
         expect(event.trace_flags).toBe('01');
         expect(event.time).toBeDefined();
+      });
+    });
+  });
+
+  describe('isKnownEventType', () => {
+    describe('Property-based tests', () => {
+      it('should accept all known event types', () => {
+        const knownEventTypes = fc.constantFrom(
+          'DeviceServiceData',
+          'device',
+          'room',
+          'message',
+          'client',
+          'light',
+        );
+
+        fc.assert(
+          fc.property(knownEventTypes, (eventType: string) => {
+            const result = isKnownEventType({ '@type': eventType });
+            expect(result).toBe(true);
+          }),
+        );
+      });
+
+      it('should reject arbitrary unknown event types', () => {
+        const knownTypes = ['DeviceServiceData', 'device', 'room', 'message', 'client', 'light'];
+        const unknownEventTypes = fc.string().filter((s) => !knownTypes.includes(s));
+
+        fc.assert(
+          fc.property(unknownEventTypes, (eventType: string) => {
+            const result = isKnownEventType({ '@type': eventType });
+            expect(result).toBe(false);
+          }),
+        );
+      });
+
+      it('should be case-sensitive', () => {
+        const knownTypesUpperCase = fc.constantFrom(
+          'DEVICESERVICEDATA',
+          'DEVICE',
+          'ROOM',
+          'MESSAGE',
+          'CLIENT',
+          'LIGHT',
+        );
+
+        fc.assert(
+          fc.property(knownTypesUpperCase, (eventType: string) => {
+            // Uppercase versions should not be recognized
+            const result = isKnownEventType({ '@type': eventType });
+            expect(result).toBe(false);
+          }),
+        );
       });
     });
   });

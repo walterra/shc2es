@@ -2,67 +2,11 @@
  * Unit tests for error types
  */
 
+import * as fc from 'fast-check';
 import { SHC2ESError, ValidationError, ConfigError, FileSystemError } from './errors';
 
 describe('Error types', () => {
-  describe('SHC2ESError', () => {
-    // SHC2ESError is abstract, so we test via subclass
-    it('should be instance of Error', () => {
-      const error = new ValidationError('test', 'TEST_VAR', 'TEST_CODE');
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toBeInstanceOf(SHC2ESError);
-    });
-
-    it('should set name from constructor', () => {
-      const error = new ValidationError('test', 'TEST_VAR', 'TEST_CODE');
-      expect(error.name).toBe('ValidationError');
-    });
-
-    it('should include cause when provided', () => {
-      const cause = new Error('Original error');
-      const error = new ValidationError('test', 'TEST_VAR', 'TEST_CODE', cause);
-      expect(error.cause).toBe(cause);
-    });
-
-    it('should have undefined cause when not provided', () => {
-      const error = new ValidationError('test', 'TEST_VAR', 'TEST_CODE');
-      expect(error.cause).toBeUndefined();
-    });
-
-    it('should have stack trace', () => {
-      const error = new ValidationError('test', 'TEST_VAR', 'TEST_CODE');
-      expect(error.stack).toBeDefined();
-      expect(error.stack).toContain('ValidationError');
-    });
-  });
-
   describe('ValidationError', () => {
-    it('should create error with all required fields', () => {
-      const error = new ValidationError('Test validation message', 'TEST_VAR', 'TEST_CODE');
-
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error).toBeInstanceOf(SHC2ESError);
-      expect(error).toBeInstanceOf(Error);
-      expect(error.message).toBe('Test validation message');
-      expect(error.variable).toBe('TEST_VAR');
-      expect(error.code).toBe('TEST_CODE');
-      expect(error.name).toBe('ValidationError');
-    });
-
-    it('should use default code when not provided', () => {
-      const error = new ValidationError('test', 'TEST_VAR');
-      expect(error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should include cause in chain', () => {
-      const cause = new Error('Root cause');
-      const error = new ValidationError('Validation failed', 'TEST_VAR', 'INVALID_VALUE', cause);
-
-      expect(error.cause).toBe(cause);
-      if (!error.cause) throw new Error('Expected cause to be defined');
-      expect(error.cause.message).toBe('Root cause');
-    });
-
     it('should be catchable as Error', () => {
       expect(() => {
         throw new ValidationError('test', 'TEST_VAR', 'TEST_CODE');
@@ -88,42 +32,6 @@ describe('Error types', () => {
   });
 
   describe('ConfigError', () => {
-    it('should create error with all required fields', () => {
-      const error = new ConfigError('Config file not found', '/path/to/.env', 'CONFIG_NOT_FOUND');
-
-      expect(error).toBeInstanceOf(ConfigError);
-      expect(error).toBeInstanceOf(SHC2ESError);
-      expect(error).toBeInstanceOf(Error);
-      expect(error.message).toBe('Config file not found');
-      expect(error.path).toBe('/path/to/.env');
-      expect(error.code).toBe('CONFIG_NOT_FOUND');
-      expect(error.name).toBe('ConfigError');
-    });
-
-    it('should use default code when not provided', () => {
-      const error = new ConfigError('test', '/path');
-      expect(error.code).toBe('CONFIG_ERROR');
-    });
-
-    it('should allow undefined path', () => {
-      const error = new ConfigError('test', undefined, 'TEST_CODE');
-      expect(error.path).toBeUndefined();
-    });
-
-    it('should include cause in chain', () => {
-      const cause = new Error('ENOENT: no such file or directory');
-      const error = new ConfigError(
-        'Failed to read config',
-        '/path/to/.env',
-        'CONFIG_READ_FAILED',
-        cause,
-      );
-
-      expect(error.cause).toBe(cause);
-      if (!error.cause) throw new Error('Expected cause to be defined');
-      expect(error.cause.message).toContain('ENOENT');
-    });
-
     it('should be catchable as ConfigError', () => {
       expect(() => {
         throw new ConfigError('test', '/path', 'TEST_CODE');
@@ -142,41 +50,6 @@ describe('Error types', () => {
   });
 
   describe('FileSystemError', () => {
-    it('should create error with all required fields', () => {
-      const error = new FileSystemError(
-        'Failed to read file',
-        '/path/to/file.json',
-        'FILE_READ_FAILED',
-      );
-
-      expect(error).toBeInstanceOf(FileSystemError);
-      expect(error).toBeInstanceOf(SHC2ESError);
-      expect(error).toBeInstanceOf(Error);
-      expect(error.message).toBe('Failed to read file');
-      expect(error.path).toBe('/path/to/file.json');
-      expect(error.code).toBe('FILE_READ_FAILED');
-      expect(error.name).toBe('FileSystemError');
-    });
-
-    it('should use default code when not provided', () => {
-      const error = new FileSystemError('test', '/path');
-      expect(error.code).toBe('FS_ERROR');
-    });
-
-    it('should include cause in chain', () => {
-      const cause = new Error('EACCES: permission denied');
-      const error = new FileSystemError(
-        'Cannot write to file',
-        '/var/log/app.log',
-        'FILE_WRITE_FAILED',
-        cause,
-      );
-
-      expect(error.cause).toBe(cause);
-      if (!error.cause) throw new Error('Expected cause to be defined');
-      expect(error.cause.message).toContain('EACCES');
-    });
-
     it('should be catchable as FileSystemError', () => {
       expect(() => {
         throw new FileSystemError('test', '/path', 'TEST_CODE');
@@ -191,71 +64,6 @@ describe('Error types', () => {
         expect((err as FileSystemError).path).toBe('/data/registry.json');
         expect((err as FileSystemError).code).toBe('FILE_NOT_FOUND');
       }
-    });
-
-    it('should handle path with special characters', () => {
-      const specialPath = '/Users/user/.shc2es/logs/poll-2025-12-15.log';
-      const error = new FileSystemError('Failed to write', specialPath, 'WRITE_ERROR');
-
-      expect(error.path).toBe(specialPath);
-    });
-  });
-
-  describe('Error inheritance and polymorphism', () => {
-    it('should allow catching base class', () => {
-      const errors: SHC2ESError[] = [
-        new ValidationError('test1', 'VAR1', 'CODE1'),
-        new ConfigError('test2', '/path', 'CODE2'),
-        new FileSystemError('test3', '/file', 'CODE3'),
-      ];
-
-      errors.forEach((error) => {
-        expect(error).toBeInstanceOf(SHC2ESError);
-        expect(error).toBeInstanceOf(Error);
-        expect(error.code).toBeDefined();
-      });
-    });
-
-    it('should differentiate error types', () => {
-      const validationError = new ValidationError('test', 'VAR', 'CODE');
-      const configError = new ConfigError('test', '/path', 'CODE');
-      const fsError = new FileSystemError('test', '/file', 'CODE');
-
-      expect(validationError).toBeInstanceOf(ValidationError);
-      expect(validationError).not.toBeInstanceOf(ConfigError);
-      expect(validationError).not.toBeInstanceOf(FileSystemError);
-
-      expect(configError).toBeInstanceOf(ConfigError);
-      expect(configError).not.toBeInstanceOf(ValidationError);
-      expect(configError).not.toBeInstanceOf(FileSystemError);
-
-      expect(fsError).toBeInstanceOf(FileSystemError);
-      expect(fsError).not.toBeInstanceOf(ValidationError);
-      expect(fsError).not.toBeInstanceOf(ConfigError);
-    });
-
-    it('should handle error chain with causes', () => {
-      const rootCause = new Error('Network timeout');
-      const fsCause = new FileSystemError(
-        'Failed to save',
-        '/tmp/data.json',
-        'WRITE_FAILED',
-        rootCause,
-      );
-      const configError = new ConfigError(
-        'Config persistence failed',
-        '/tmp/config',
-        'SAVE_FAILED',
-        fsCause,
-      );
-
-      const fsCauseActual = configError.cause as FileSystemError;
-      const rootCauseActual = fsCauseActual.cause;
-
-      expect(fsCauseActual).toBe(fsCause);
-      expect(rootCauseActual).toBe(rootCause);
-      if (!rootCauseActual) throw new Error('Expected root cause to be defined');
-      expect(rootCauseActual.message).toBe('Network timeout');
     });
   });
 
@@ -311,6 +119,241 @@ describe('Error types', () => {
         message: 'Disk full',
         code: 'DISK_FULL',
         path: '/var/data',
+      });
+    });
+  });
+
+  describe('Property-based tests', () => {
+    describe('ValidationError properties', () => {
+      it('should preserve all constructor parameters', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), fc.string(), (message, variable, code) => {
+            const error = new ValidationError(message, variable, code);
+
+            expect(error.message).toBe(message);
+            expect(error.variable).toBe(variable);
+            expect(error.code).toBe(code);
+            expect(error.name).toBe('ValidationError');
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error).toBeInstanceOf(SHC2ESError);
+            expect(error).toBeInstanceOf(Error);
+          }),
+        );
+      });
+
+      it('should use default code when not provided', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (message, variable) => {
+            const error = new ValidationError(message, variable);
+            expect(error.code).toBe('VALIDATION_ERROR');
+          }),
+        );
+      });
+
+      it('should preserve cause in error chain', () => {
+        fc.assert(
+          fc.property(
+            fc.string(),
+            fc.string(),
+            fc.string(),
+            fc.option(fc.anything()),
+            (message, variable, code, cause) => {
+              const error = new ValidationError(message, variable, code, cause);
+              expect(error.cause).toBe(cause);
+            },
+          ),
+        );
+      });
+
+      it('should always have stack trace', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), fc.string(), (message, variable, code) => {
+            const error = new ValidationError(message, variable, code);
+            expect(error.stack).toBeDefined();
+            expect(typeof error.stack).toBe('string');
+            expect(error.stack).toContain('ValidationError');
+          }),
+        );
+      });
+    });
+
+    describe('ConfigError properties', () => {
+      it('should preserve all constructor parameters', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.option(fc.string()), fc.string(), (message, path, code) => {
+            const error = new ConfigError(message, path, code);
+
+            expect(error.message).toBe(message);
+            expect(error.path).toBe(path);
+            expect(error.code).toBe(code);
+            expect(error.name).toBe('ConfigError');
+            expect(error).toBeInstanceOf(ConfigError);
+            expect(error).toBeInstanceOf(SHC2ESError);
+            expect(error).toBeInstanceOf(Error);
+          }),
+        );
+      });
+
+      it('should use default code when not provided', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.option(fc.string()), (message, path) => {
+            const error = new ConfigError(message, path);
+            expect(error.code).toBe('CONFIG_ERROR');
+          }),
+        );
+      });
+
+      it('should handle undefined path', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (message, code) => {
+            const error = new ConfigError(message, undefined, code);
+            expect(error.path).toBeUndefined();
+            expect(error.message).toBe(message);
+          }),
+        );
+      });
+
+      it('should preserve cause in error chain', () => {
+        fc.assert(
+          fc.property(
+            fc.string(),
+            fc.option(fc.string()),
+            fc.string(),
+            fc.option(fc.anything()),
+            (message, path, code, cause) => {
+              const error = new ConfigError(message, path, code, cause);
+              expect(error.cause).toBe(cause);
+            },
+          ),
+        );
+      });
+    });
+
+    describe('FileSystemError properties', () => {
+      it('should preserve all constructor parameters', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), fc.string(), (message, path, code) => {
+            const error = new FileSystemError(message, path, code);
+
+            expect(error.message).toBe(message);
+            expect(error.path).toBe(path);
+            expect(error.code).toBe(code);
+            expect(error.name).toBe('FileSystemError');
+            expect(error).toBeInstanceOf(FileSystemError);
+            expect(error).toBeInstanceOf(SHC2ESError);
+            expect(error).toBeInstanceOf(Error);
+          }),
+        );
+      });
+
+      it('should use default code when not provided', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (message, path) => {
+            const error = new FileSystemError(message, path);
+            expect(error.code).toBe('FS_ERROR');
+          }),
+        );
+      });
+
+      it('should preserve cause in error chain', () => {
+        fc.assert(
+          fc.property(
+            fc.string(),
+            fc.string(),
+            fc.string(),
+            fc.option(fc.anything()),
+            (message, path, code, cause) => {
+              const error = new FileSystemError(message, path, code, cause);
+              expect(error.cause).toBe(cause);
+            },
+          ),
+        );
+      });
+
+      it('should handle paths with special characters', () => {
+        const pathCharArbitrary = fc.constantFrom('/', '.', '-', '_', '~', 'a', 'b', '1', '2');
+        const pathArbitrary = fc
+          .array(pathCharArbitrary, { minLength: 1, maxLength: 50 })
+          .map((chars) => chars.join(''));
+
+        fc.assert(
+          fc.property(fc.string(), pathArbitrary, fc.string(), (message, path, code) => {
+            const error = new FileSystemError(message, path, code);
+            expect(error.path).toBe(path);
+          }),
+        );
+      });
+    });
+
+    describe('Error inheritance properties', () => {
+      it('should maintain instanceof relationships for all error types', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), fc.string(), (message, param, code) => {
+            const validationError = new ValidationError(message, param, code);
+            const configError = new ConfigError(message, param, code);
+            const fsError = new FileSystemError(message, param, code);
+
+            const errors = [validationError, configError, fsError];
+
+            errors.forEach((error) => {
+              expect(error).toBeInstanceOf(SHC2ESError);
+              expect(error).toBeInstanceOf(Error);
+              expect(error.code).toBeDefined();
+              expect(error.message).toBe(message);
+            });
+          }),
+        );
+      });
+
+      it('should differentiate error types correctly', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), fc.string(), (message, param, code) => {
+            const validationError = new ValidationError(message, param, code);
+            const configError = new ConfigError(message, param, code);
+            const fsError = new FileSystemError(message, param, code);
+
+            // ValidationError checks
+            expect(validationError).toBeInstanceOf(ValidationError);
+            expect(validationError).not.toBeInstanceOf(ConfigError);
+            expect(validationError).not.toBeInstanceOf(FileSystemError);
+
+            // ConfigError checks
+            expect(configError).toBeInstanceOf(ConfigError);
+            expect(configError).not.toBeInstanceOf(ValidationError);
+            expect(configError).not.toBeInstanceOf(FileSystemError);
+
+            // FileSystemError checks
+            expect(fsError).toBeInstanceOf(FileSystemError);
+            expect(fsError).not.toBeInstanceOf(ValidationError);
+            expect(fsError).not.toBeInstanceOf(ConfigError);
+          }),
+        );
+      });
+
+      it('should handle error chains with multiple causes', () => {
+        fc.assert(
+          fc.property(
+            fc.string(),
+            fc.string(),
+            fc.string(),
+            fc.string(),
+            (msg1, msg2, msg3, path) => {
+              const rootCause = new Error(msg1);
+              const fsCause = new FileSystemError(msg2, path, 'WRITE_FAILED', rootCause);
+              const configError = new ConfigError(msg3, path, 'SAVE_FAILED', fsCause);
+
+              expect(configError.cause).toBe(fsCause);
+              expect((configError.cause as FileSystemError).cause).toBe(rootCause);
+
+              const fsCauseActual = configError.cause as FileSystemError;
+              const rootCauseActual = fsCauseActual.cause;
+              if (rootCauseActual) {
+                expect(rootCauseActual).toBe(rootCause);
+                expect(rootCauseActual.message).toBe(msg1);
+              }
+            },
+          ),
+        );
       });
     });
   });

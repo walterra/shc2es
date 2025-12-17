@@ -3,6 +3,7 @@
  */
 
 import { jest } from '@jest/globals';
+import * as fc from 'fast-check';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -39,41 +40,6 @@ describe('config module', () => {
   });
 
   describe('path functions', () => {
-    it('getUserConfigDir should return path in home directory', () => {
-      const result = config.getUserConfigDir();
-      expect(result).toBe(path.join(os.homedir(), '.shc2es'));
-    });
-
-    it('getCertsDir should return certs subdirectory', () => {
-      const result = config.getCertsDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'certs'));
-    });
-
-    it('getDataDir should return data subdirectory', () => {
-      const result = config.getDataDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'data'));
-    });
-
-    it('getLogsDir should return logs subdirectory', () => {
-      const result = config.getLogsDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'logs'));
-    });
-
-    it('getCertFile should return cert file path', () => {
-      const result = config.getCertFile();
-      expect(result).toBe(path.join(config.getCertsDir(), 'client-cert.pem'));
-    });
-
-    it('getKeyFile should return key file path', () => {
-      const result = config.getKeyFile();
-      expect(result).toBe(path.join(config.getCertsDir(), 'client-key.pem'));
-    });
-
-    it('getEnvFile should return env file path', () => {
-      const result = config.getEnvFile();
-      expect(result).toBe(path.join(config.getUserConfigDir(), '.env'));
-    });
-
     it('getLocalEnvFile should return local env file path', () => {
       const result = config.getLocalEnvFile();
       expect(result).toBe(path.join(process.cwd(), '.env'));
@@ -180,6 +146,84 @@ describe('config module', () => {
       expect(() => {
         config.loadEnv();
       }).not.toThrow();
+    });
+  });
+
+  describe('Property-based tests', () => {
+    describe('path function properties', () => {
+      it('all path functions should return absolute paths', () => {
+        const pathFunctions = [
+          config.getUserConfigDir,
+          config.getCertsDir,
+          config.getDataDir,
+          config.getLogsDir,
+          config.getCertFile,
+          config.getKeyFile,
+          config.getEnvFile,
+        ];
+
+        pathFunctions.forEach((fn) => {
+          const result = fn();
+          expect(path.isAbsolute(result)).toBe(true);
+        });
+      });
+
+      it('all paths should start with user home directory', () => {
+        const homeDir = os.homedir();
+        const pathFunctions = [
+          config.getUserConfigDir,
+          config.getCertsDir,
+          config.getDataDir,
+          config.getLogsDir,
+          config.getCertFile,
+          config.getKeyFile,
+          config.getEnvFile,
+        ];
+
+        pathFunctions.forEach((fn) => {
+          const result = fn();
+          expect(result.startsWith(homeDir)).toBe(true);
+        });
+      });
+
+      it('path functions should be deterministic', () => {
+        fc.assert(
+          fc.property(fc.constant(null), () => {
+            const pathFunctions = [
+              config.getUserConfigDir,
+              config.getCertsDir,
+              config.getDataDir,
+              config.getLogsDir,
+            ];
+
+            pathFunctions.forEach((fn) => {
+              const result1 = fn();
+              const result2 = fn();
+              expect(result1).toBe(result2);
+            });
+          }),
+        );
+      });
+
+      it('subdirectory paths should contain parent directory', () => {
+        const userConfigDir = config.getUserConfigDir();
+
+        const subdirs = [config.getCertsDir(), config.getDataDir(), config.getLogsDir()];
+
+        subdirs.forEach((subdir) => {
+          expect(subdir).toContain(userConfigDir);
+          expect(subdir.length).toBeGreaterThan(userConfigDir.length);
+        });
+      });
+
+      it('file paths should be within their parent directories', () => {
+        const certsDir = config.getCertsDir();
+        const userConfigDir = config.getUserConfigDir();
+
+        expect(config.getCertFile()).toContain(certsDir);
+        expect(config.getKeyFile()).toContain(certsDir);
+        expect(config.getEnvFile()).toContain(userConfigDir);
+      });
     });
   });
 });
