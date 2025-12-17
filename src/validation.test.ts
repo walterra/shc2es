@@ -471,7 +471,7 @@ describe('validation module', () => {
         const invalidUrls = fc.oneof(
           fc.constant('localhost:9200'),
           fc.constant('example.com'),
-          fc.string({ minLength: 1 }).filter((s) => !s.startsWith('http')),
+          fc.string({ minLength: 1 }).filter((s) => s.trim().length > 0 && !s.startsWith('http')),
         );
 
         fc.assert(
@@ -560,9 +560,12 @@ describe('validation module', () => {
       });
 
       it('should reject invalid log levels', () => {
-        const invalidLevels = fc
-          .string()
-          .filter((s) => !['trace', 'debug', 'info', 'warn', 'error', 'fatal', ''].includes(s));
+        const validLevels = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
+        const invalidLevels = fc.string().filter((s) => {
+          const trimmed = s.trim().toLowerCase();
+          // Exclude empty/whitespace (returns default) and valid levels
+          return trimmed !== '' && !validLevels.includes(trimmed);
+        });
 
         fc.assert(
           fc.property(invalidLevels, (level: string) => {

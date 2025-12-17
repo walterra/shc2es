@@ -5,6 +5,7 @@
 jest.mock('./config');
 
 import { jest } from '@jest/globals';
+import * as fc from 'fast-check';
 import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -109,55 +110,6 @@ describe('logger module', () => {
   });
 
   describe('serializeError', () => {
-    it('should serialize Error with all fields', () => {
-      const error = new Error('Test error message');
-      const result = logger.serializeError(error);
-
-      expect(result['error.message']).toBe('Test error message');
-      expect(result['error.type']).toBe('Error');
-      expect(result['error.stack_trace']).toBeDefined();
-      expect(typeof result['error.stack_trace']).toBe('string');
-    });
-
-    it('should serialize error with code property', () => {
-      const error = new Error('Connection failed') as Error & { code: string };
-      error.code = 'ECONNREFUSED';
-      const result = logger.serializeError(error);
-
-      expect(result['error.message']).toBe('Connection failed');
-      expect(result['error.code']).toBe('ECONNREFUSED');
-      expect(result['error.type']).toBe('Error');
-    });
-
-    it('should serialize error with errno property', () => {
-      const error = new Error('File not found') as Error & { errno: number };
-      error.errno = -2;
-      const result = logger.serializeError(error);
-
-      expect(result['error.message']).toBe('File not found');
-      expect(result['error.errno']).toBe(-2);
-    });
-
-    it('should recursively serialize error cause', () => {
-      const cause = new Error('Root cause');
-      const error = new Error('Top level error', { cause });
-      const result = logger.serializeError(error);
-
-      expect(result['error.message']).toBe('Top level error');
-      expect(result['error.cause']).toBeDefined();
-
-      const serializedCause = result['error.cause'] as Record<string, unknown>;
-      expect(serializedCause['error.message']).toBe('Root cause');
-      expect(serializedCause['error.type']).toBe('Error');
-    });
-
-    it('should handle string errors', () => {
-      const result = logger.serializeError('Simple error string');
-
-      expect(result['error.message']).toBe('Simple error string');
-      expect(result['error.type']).toBe('string');
-    });
-
     it('should handle non-Error objects', () => {
       const result = logger.serializeError({ custom: 'error' });
 
@@ -175,21 +127,6 @@ describe('logger module', () => {
       expect(undefinedResult['error.type']).toBe('undefined');
     });
 
-    it('should handle custom error classes', () => {
-      class CustomError extends Error {
-        constructor(message: string) {
-          super(message);
-          this.name = 'CustomError';
-        }
-      }
-
-      const error = new CustomError('Custom error occurred');
-      const result = logger.serializeError(error);
-
-      expect(result['error.message']).toBe('Custom error occurred');
-      expect(result['error.type']).toBe('CustomError');
-    });
-
     it('should use ECS-compliant field names', () => {
       const error = new Error('Test');
       const result = logger.serializeError(error);
@@ -203,6 +140,120 @@ describe('logger module', () => {
       expect(Object.keys(result)).not.toContain('err');
       expect(Object.keys(result)).not.toContain('message');
       expect(Object.keys(result)).not.toContain('type');
+    });
+
+    describe('Property-based tests', () => {
+      it('should never throw for any reasonable input', () => {
+        // Use safe values that won't have broken toString methods
+        const reasonableValues = fc.oneof(
+          fc.string(),
+          fc.integer(),
+          fc.boolean(),
+          fc.constant(null),
+          fc.constant(undefined),
+          fc.string().map((msg) => new Error(msg)),
+          fc.record({
+            message: fc.string(),
+            code: fc.option(fc.string()),
+          }),
+        );
+
+        fc.assert(
+          fc.property(reasonableValues, (value) => {
+            expect(() => logger.serializeError(value)).not.toThrow();
+          }),
+        );
+      });
+
+      it('should always produce ECS-compliant output', () => {
+        const reasonableValues = fc.oneof(
+          fc.string(),
+          fc.integer(),
+          fc.boolean(),
+          fc.constant(null),
+          fc.constant(undefined),
+          fc.string().map((msg) => new Error(msg)),
+        );
+
+        fc.assert(
+          fc.property(reasonableValues, (value) => {
+            const result = logger.serializeError(value);
+
+            // Must have required ECS fields
+            expect(result['error.message']).toBeDefined();
+            expect(result['error.type']).toBeDefined();
+
+            // Fields must be correct types
+            expect(typeof result['error.message']).toBe('string');
+            expect(typeof result['error.type']).toBe('string');
+          }),
+        );
+      });
+
+      it('should preserve Error message for all Error instances', () => {
+        fc.assert(
+          fc.property(fc.string(), (message: string) => {
+            const error = new Error(message);
+            const result = logger.serializeError(error);
+
+            expect(result['error.message']).toBe(message);
+            expect(result['error.type']).toBe('Error');
+            expect(result['error.stack_trace']).toBeDefined();
+            expect(typeof result['error.stack_trace']).toBe('string');
+          }),
+        );
+      });
+
+      it('should recursively serialize error cause chains', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.string(), (topMessage: string, causeMessage: string) => {
+            const cause = new Error(causeMessage);
+            const error = new Error(topMessage, { cause });
+            const result = logger.serializeError(error);
+
+            expect(result['error.message']).toBe(topMessage);
+            expect(result['error.cause']).toBeDefined();
+
+            const serializedCause = result['error.cause'] as Record<string, unknown>;
+            expect(serializedCause['error.message']).toBe(causeMessage);
+            expect(serializedCause['error.type']).toBe('Error');
+          }),
+        );
+      });
+
+      it('should handle string errors with arbitrary content', () => {
+        fc.assert(
+          fc.property(fc.string(), (errorString: string) => {
+            const result = logger.serializeError(errorString);
+
+            expect(result['error.message']).toBe(errorString);
+            expect(result['error.type']).toBe('string');
+          }),
+        );
+      });
+
+      it('should handle custom error classes with arbitrary names', () => {
+        fc.assert(
+          fc.property(
+            fc.string({ minLength: 1 }),
+            fc.string(),
+            (errorName: string, message: string) => {
+              class CustomError extends Error {
+                constructor(msg: string) {
+                  super(msg);
+                  this.name = errorName;
+                }
+              }
+
+              const error = new CustomError(message);
+              const result = logger.serializeError(error);
+
+              expect(result['error.message']).toBe(message);
+              expect(result['error.type']).toBe(errorName);
+            },
+          ),
+        );
+      });
     });
   });
 

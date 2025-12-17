@@ -362,8 +362,16 @@ export function serializeError(error: unknown): Record<string, unknown> {
   }
 
   if (!(error instanceof Error)) {
+    // Handle objects with null prototype or broken toString
+    let errorMessage: string;
+    try {
+      errorMessage = String(error);
+    } catch {
+      errorMessage = '[Unstringifiable value]';
+    }
+
     return {
-      'error.message': String(error),
+      'error.message': errorMessage,
       'error.type': typeof error,
     };
   }
