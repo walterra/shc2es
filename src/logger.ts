@@ -215,18 +215,29 @@ function getDataLogger(): pino.Logger {
 
   const dataLogFile = path.join(getDataDir(), `events-${dateStamp}.ndjson`);
 
+  // Use sync mode for tests to avoid buffering issues
+  const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+
   _dataLogger = pino(
     {
-      name: buildLoggerName('data'), // shc2es-poll:data
       level: 'info',
-      // Minimal formatting - just the event data
+      // Custom formatter to write only the raw event data (no pino metadata)
       formatters: {
-        level: () => ({}), // Omit level from data logs
-        bindings: () => ({}), // Omit pid, hostname
+        log: (obj) => {
+          // Pino merges the event object into the log record
+          // We strip out pino-specific fields and return only the event data
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { name, pid, hostname, level, time, msg, ...event } = obj;
+          return event;
+        },
       },
-      timestamp: pino.stdTimeFunctions.isoTime,
+      timestamp: false, // Events have their own timestamp field
+      base: null, // Don't add pid/hostname
     },
-    pino.destination(dataLogFile),
+    pino.destination({
+      dest: dataLogFile,
+      sync: isTestEnv, // Synchronous writes in test environment
+    }),
   );
 
   return _dataLogger;

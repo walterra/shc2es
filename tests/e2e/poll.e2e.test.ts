@@ -5,14 +5,18 @@
  * Note: Mock controller uses ephemeral port (0) to avoid conflicts with real controller
  */
 
+/* eslint-disable max-lines-per-function */
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MockBoschController } from '../mocks/bosch-controller-server';
+import { createMockBridgeFactory } from '../mocks/mock-bridge-adapter';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
 import type { SmartHomeEvent } from '../../src/types/smart-home-events';
 import { main as pollMain } from '../../src/poll';
+import { parseLine } from '../../src/ingest/utils';
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -29,6 +33,48 @@ const setupTestEnv = (controllerUrl: string, tempDir: string): void => {
   process.env.BSH_CLIENT_ID = 'test-id';
   process.env.HOME = tempDir; // Override home to use temp .shc2es directory
 };
+
+/**
+ * Setup polling directories (certs, logs, data)
+ */
+function setupPollingDirs(tempDir: string): {
+  configDir: string;
+  certsDir: string;
+  logsDir: string;
+  dataDir: string;
+} {
+  const configDir = path.join(tempDir, '.shc2es');
+  const certsDir = path.join(configDir, 'certs');
+  const logsDir = path.join(configDir, 'logs');
+  const dataDir = path.join(configDir, 'data');
+
+  fs.mkdirSync(certsDir, { recursive: true });
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
+
+  return { configDir, certsDir, logsDir, dataDir };
+}
+
+/**
+ * Read and parse NDJSON events from file
+ */
+function readEventsFromFile(dataDir: string): SmartHomeEvent[] {
+  const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.ndjson'));
+  expect(files.length).toBeGreaterThan(0);
+
+  const latestFile = files.sort().reverse()[0];
+  const filePath = path.join(dataDir, latestFile);
+  const content = fs.readFileSync(filePath, 'utf-8');
+
+  expect(content.trim().length).toBeGreaterThan(0);
+
+  return content
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => parseLine(line))
+    .filter((event): event is NonNullable<typeof event> => event !== null) as SmartHomeEvent[];
+}
 
 describe('Poll E2E', () => {
   let mockController: MockBoschController;
@@ -134,51 +180,22 @@ describe('Poll E2E', () => {
     expect(pollResult).toHaveLength(2); // We added 2 events
   });
 
-  it.skip('should write events to NDJSON when integrated - REPLACED BY NEXT TEST', () => {
-    // This was a placeholder - now we have real integration below
-  });
+  it('should call main() with mock controller and write NDJSON files', async () => {
+    // Add fresh events to mock controller for this test
+    mockController.addEvents([
+      smartHomeEvents.deviceServiceData,
+      smartHomeEvents.deviceServiceDataWithFaults,
+    ]);
 
-  it.skip('should call main() with mock controller and write NDJSON files - TODO: needs mock bridge adapter', async () => {
-    // TODO: This test requires a mock bridge adapter because:
-    // 1. bosch-smart-home-bridge expects HTTPS on port 8444 (real controller)
-    // 2. MockBoschController uses HTTP on random ephemeral ports
-    // 3. The real bridge library can't connect to our mock server
-    //
-    // Solution: Create a mock implementation of BoschSmartHomeBridge that
-    // uses the MockBoschController's URL and HTTP (not HTTPS)
-    //
-    // For now: The dependency injection is complete (bridgeFactory parameter works)
-    // and verified via unit tests. E2E test deferred until mock adapter created.
-    // Setup all required directories (poll.ts needs certs, logs, data)
-    const configDir = path.join(tempDir, '.shc2es');
-    const certsDir = path.join(configDir, 'certs');
-    const logsDir = path.join(configDir, 'logs');
-    const dataDir = path.join(configDir, 'data');
-
-    fs.mkdirSync(certsDir, { recursive: true });
-    fs.mkdirSync(logsDir, { recursive: true });
-    fs.mkdirSync(dataDir, { recursive: true });
-
-    // Parse URL to extract hostname and port
-    // controllerUrl is like "http://localhost:54670"
-    const url = new URL(controllerUrl);
-    const host = url.hostname; // Just "localhost" without port
-
-    // Note: bosch-smart-home-bridge uses HTTPS on port 8444 by default
-    // For mock controller on HTTP, we can't use the real bridge - skip this test for now
-    // This test needs a different approach (mock the bridge, not use real one)
-
-    // Create config for poll.ts
+    // Setup directories and config
+    const { dataDir } = setupPollingDirs(tempDir);
     const config = {
-      bshHost: host,
+      bshHost: new URL(controllerUrl).hostname,
       bshPassword: 'test-password',
       bshClientName: 'test-client',
       bshClientId: 'test-id',
       logLevel: 'info' as const,
     };
-
-    // Create AbortController to stop polling after receiving events
-    const abortController = new AbortController();
 
     // Track exit calls
     let exitCode: number | undefined;
@@ -186,43 +203,21 @@ describe('Poll E2E', () => {
       exitCode = code;
     };
 
-    // Start polling in background (it will run continuously)
-    pollMain(mockExit, config, abortController.signal);
+    // Start polling with mock bridge
+    const abortController = new AbortController();
+    const mockBridgeFactory = createMockBridgeFactory({ controllerUrl });
+    pollMain(mockExit, config, abortController.signal, mockBridgeFactory);
 
-    // Wait for events to be written (give it a few seconds)
+    // Wait for events, then abort and flush
     await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Abort polling
     abortController.abort();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Wait a bit for abort to take effect
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Find NDJSON files in data directory
-    const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.ndjson'));
-    expect(files.length).toBeGreaterThan(0);
-
-    // Read the most recent file
-    const latestFile = files.sort().reverse()[0];
-    const filePath = path.join(dataDir, latestFile);
-    const content = fs.readFileSync(filePath, 'utf-8');
-
-    // Verify file contains events
-    expect(content.trim().length).toBeGreaterThan(0);
-
-    const events = content
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as SmartHomeEvent);
-
-    // Should have received the 2 test events from mock controller
+    // Verify events were written
+    const events = readEventsFromFile(dataDir);
     expect(events.length).toBeGreaterThanOrEqual(2);
     expect(events[0]).toHaveProperty('@type');
-    expect(events[0]).toMatchObject({
-      '@type': 'DeviceServiceData',
-    });
-
-    // Should not have called exit with error
+    expect(events[0]).toMatchObject({ '@type': 'DeviceServiceData' });
     expect(exitCode).toBeUndefined();
-  }, 10000); // 10 second timeout for this integration test
+  }, 10000);
 });
