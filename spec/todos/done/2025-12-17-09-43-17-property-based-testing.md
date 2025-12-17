@@ -1,6 +1,6 @@
 # Property-based testing with fast-check
 
-**Status:** In Progress
+**Status:** Done
 **Created:** 2025-12-17-09-43-17
 **Started:** 2025-12-17-09-47-23
 **Agent PID:** 58485
