@@ -1,7 +1,8 @@
 # Complete E2E test implementation (finish dependency injection work)
 
-**Status:** Refining
+**Status:** In Progress
 **Created:** 2025-12-17-14-38-45
+**Started:** 2025-12-17-14:39:21
 **Agent PID:** 91996
 
 ## Description
@@ -27,22 +28,22 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 
 ### Phase 1: poll.ts - Full Dependency Injection
 
-- [ ] Refactor `main()` to accept optional config object (src/poll.ts:225-280)
+- [x] Refactor `main()` to accept optional config object (src/poll.ts:225-280)
   - Add `PollConfig` interface with all dependencies (bshHost, clientName, clientId, password, dataDir, certsDir)
   - Support both env vars (default CLI) and injected config (tests)
   - Keep backward compatibility with existing CLI usage
-- [ ] Refactor `main()` to accept optional AbortSignal (src/poll.ts:225-280)
+- [x] Refactor `main()` to accept optional AbortSignal (src/poll.ts:225-280)
   - Add `signal?: AbortSignal` parameter to main()
   - Pass signal through to polling loop
   - Abort subscription/polling when signal fires
-- [ ] Extract bridge creation into injectable factory (src/poll.ts:199-210)
+- [x] Extract bridge creation into injectable factory (src/poll.ts:199-210)
   - Accept optional `bridgeFactory` parameter in main()
   - Allow tests to inject mock bridge
-- [ ] Write E2E test: poll with mock controller → verify NDJSON files (tests/e2e/poll.e2e.test.ts:92-136)
-  - Call actual main() function with injected config
-  - Use AbortSignal to stop polling after N events
-  - Verify events written to correct NDJSON files
-  - Verify file format and content matches expected schema
+- [~] Write E2E test: poll with mock controller → verify NDJSON files (tests/e2e/poll.e2e.test.ts:92-136)
+  - **BLOCKED**: Jest/ESM compatibility issue with `uuid` package (used by bosch-smart-home-bridge)
+  - Test code written but cannot run due to Jest not supporting ESM modules in dependencies
+  - Alternative: Create integration test with fully mocked bridge (no bosch-smart-home-bridge import)
+  - Code changes complete and verified via build/unit tests; E2E test deferred
 
 ### Phase 2: ingest/main.ts - Full Dependency Injection
 
@@ -163,3 +164,17 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 - Existing test infrastructure (TestContainers, MockBoschController)
 - Existing fixtures (smart-home-events.json, controller-devices.json, etc.)
 - All CLI scripts already have exit callback injection (prerequisite met)
+
+### Implementation Progress
+
+**Phase 1 Complete (with caveat) - 2025-12-17 14:43**
+
+- ✅ poll.ts refactored for full dependency injection (config, signal, bridgeFactory)
+- ✅ Backward compatible - all new parameters optional with defaults
+- ✅ Build succeeds, unit tests pass (209/209)
+- ✅ Linting errors fixed - refactored to `PollingContext` to avoid max-params violations
+- ❌ E2E test blocked by Jest/ESM incompatibility with `uuid` package in bosch-smart-home-bridge
+  - Attempted multiple Jest config fixes (transformIgnorePatterns, moduleNameMapper)
+  - Root cause: uuid@latest uses ESM (`"type": "module"`), Jest doesn't handle this well
+  - **Workaround needed**: Create BSHB bridge mock adapter to avoid real library import
+- **Decision**: Proceeding to Phase 2 (ingest.ts) - no problematic ESM dependencies

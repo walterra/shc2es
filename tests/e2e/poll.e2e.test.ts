@@ -11,6 +11,7 @@ import { MockBoschController } from '../mocks/bosch-controller-server';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
 import type { SmartHomeEvent } from '../../src/types/smart-home-events';
+import { main as pollMain } from '../../src/poll';
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -132,39 +133,73 @@ describe('Poll E2E', () => {
     expect(pollResult).toHaveLength(2); // We added 2 events
   });
 
-  it('should write events to NDJSON when integrated', () => {
-    // Note: This test would require refactoring poll.ts to:
-    // 1. Accept controller URL as parameter instead of env var
-    // 2. Accept config directory as parameter
-    // 3. Return from main() instead of calling process.exit()
-    // 4. Accept a signal/callback for when to stop polling
+  it.skip('should write events to NDJSON when integrated - REPLACED BY NEXT TEST', () => {
+    // This was a placeholder - now we have real integration below
+  });
 
-    // For now, we create a placeholder test that validates our setup
+  it('should call main() with mock controller and write NDJSON files', async () => {
+    // Setup directories
     const dataDir = path.join(tempDir, '.shc2es', 'data');
     fs.mkdirSync(dataDir, { recursive: true });
 
-    const testFile = path.join(dataDir, 'events-2025-12-16.ndjson');
-    const testEvents = [
-      smartHomeEvents.deviceServiceData,
-      smartHomeEvents.deviceServiceDataWithFaults,
-    ];
+    // Extract host from URL for config
+    const host = controllerUrl.replace('http://', '');
 
-    // Simulate what poll.ts does
-    const lines = testEvents.map((event) => JSON.stringify(event)).join('\n');
-    fs.writeFileSync(testFile, lines + '\n');
+    // Create config for poll.ts
+    const config = {
+      bshHost: host,
+      bshPassword: 'test-password',
+      bshClientName: 'test-client',
+      bshClientId: 'test-id',
+      logLevel: 'info' as const,
+    };
 
-    // Verify file was created and contains events
-    expect(fs.existsSync(testFile)).toBe(true);
-    const content = fs.readFileSync(testFile, 'utf-8');
+    // Create AbortController to stop polling after receiving events
+    const abortController = new AbortController();
+
+    // Track exit calls
+    let exitCode: number | undefined;
+    const mockExit = (code: number): void => {
+      exitCode = code;
+    };
+
+    // Start polling in background (it will run continuously)
+    pollMain(mockExit, config, abortController.signal);
+
+    // Wait for events to be written (give it a few seconds)
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Abort polling
+    abortController.abort();
+
+    // Wait a bit for abort to take effect
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Find NDJSON files in data directory
+    const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.ndjson'));
+    expect(files.length).toBeGreaterThan(0);
+
+    // Read the most recent file
+    const latestFile = files.sort().reverse()[0];
+    const filePath = path.join(dataDir, latestFile);
+    const content = fs.readFileSync(filePath, 'utf-8');
+
+    // Verify file contains events
+    expect(content.trim().length).toBeGreaterThan(0);
+
     const events = content
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line) as SmartHomeEvent);
 
-    expect(events).toHaveLength(2);
+    // Should have received the 2 test events from mock controller
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events[0]).toHaveProperty('@type');
     expect(events[0]).toMatchObject({
       '@type': 'DeviceServiceData',
-      deviceId: 'hdm:ZigBee:001e5e0902b94515',
     });
-  });
+
+    // Should not have called exit with error
+    expect(exitCode).toBeUndefined();
+  }, 10000); // 10 second timeout for this integration test
 });
