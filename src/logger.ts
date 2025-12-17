@@ -31,8 +31,8 @@ const dateStamp = new Date().toISOString().split('T')[0] ?? '1970-01-01';
  * - File (JSON format for parsing by tools like Claude Code)
  * - OpenTelemetry (if enabled via OTEL_SDK_DISABLED !== 'true')
  *
- * The logger name is derived from OTEL_SERVICE_NAME environment variable,
- * which should be set per-script in package.json (e.g., 'shc2es-poll').
+ * The logger name is derived from OTEL_SERVICE_NAME environment variable.
+ * Set per-script in package.json (e.g., 'shc2es-poll').
  *
  * @param logFilePrefix - Prefix for the log file name (e.g., 'poll' -> 'poll-2025-12-14.log')
  * @returns Configured pino logger instance

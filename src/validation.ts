@@ -10,7 +10,7 @@ import { ValidationError } from './types/errors';
  */
 
 /**
- * Get the location hint for where to set environment variables.
+ * Gets the location hint for where to set environment variables.
  *
  * @returns Hint message about where to set environment variables
  */
@@ -23,7 +23,7 @@ function getEnvFileHint(): string {
 }
 
 /**
- * Validate that a required environment variable is set
+ * Validates required environment variable is set.
  *
  * @param name - Environment variable name
  * @param value - Environment variable value
@@ -52,9 +52,9 @@ export function validateRequired(
 }
 
 /**
- * Validate URL format
+ * Validates URL format.
  *
- * Checks for protocol, valid URL structure, and common mistakes like trailing slashes.
+ * Checks protocol, URL structure, and trailing slashes.
  *
  * @param name - Environment variable name
  * @param value - URL value to validate
@@ -135,7 +135,7 @@ export function validateUrl(
 }
 
 /**
- * Validate file path exists
+ * Validates file path existence.
  *
  * @param name - Environment variable name
  * @param value - File path to validate
@@ -181,7 +181,7 @@ export function validateFilePath(
 }
 
 /**
- * Parse and validate boolean environment variable
+ * Parses and validates boolean environment variable.
  *
  * Accepts: 'true', '1', 'yes' for true; 'false', '0', 'no' for false (case-insensitive)
  *
@@ -230,7 +230,7 @@ export function validateBoolean(
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 /**
- * Validate log level
+ * Validates log level.
  *
  * @param name - Environment variable name
  * @param value - Log level value
@@ -338,7 +338,7 @@ export interface DashboardConfig {
 }
 
 /**
- * Validate configuration for poll command
+ * Validates poll command configuration.
  *
  * @returns Result containing PollConfig or a ValidationError
  *
@@ -372,7 +372,7 @@ export function validatePollConfig(): Result<PollConfig, ValidationError> {
 }
 
 /**
- * Validate configuration for ingest command
+ * Validates ingest command configuration.
  *
  * @param options - Validation options
  * @param options.requireKibana - Whether Kibana node is required (default: undefined)
@@ -438,7 +438,7 @@ export function validateIngestConfig(
 }
 
 /**
- * Validate configuration for fetch-registry command
+ * Validates registry command configuration.
  *
  * @returns Result containing RegistryConfig or a ValidationError
  *
@@ -459,7 +459,7 @@ export function validateRegistryConfig(): Result<RegistryConfig, ValidationError
 }
 
 /**
- * Validate configuration for export-dashboard command
+ * Validates dashboard export configuration.
  *
  * @returns Result containing DashboardConfig or a ValidationError
  *

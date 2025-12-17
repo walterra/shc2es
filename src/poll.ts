@@ -185,9 +185,9 @@ export function createBridge(host: string, cert: string, key: string): BoschSmar
 }
 
 /**
- * Check if an error message indicates a transient network error
+ * Checks if error message indicates transient network error.
  * @param message - Error message to check
- * @returns True if error is transient and should be retried
+ * @returns True if error is transient and requires retry
  */
 export function isTransientError(message: string): boolean {
   return (

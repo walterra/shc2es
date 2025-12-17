@@ -75,8 +75,7 @@ export interface DeviceServiceDataEvent extends BaseEvent {
 /**
  * Device event - represents device metadata and configuration.
  *
- * Contains comprehensive information about a device including its model,
- * manufacturer, services, and relationships to other devices.
+ * Contains device model, manufacturer, services, and relationships to other devices.
  *
  * @example
  * ```json

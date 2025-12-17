@@ -4,13 +4,13 @@
 [![CI](https://github.com/walterra/shc2es/actions/workflows/ci.yml/badge.svg)](https://github.com/walterra/shc2es/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/walterra/shc2es/badge)](https://scorecard.dev/viewer/?uri=github.com/walterra/shc2es)
 
-CLI tools to collect, store, and visualize Bosch Smart Home Controller II data via long polling. Data gets collected as NDJSON and can be passed on to Elasticsearch for Kibana dashboards and time series visualization.
+CLI tools to collect, store, and visualize Bosch Smart Home Controller II data via long polling. Collects data as NDJSON files and ingests into Elasticsearch for Kibana dashboards and time series visualization.
 
 ![Kibana Dashboard](docs/images/dashboard.png)
 
 ## Quick Start
 
-Get up and running in 5 minutes:
+5-minute setup:
 
 > ⚠️ **For educational and development purposes only.** These instructions use `start-local` with self-signed certificates and disabled TLS verification. Do not use this configuration in production. For production deployments, use properly signed certificates and remove `ES_TLS_VERIFY=false` / `OTEL_TLS_VERIFY=false`.
 
@@ -57,16 +57,17 @@ shc2es ingest --setup    # Create index + import dashboard
 shc2es ingest --watch    # Real-time ingestion
 ```
 
-This will read the collected NDJSON files and add them to Elasticsearch.
+Reads NDJSON files and adds them to Elasticsearch.
 
-Open Kibana → Dashboards → "Smart Home" to see your data.
+Open Kibana → Dashboards → "Smart Home".
 
 ---
 
 ## Architecture
 
-For a detailed overview of how shc2es works, see the [Architecture Documentation](docs/architecture.md). It includes:
-- Visual diagram of the complete data flow (Controller II → poll → NDJSON → ingest → Elasticsearch → Kibana)
+See [Architecture Documentation](docs/architecture.md) for system design. Includes:
+
+- Data flow diagram (Controller II → poll → NDJSON → ingest → Elasticsearch → Kibana)
 - Component descriptions for each CLI command
 - Data flow scenarios (initial setup, continuous operation, batch analysis)
 - Configuration and security considerations
@@ -121,7 +122,7 @@ ES_USER=elastic           # Optional, defaults to "elastic"
 ES_PASSWORD=<password>
 ES_INDEX_PREFIX=smart-home-events   # Optional, default: smart-home-events
                                     # Prefix for indices, pipeline, template, and dashboard IDs
-                                    # Useful for multi-deployment scenarios (dev/prod)
+                                    # Supports multi-deployment scenarios (dev/prod)
 
 # Kibana (optional, for dashboard import during yarn ingest:setup)
 KIBANA_NODE=https://localhost:5601
@@ -139,7 +140,7 @@ ELASTIC_API_KEY=your_api_key_here   # Generate in Kibana: Stack Management → A
 
 ### TLS Configuration
 
-By default, TLS certificate verification is **enabled**. For development with self-signed certificates (e.g., `start-local`), you can disable verification:
+Enables TLS certificate verification by default. For development with self-signed certificates (e.g., `start-local`), disable verification:
 
 ```bash
 # Elasticsearch/Kibana connections (ingest, dashboard export)
@@ -157,7 +158,7 @@ OTEL_CA_FILE=/path/to/ca.pem     # Or: provide custom CA certificate
 
 ### Multi-Deployment Scenarios
 
-Use `ES_INDEX_PREFIX` to run multiple environments against the same Elasticsearch cluster without conflicts:
+Use `ES_INDEX_PREFIX` to run multiple environments against the same Elasticsearch cluster:
 
 ```bash
 # Development environment (~/.shc2es/.env)
@@ -167,19 +168,19 @@ ES_INDEX_PREFIX=dev-smarthome
 ES_INDEX_PREFIX=prod-smarthome
 ```
 
-Each prefix creates isolated indices (`dev-smarthome-2025-12-14`, `prod-smarthome-2025-12-14`), pipelines, templates, and Kibana dashboards. Dashboards are automatically prefixed during `yarn ingest:setup` to match your index prefix.
+Each prefix creates isolated indices (`dev-smarthome-2025-12-14`, `prod-smarthome-2025-12-14`), pipelines, templates, and Kibana dashboards. `yarn ingest:setup` automatically prefixes dashboards to match your index prefix.
 
 ## Usage
 
 ### First Run (Pairing)
 
-On first run, you need to pair with the controller:
+Pair with the controller on first run:
 
 1. Run `yarn poll`
 2. When prompted, press the pairing button on your Controller II
 3. Run `yarn poll` again
 
-The client certificate will be generated and saved automatically.
+Generates and saves client certificate automatically.
 
 ### Collecting Data
 
@@ -198,7 +199,7 @@ yarn data:tail        # Follow events in real-time
 
 ### Local Development Stack
 
-Quickly spin up Elasticsearch and Kibana locally for development using Elastic's [start-local](https://github.com/elastic/start-local) script:
+Start Elasticsearch and Kibana locally for development using Elastic's [start-local](https://github.com/elastic/start-local) script:
 
 ```bash
 yarn es-dev:start     # Download and start Elasticsearch + Kibana (Docker)
@@ -207,7 +208,7 @@ yarn es-dev:down      # Stop and remove containers
 yarn es-dev:logs      # Follow container logs
 ```
 
-After starting, you'll have:
+Provides:
 
 - Elasticsearch at http://localhost:9200
 - Kibana at http://localhost:5601
@@ -237,7 +238,7 @@ yarn ingest --pattern "events-2025-12-*.ndjson"
 yarn ingest:watch
 ```
 
-Data is indexed into daily indices: `smart-home-events-YYYY-MM-DD`
+Indexes data into daily indices: `smart-home-events-YYYY-MM-DD`
 
 ### Dashboard Management
 
@@ -248,11 +249,11 @@ yarn dashboard:export --list          # List available dashboards
 yarn dashboard:export "Smart Home"    # Export a dashboard by name
 ```
 
-Exported dashboards are saved to `dashboards/` and automatically imported during `yarn ingest:setup` if `KIBANA_NODE` is configured.
+Saves exported dashboards to `dashboards/`. `yarn ingest:setup` automatically imports them if `KIBANA_NODE` is configured.
 
 ### OpenTelemetry / APM
 
-All scripts include automatic instrumentation via the [Elastic Distribution of OpenTelemetry Node.js](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup) (EDOT). When configured, telemetry data (traces, metrics) is sent to Elastic APM.
+Scripts automatically instrument via the [Elastic Distribution of OpenTelemetry Node.js](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/node/setup) (EDOT). Sends telemetry data (traces, metrics) to Elastic APM when configured.
 
 **To enable APM**, add these to your `.env`:
 
@@ -261,7 +262,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://your-deployment.apm.region.cloud.es.io
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_APM_SECRET_TOKEN
 ```
 
-The service name is set automatically per-command (e.g., `shc2es-poll`, `shc2es-ingest`).
+Sets service name automatically per-command (e.g., `shc2es-poll`, `shc2es-ingest`).
 
 **To disable instrumentation**, use:
 
@@ -284,18 +285,18 @@ Each document includes:
 
 All user data is stored in `~/.shc2es/`:
 
-| Directory           | Contents                                                                                 |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| `~/.shc2es/data/`   | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
-| `~/.shc2es/logs/`   | Application logs for debugging (`poll-YYYY-MM-DD.log`)                                   |
-| `~/.shc2es/certs/`  | Generated client certificates (`client-cert.pem`, `client-key.pem`)                      |
-| `~/.shc2es/.env`    | Configuration file                                                                       |
+| Directory          | Contents                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `~/.shc2es/data/`  | Smart home events (`events-YYYY-MM-DD.ndjson`), device registry (`device-registry.json`) |
+| `~/.shc2es/logs/`  | Application logs for debugging (`poll-YYYY-MM-DD.log`)                                   |
+| `~/.shc2es/certs/` | Generated client certificates (`client-cert.pem`, `client-key.pem`)                      |
+| `~/.shc2es/.env`   | Configuration file                                                                       |
 
 Bundled with package:
 
-| Directory     | Contents                                          |
-| ------------- | ------------------------------------------------- |
-| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`)  |
+| Directory     | Contents                                         |
+| ------------- | ------------------------------------------------ |
+| `dashboards/` | Exported Kibana dashboards (`smart-home.ndjson`) |
 
 ## Hardware
 

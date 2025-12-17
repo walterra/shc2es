@@ -48,17 +48,17 @@ yarn dashboard:export  # Export Kibana dashboard
 
 ## Linting
 
-**Code:**
 ```bash
 yarn lint          # Lint TypeScript
 yarn lint:fix      # Auto-fix issues
 ```
 
-**Documentation:**
-```bash
-yarn lint:docs     # Check for banned words and style issues
-yarn lint:docs:fix # Auto-fix documentation
-```
+## Documentation Style
 
-**Banned words in docs:** `comprehensive` (use 'detailed' or be specific)
+For JSDoc comments and documentation:
 
+- Use present tense verbs (validates, fetches, returns)
+- Avoid filler words (very, really, just, simply)
+- Avoid hedging (probably, maybe, should, could)
+- Keep sentences under 20 words
+- Be direct and factual
