@@ -1,5 +1,7 @@
 # TODO
 
+- GitHub found 1 high severity vulnerability on the default branch (Dependabot alert)
+
 ## High Priority: Coding Style Compliance
 
 ### Function Length and Complexity
@@ -85,6 +87,24 @@
   - Ensure all resources are cleaned up before exit
 
 ### Testing
+
+- **CRITICAL: E2E tests don't test application code**
+  - Current `tests/e2e/` are infrastructure tests (mock controller, ES client), not application tests
+  - **What they test**: Mock HTTP endpoints work, ES bulk operations succeed, TestContainers infrastructure
+  - **What they DON'T test**:
+    - `poll.ts` connecting to controller and writing NDJSON files
+    - `ingest.ts` reading NDJSON and calling ES APIs
+    - `fetch-registry.ts` fetching and saving device/room registry
+    - `export-dashboard.ts` importing/exporting dashboards
+  - **Root cause**: CLI scripts use `process.exit()`, read env vars directly, can't be stopped gracefully
+  - **Required refactoring**:
+    - Extract main logic from CLI scripts into testable functions
+    - Accept config/clients as parameters (dependency injection)
+    - Return errors instead of calling `process.exit()`
+    - Support graceful shutdown via AbortSignal
+  - **Impact**: Zero confidence that CLI scripts work end-to-end, only manual testing validates full flow
+  - **Files**: `poll.ts`, `ingest.ts`, `fetch-registry.ts`, `export-dashboard.ts`
+  - **Alternative**: Rename `tests/e2e/` → `tests/infrastructure/` to be honest about what's tested
 
 ### SOLID Principles
 
