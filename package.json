@@ -45,7 +45,7 @@
     "test:all": "yarn test:unit && yarn test:e2e",
     "test:watch": "vitest watch --config vitest.config.unit.ts",
     "test:coverage": "vitest run --config vitest.config.unit.ts --coverage",
-    "test:ci": "vitest run --config vitest.config.unit.ts --coverage --pool=forks --singleFork",
+    "test:ci": "mkdir -p coverage/.tmp && vitest run --config vitest.config.unit.ts --coverage",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'tests/**/*.json' 'tests/**/*.md'",
