@@ -21,8 +21,8 @@ export interface GlobalContainers {
  * @returns Container URLs
  */
 export function getGlobalContainers(): GlobalContainers {
-  const elasticsearchUrl = inject('elasticsearchUrl');
-  const kibanaUrl = inject('kibanaUrl');
+  const elasticsearchUrl = inject('elasticsearchUrl') as string | undefined;
+  const kibanaUrl = inject('kibanaUrl') as string | undefined;
 
   if (!elasticsearchUrl || !kibanaUrl) {
     throw new Error(
