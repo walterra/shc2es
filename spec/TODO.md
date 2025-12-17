@@ -6,6 +6,8 @@
 
 ### Function Length and Complexity
 
+- address linting warnings
+
 - **Refactor validation functions for better readability**
   - `src/validation.ts`: `validateUrl()` (54 lines), `validateIngestConfig()` (54 lines) - consider extracting:
     - URL validation rules into separate functions (`checkProtocol`, `checkTrailingSlash`)
