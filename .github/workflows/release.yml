@@ -66,6 +66,6 @@ jobs:
           title: ${{ steps.release-version.outputs.title }}
           publish: yarn release
           createGithubReleases: true
-          version: yarn version
+          version: yarn version-packages
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

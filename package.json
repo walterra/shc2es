@@ -54,7 +54,7 @@
     "mermaid:validate": "node scripts/validate-mermaid.js",
     "prepublishOnly": "yarn build && yarn tsc --noEmit",
     "changeset": "changeset",
-    "version": "changeset version && rm -f spec/todos/done/*.md",
+    "version-packages": "changeset version && rm -f spec/todos/done/*.md",
     "release": "yarn build && changeset publish",
     "poll": "ts-node src/cli.ts poll",
     "poll:no-otel": "ts-node src/cli.ts poll --no-otel",
