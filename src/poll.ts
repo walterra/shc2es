@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
 import { BoschSmartHomeBridgeBuilder, BshbUtils } from 'bosch-smart-home-bridge';
 import { getCertsDir, getCertFile, getKeyFile, getConfigPaths } from './config';
-import { appLogger, dataLogger, BshbLogger, logErrorAndExit, serializeError } from './logger';
+import { appLogger, dataLogger, BshbLogger, serializeError } from './logger';
 import { validatePollConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
 
@@ -97,11 +97,13 @@ function handleTransientError(error: unknown, retryCallback: () => void): void {
  * @param client - BSHB client instance
  * @param subscriptionId - Subscription ID from initial subscribe
  * @param bshb - Bridge instance for reconnection
+ * @param exit - Exit callback passed through for error handling
  */
 function handlePollingLoop(
   client: ReturnType<BoschSmartHomeBridge['getBshcClient']>,
   subscriptionId: string,
   bshb: BoschSmartHomeBridge,
+  exit: (code: number) => void,
 ): void {
   const poll = (): void => {
     // Don't instrument the polling loop itself - it's recursive and would create nested spans
@@ -114,7 +116,7 @@ function handlePollingLoop(
       },
       error: (err: unknown) => {
         handleTransientError(err, () => {
-          startPolling(bshb);
+          startPolling(bshb, exit);
         });
       },
     });
@@ -125,12 +127,15 @@ function handlePollingLoop(
 
 /**
  * Subscribe to events and start polling
+ * Helper for main() - handles subscription and error cases
  * @param client - BSHB client instance
  * @param bshb - Bridge instance for reconnection
+ * @param exit - Exit callback (CLI passes process.exit, tests pass mock)
  */
 function subscribeToEvents(
   client: ReturnType<BoschSmartHomeBridge['getBshcClient']>,
   bshb: BoschSmartHomeBridge,
+  exit: (code: number) => void,
 ): void {
   client.subscribe().subscribe({
     next: (response) => {
@@ -140,7 +145,7 @@ function subscribeToEvents(
         `Subscribed successfully with ID ${subscriptionId}`,
       );
       appLogger.info('Starting long polling for smart home events (Ctrl+C to stop)');
-      handlePollingLoop(client, subscriptionId, bshb);
+      handlePollingLoop(client, subscriptionId, bshb, exit);
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -148,11 +153,11 @@ function subscribeToEvents(
       if (isTransientError(message)) {
         appLogger.error(serializeError(err), `Subscription error (transient): ${message}`);
         handleTransientError(err, () => {
-          startPolling(bshb);
+          startPolling(bshb, exit);
         });
       } else {
         appLogger.fatal(serializeError(err), `Subscription error (fatal): ${message}`);
-        process.exit(1);
+        exit(1);
       }
     },
   });
@@ -161,11 +166,12 @@ function subscribeToEvents(
 /**
  * Start long polling for smart home events
  * @param bshb - Bosch Smart Home Bridge instance
+ * @param exit - Exit callback (CLI passes process.exit, tests pass mock)
  */
-export function startPolling(bshb: BoschSmartHomeBridge): void {
+export function startPolling(bshb: BoschSmartHomeBridge, exit: (code: number) => void): void {
   appLogger.info('Subscribing to smart home events from controller');
   const client = bshb.getBshcClient();
-  subscribeToEvents(client, bshb);
+  subscribeToEvents(client, bshb, exit);
 }
 
 /**
@@ -211,14 +217,22 @@ export function isPairingButtonError(message: string): boolean {
  * Main entry point for the polling client
  * Initializes connection, pairs if needed, and starts long polling loop
  */
-export function main(): void {
+/**
+ * Main entry point for the polling client
+ * Initializes connection, pairs if needed, and starts long polling loop
+ * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
+ */
+export function main(exit: (code: number) => void = (code) => process.exit(code)): void {
   // Validate configuration (env already loaded by cli.ts)
   const configResult = validatePollConfig();
   if (configResult.isErr()) {
-    logErrorAndExit(
-      configResult.error,
-      `Configuration validation failed: ${configResult.error.message}`,
+    const error = configResult.error;
+    appLogger.fatal(
+      { 'error.code': error.code, 'error.variable': error.variable },
+      `Configuration validation failed: ${error.message}`,
     );
+    exit(1);
+    return;
   }
   const config = configResult.value;
 
@@ -236,7 +250,7 @@ export function main(): void {
   bshb.pairIfNeeded(config.bshClientName, config.bshClientId, config.bshPassword).subscribe({
     next: () => {
       appLogger.info('Pairing successful or already paired with controller');
-      startPolling(bshb);
+      startPolling(bshb, exit);
     },
     error: (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -245,7 +259,7 @@ export function main(): void {
       } else {
         appLogger.fatal(serializeError(err), `Pairing error: ${message}`);
       }
-      process.exit(1);
+      exit(1);
     },
   });
 }
