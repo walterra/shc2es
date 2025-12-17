@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { vi } from 'vitest';
 
 /**
  * Create a temporary directory for test fixtures
@@ -31,9 +32,10 @@ export function cleanupTempDir(dir: string): void {
  * @returns void
  */
 export function suppressConsole(): void {
-  jest.spyOn(console, 'log').mockImplementation();
-  jest.spyOn(console, 'error').mockImplementation();
-  jest.spyOn(console, 'warn').mockImplementation();
-  jest.spyOn(console, 'info').mockImplementation();
-  jest.spyOn(console, 'debug').mockImplementation();
+  const noop = (): void => undefined;
+  vi.spyOn(console, 'log').mockImplementation(noop);
+  vi.spyOn(console, 'error').mockImplementation(noop);
+  vi.spyOn(console, 'warn').mockImplementation(noop);
+  vi.spyOn(console, 'info').mockImplementation(noop);
+  vi.spyOn(console, 'debug').mockImplementation(noop);
 }

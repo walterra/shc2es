@@ -5,38 +5,40 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-// Disabled for Jest mocks - jest.fn() mocks don't have TypeScript types
+// Disabled for Vitest mocks - vi.fn() mocks don't have TypeScript types
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock logger before importing poll to prevent file writes
-jest.mock('./logger', () => {
+vi.mock('./logger', () => {
   return {
     appLogger: {
-      info: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-      warn: jest.fn(),
-      fatal: jest.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      fatal: vi.fn(),
     },
     dataLogger: {
-      info: jest.fn(),
+      info: vi.fn(),
     },
-    BshbLogger: jest.fn().mockImplementation(() => ({
-      fine: jest.fn(),
-      debug: jest.fn(),
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
+    BshbLogger: vi.fn().mockImplementation(() => ({
+      fine: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
     })),
   };
 });
 
 // Mock config to prevent actual config loading
-jest.mock('./config', () => {
+vi.mock('./config', () => {
   return {
     CERTS_DIR: '/mock/certs',
     CERT_FILE: '/mock/certs/client-cert.pem',
     KEY_FILE: '/mock/certs/client-key.pem',
-    getConfigPaths: jest.fn(() => ({
+    getConfigPaths: vi.fn(() => ({
       configDir: '/mock/.shc2es',
       certsDir: '/mock/certs',
       dataDir: '/mock/data',
@@ -46,9 +48,9 @@ jest.mock('./config', () => {
 });
 
 // Mock validation to prevent actual config validation
-jest.mock('./validation', () => {
+vi.mock('./validation', () => {
   return {
-    validatePollConfig: jest.fn(
+    validatePollConfig: vi.fn(
       (): {
         isErr: () => boolean;
         value: {
@@ -70,11 +72,63 @@ jest.mock('./validation', () => {
   };
 });
 
-// Mock bosch-smart-home-bridge using our existing mock
-jest.mock('bosch-smart-home-bridge', () => {
-  // Note: Dynamic import in jest.mock() factory
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../tests/mocks/bosch-smart-home-bridge.mock').mockBoschSmartHomeBridge;
+// Mock bosch-smart-home-bridge using inline mocks
+// Note: Vitest doesn't support require() in factory functions
+vi.mock('bosch-smart-home-bridge', async () => {
+  const { Observable } = await import('rxjs');
+
+  return {
+    BoschSmartHomeBridgeBuilder: class {
+      static builder(): InstanceType<typeof this> {
+        return new this();
+      }
+      withHost(): this {
+        return this;
+      }
+      withClientCert(): this {
+        return this;
+      }
+      withClientPrivateKey(): this {
+        return this;
+      }
+      withLogger(): this {
+        return this;
+      }
+      build(): object {
+        return {
+          getBshcClient: vi.fn(() => ({
+            subscribe: vi.fn(
+              () =>
+                new Observable((subscriber) => {
+                  subscriber.next({ parsedResponse: { result: 'test-subscription-id' } });
+                  subscriber.complete();
+                }),
+            ),
+            longPolling: vi.fn(
+              () =>
+                new Observable((subscriber) => {
+                  subscriber.next({ parsedResponse: { result: [] } });
+                  subscriber.complete();
+                }),
+            ),
+          })),
+          pairIfNeeded: vi.fn(
+            () =>
+              new Observable((subscriber) => {
+                subscriber.next(true);
+                subscriber.complete();
+              }),
+          ),
+        };
+      }
+    },
+    BshbUtils: {
+      generateClientCertificate: vi.fn(() => ({
+        cert: '-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----',
+        private: '-----BEGIN PRIVATE KEY-----\nMOCK_KEY\n-----END PRIVATE KEY-----',
+      })),
+    },
+  };
 });
 
 // Import poll functions and loggers after mocks are set up
@@ -93,7 +147,7 @@ process.env.OTEL_SDK_DISABLED = 'true';
 
 describe('poll module', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('createBridge', () => {
@@ -120,7 +174,7 @@ describe('poll module', () => {
 
   describe('processEvent', () => {
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it('should log DeviceServiceData event to dataLogger', () => {
@@ -200,7 +254,7 @@ describe('poll module', () => {
 
   describe('processEvents', () => {
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it('should process multiple events', () => {

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import type {
   SmartHomeEvent,
@@ -135,7 +136,7 @@ describe('SmartHomeEvent types', () => {
         expect(event.path).toBeDefined();
         expect(event.state).toBeDefined();
       } else {
-        fail('Expected DeviceServiceData event');
+        expect.fail('Expected DeviceServiceData event');
       }
     });
 
@@ -148,7 +149,7 @@ describe('SmartHomeEvent types', () => {
         expect(event.manufacturer).toBeDefined();
         expect(event.serial).toBeDefined();
       } else {
-        fail('Expected device event');
+        expect.fail('Expected device event');
       }
     });
 
@@ -160,7 +161,7 @@ describe('SmartHomeEvent types', () => {
         expect(event.iconId).toBeDefined();
         expect(event.extProperties).toBeDefined();
       } else {
-        fail('Expected room event');
+        expect.fail('Expected room event');
       }
     });
 
@@ -173,7 +174,7 @@ describe('SmartHomeEvent types', () => {
         expect(event.messageCode).toBeDefined();
         expect(event.flags).toBeDefined();
       } else {
-        fail('Expected message event');
+        expect.fail('Expected message event');
       }
     });
 

@@ -140,12 +140,18 @@ function startFileWatcher(
  * Starts watch mode for real-time event ingestion.
  *
  * Monitors current day's event file and tails new events to Elasticsearch.
- * Handles graceful shutdown on SIGINT (Ctrl+C).
+ * Handles graceful shutdown on SIGINT (Ctrl+C) or abort signal.
  *
  * @param client - Elasticsearch client
  * @param indexPrefix - Index name prefix
+ * @param signal - Optional abort signal for graceful shutdown
+ * @returns Promise that resolves when watch mode is stopped
  */
-export function startWatchMode(client: Client, indexPrefix: string): void {
+export function startWatchMode(
+  client: Client,
+  indexPrefix: string,
+  signal?: AbortSignal,
+): Promise<void> {
   // Get current day's file
   const today = new Date().toISOString().split('T')[0] ?? '';
   const todayFile = path.join(getDataDir(), `events-${today}.ndjson`);
@@ -158,15 +164,28 @@ export function startWatchMode(client: Client, indexPrefix: string): void {
 
   const { watcher, tailRef } = startFileWatcher(client, todayFile, indexName);
 
-  // Graceful shutdown
-  process.on('SIGINT', () => {
-    log.info('Shutting down watch mode');
-    void watcher.close();
-    if (tailRef.current) {
-      tailRef.current.unwatch();
-    }
-    process.exit(0);
-  });
+  return new Promise<void>((resolve) => {
+    // Cleanup function
+    const cleanup = (): void => {
+      log.info('Shutting down watch mode');
+      void watcher.close();
+      if (tailRef.current) {
+        tailRef.current.unwatch();
+      }
+      resolve(); // Resolve promise when cleanup completes
+    };
 
-  log.info('Watch mode active for real-time ingestion. Press Ctrl+C to stop.');
+    // Graceful shutdown via abort signal (for tests)
+    if (signal) {
+      signal.addEventListener('abort', cleanup);
+    }
+
+    // Graceful shutdown via SIGINT (for CLI)
+    process.on('SIGINT', () => {
+      cleanup();
+      process.exit(0);
+    });
+
+    log.info('Watch mode active for real-time ingestion. Press Ctrl+C to stop.');
+  });
 }

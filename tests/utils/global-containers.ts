@@ -1,8 +1,10 @@
 /**
  * Helper to access globally started E2E test containers
  * Containers are started once in global-setup.e2e.ts
+ * Uses Vitest 3+ inject() API to access provided values
  */
 
+import { inject } from 'vitest';
 import { Client } from '@elastic/elasticsearch';
 
 /**
@@ -14,24 +16,23 @@ export interface GlobalContainers {
 }
 
 /**
- * Gets container URLs from global state
+ * Gets container URLs from Vitest's provided context
  * Throws if containers not started (indicates setup issue)
  * @returns Container URLs
  */
 export function getGlobalContainers(): GlobalContainers {
-  const containers = global.__E2E_CONTAINERS__;
+  const elasticsearchUrl = inject('elasticsearchUrl') as string | undefined;
+  const kibanaUrl = inject('kibanaUrl') as string | undefined;
 
-  if (containers === undefined) {
-    throw new Error('E2E containers not initialized. Ensure globalSetup is configured.');
-  }
-
-  if (!containers.elasticsearchUrl || !containers.kibanaUrl) {
-    throw new Error('E2E container URLs not available');
+  if (!elasticsearchUrl || !kibanaUrl) {
+    throw new Error(
+      'E2E containers not initialized. Ensure globalSetup is configured and provides elasticsearchUrl/kibanaUrl',
+    );
   }
 
   return {
-    elasticsearchUrl: containers.elasticsearchUrl,
-    kibanaUrl: containers.kibanaUrl,
+    elasticsearchUrl,
+    kibanaUrl,
   };
 }
 

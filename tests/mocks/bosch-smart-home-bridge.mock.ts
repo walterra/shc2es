@@ -2,6 +2,7 @@
  * Mock for bosch-smart-home-bridge library
  */
 
+import { vi } from 'vitest';
 import { Observable } from 'rxjs';
 
 /**
@@ -12,7 +13,7 @@ export class MockBshcClient {
    * Mock subscribe method
    * @returns Observable with mock subscription result
    */
-  subscribe = jest.fn(() => {
+  subscribe = vi.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next({
         parsedResponse: { result: 'test-subscription-id' },
@@ -25,7 +26,7 @@ export class MockBshcClient {
    * Mock long polling method
    * @returns Observable with mock polling result
    */
-  longPolling = jest.fn(() => {
+  longPolling = vi.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next({
         parsedResponse: { result: [] },
@@ -45,13 +46,13 @@ export class MockBoschSmartHomeBridge {
    * Get mock BSHC client
    * @returns Mock client instance
    */
-  getBshcClient = jest.fn(() => this.client);
+  getBshcClient = vi.fn(() => this.client);
 
   /**
    * Mock pairing method
    * @returns Observable with mock pairing result
    */
-  pairIfNeeded = jest.fn(() => {
+  pairIfNeeded = vi.fn(() => {
     return new Observable((subscriber) => {
       subscriber.next(true);
       subscriber.complete();
@@ -98,7 +99,7 @@ export class MockBoschSmartHomeBridgeBuilder {
 }
 
 export const MockBshbUtils = {
-  generateClientCertificate: jest.fn(() => ({
+  generateClientCertificate: vi.fn(() => ({
     cert: '-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----',
     private: '-----BEGIN PRIVATE KEY-----\nMOCK_KEY\n-----END PRIVATE KEY-----',
   })),

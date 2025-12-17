@@ -3,30 +3,39 @@
  * Tests the complete registry fetching flow with mock data
  */
 
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MockBoschController } from '../mocks/bosch-controller-server';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
+import { createMockBridgeFactory } from '../mocks/mock-bridge-adapter';
+import { main as fetchRegistryMain } from '../../src/fetch-registry';
+import type { RegistryConfig } from '../../src/validation';
 import controllerDevices from '../fixtures/controller-devices.json';
 import controllerRooms from '../fixtures/controller-rooms.json';
-
-interface Room {
-  id: string;
-  name: string;
-  iconId: string;
-}
-
-interface Device {
-  id: string;
-  name: string;
-  roomId?: string;
-  deviceModel: string;
-}
 
 interface Registry {
   fetchedAt: string;
   devices: Record<string, { name: string; roomId?: string; type?: string }>;
   rooms: Record<string, { name: string; iconId?: string }>;
+}
+
+/**
+ * Setup test environment with certificates
+ */
+function setupTestEnv(tempDir: string): { certsDir: string; dataDir: string } {
+  const configDir = path.join(tempDir, '.shc2es');
+  const certsDir = path.join(configDir, 'certs');
+  const dataDir = path.join(configDir, 'data');
+
+  fs.mkdirSync(certsDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
+
+  // Create dummy certificates (required by fetch-registry.ts)
+  fs.writeFileSync(path.join(certsDir, 'client-cert.pem'), 'dummy-cert');
+  fs.writeFileSync(path.join(certsDir, 'client-key.pem'), 'dummy-key');
+
+  return { certsDir, dataDir };
 }
 
 describe('Fetch Registry E2E', () => {
@@ -35,8 +44,6 @@ describe('Fetch Registry E2E', () => {
   let tempDir: string;
 
   beforeAll(async () => {
-    tempDir = createTempDir('registry-e2e-');
-
     // Start mock controller with test devices and rooms
     mockController = new MockBoschController({
       devices: controllerDevices,
@@ -47,114 +54,173 @@ describe('Fetch Registry E2E', () => {
     controllerUrl = await mockController.start();
   });
 
+  beforeEach(() => {
+    tempDir = createTempDir('registry-e2e-');
+  });
+
   afterAll(async () => {
     await mockController.stop();
-    cleanupTempDir(tempDir);
   });
 
-  it('should fetch devices from mock controller', async () => {
-    const response = await fetch(`${controllerUrl}/smarthome/devices`);
-    expect(response.ok).toBe(true);
-
-    const devices = (await response.json()) as Device[];
-    expect(Array.isArray(devices)).toBe(true);
-    expect(devices).toHaveLength(3);
-    expect(devices[0]).toMatchObject({
-      id: 'hdm:ZigBee:001e5e0902b94515',
-      name: 'EG WZ Climate Sensor',
-      roomId: 'hz_1',
-    });
-  });
-
-  it('should fetch rooms from mock controller', async () => {
-    const response = await fetch(`${controllerUrl}/smarthome/rooms`);
-    expect(response.ok).toBe(true);
-
-    const rooms = (await response.json()) as Room[];
-    expect(Array.isArray(rooms)).toBe(true);
-    expect(rooms).toHaveLength(2);
-    expect(rooms[0]).toMatchObject({
-      id: 'hz_1',
-      name: 'EG Wohnzimmer',
-    });
-  });
-
-  it('should create registry JSON with mapped devices and rooms', async () => {
-    // Note: This test would require refactoring fetch-registry.ts to:
-    // 1. Accept controller URL as parameter
-    // 2. Accept config directory as parameter
-    // 3. Not call process.exit() on errors
-
-    // For now, we simulate what fetch-registry.ts does
-    const dataDir = path.join(tempDir, '.shc2es', 'data');
-    fs.mkdirSync(dataDir, { recursive: true });
-
+  it('should call main() and fetch registry from mock controller', async () => {
+    const { dataDir } = setupTestEnv(tempDir);
     const registryFile = path.join(dataDir, 'device-registry.json');
 
-    // Fetch devices and rooms
-    const devicesResponse = await fetch(`${controllerUrl}/smarthome/devices`);
-    const devices = (await devicesResponse.json()) as Device[];
-
-    const roomsResponse = await fetch(`${controllerUrl}/smarthome/rooms`);
-    const rooms = (await roomsResponse.json()) as Room[];
-
-    // Build registry structure (same logic as fetch-registry.ts)
-    const registry: Registry = {
-      fetchedAt: new Date().toISOString(),
-      devices: {} as Record<string, { name: string; roomId?: string; type?: string }>,
-      rooms: {} as Record<string, { name: string; iconId?: string }>,
+    // Mock config
+    const config: Partial<RegistryConfig> = {
+      bshHost: new URL(controllerUrl).hostname,
     };
 
-    // Map rooms
-    for (const room of rooms) {
-      registry.rooms[room.id] = {
-        name: room.name,
-        iconId: room.iconId,
+    // Override HOME to use temp directory
+    const originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+
+    try {
+      // Track exit calls
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
       };
-    }
 
-    // Map devices
-    for (const device of devices) {
-      registry.devices[device.id] = {
-        name: device.name,
-        roomId: device.roomId,
-        type: device.deviceModel,
+      // Create mock bridge factory
+      const mockBridgeFactory = createMockBridgeFactory({ controllerUrl });
+
+      // Call actual main() function
+      await fetchRegistryMain(mockExit, {
+        config,
+        bridgeFactory: mockBridgeFactory,
+        outputFile: registryFile,
+      });
+
+      // Verify no exit was called
+      expect(exitCode).toBeUndefined();
+
+      // Verify registry file was created
+      expect(fs.existsSync(registryFile)).toBe(true);
+
+      // Verify registry structure
+      const registry = JSON.parse(fs.readFileSync(registryFile, 'utf-8')) as Registry;
+      expect(registry).toHaveProperty('fetchedAt');
+      expect(registry).toHaveProperty('devices');
+      expect(registry).toHaveProperty('rooms');
+
+      // Verify devices
+      expect(Object.keys(registry.devices)).toHaveLength(3);
+      expect(registry.devices['hdm:ZigBee:001e5e0902b94515']).toEqual({
+        name: 'EG WZ Climate Sensor',
+        roomId: 'hz_1',
+        type: 'THB',
+      });
+
+      // Verify rooms
+      expect(Object.keys(registry.rooms)).toHaveLength(2);
+      expect(registry.rooms.hz_1).toEqual({
+        name: 'EG Wohnzimmer',
+        iconId: 'icon_room_living_room',
+      });
+    } finally {
+      process.env.HOME = originalHome;
+      cleanupTempDir(tempDir);
+    }
+  });
+
+  it('should call main() and correctly map device-room relationships', async () => {
+    const { dataDir } = setupTestEnv(tempDir);
+    const registryFile = path.join(dataDir, 'device-registry.json');
+
+    const config: Partial<RegistryConfig> = {
+      bshHost: new URL(controllerUrl).hostname,
+    };
+
+    const originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
       };
-    }
 
-    // Save registry
-    fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2));
+      const mockBridgeFactory = createMockBridgeFactory({ controllerUrl });
 
-    // Verify file was created
-    expect(fs.existsSync(registryFile)).toBe(true);
+      // Call main()
+      await fetchRegistryMain(mockExit, {
+        config,
+        bridgeFactory: mockBridgeFactory,
+        outputFile: registryFile,
+      });
 
-    // Verify registry structure
-    const savedRegistry = JSON.parse(fs.readFileSync(registryFile, 'utf-8')) as Registry;
-    expect(savedRegistry).toHaveProperty('fetchedAt');
-    expect(savedRegistry).toHaveProperty('devices');
-    expect(savedRegistry).toHaveProperty('rooms');
+      expect(exitCode).toBeUndefined();
 
-    // Verify devices
-    expect(Object.keys(savedRegistry.devices)).toHaveLength(3);
-    expect(savedRegistry.devices['hdm:ZigBee:001e5e0902b94515']).toEqual({
-      name: 'EG WZ Climate Sensor',
-      roomId: 'hz_1',
-      type: 'THB',
-    });
+      // Read registry
+      const registry = JSON.parse(fs.readFileSync(registryFile, 'utf-8')) as Registry;
 
-    // Verify rooms
-    expect(Object.keys(savedRegistry.rooms)).toHaveLength(2);
-    expect(savedRegistry.rooms.hz_1).toEqual({
-      name: 'EG Wohnzimmer',
-      iconId: 'icon_room_living_room',
-    });
+      // Verify device-room relationship
+      const device = registry.devices['hdm:ZigBee:001e5e0902b94515'];
+      expect(device).toBeDefined();
+      expect(device.roomId).toBe('hz_1');
 
-    // Verify device-room relationship
-    const device = savedRegistry.devices['hdm:ZigBee:001e5e0902b94515'];
-    expect(device.roomId).toBeDefined();
-    if (device.roomId) {
-      const room = savedRegistry.rooms[device.roomId];
+      // Verify room exists
+      const room = registry.rooms.hz_1;
+      expect(room).toBeDefined();
       expect(room.name).toBe('EG Wohnzimmer');
+      expect(room.iconId).toBe('icon_room_living_room');
+
+      // Verify all devices have correct metadata
+      const allDevices = Object.values(registry.devices);
+      expect(allDevices.every((d) => d.name && d.type)).toBe(true);
+
+      // Verify timestamp
+      expect(registry.fetchedAt).toBeDefined();
+      const timestamp = new Date(registry.fetchedAt);
+      expect(timestamp.getTime()).toBeLessThanOrEqual(Date.now());
+    } finally {
+      process.env.HOME = originalHome;
+      cleanupTempDir(tempDir);
+    }
+  });
+
+  it('should call main() and handle devices without rooms', async () => {
+    const { dataDir } = setupTestEnv(tempDir);
+    const registryFile = path.join(dataDir, 'device-registry.json');
+
+    const config: Partial<RegistryConfig> = {
+      bshHost: new URL(controllerUrl).hostname,
+    };
+
+    const originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
+      };
+
+      const mockBridgeFactory = createMockBridgeFactory({ controllerUrl });
+
+      await fetchRegistryMain(mockExit, {
+        config,
+        bridgeFactory: mockBridgeFactory,
+        outputFile: registryFile,
+      });
+
+      expect(exitCode).toBeUndefined();
+
+      const registry = JSON.parse(fs.readFileSync(registryFile, 'utf-8')) as Registry;
+
+      // Check for device without room (if fixture has one)
+      const devicesWithoutRoom = Object.values(registry.devices).filter((d) => !d.roomId);
+
+      // At minimum, verify the structure allows devices without rooms
+      for (const device of devicesWithoutRoom) {
+        expect(device.name).toBeDefined();
+        expect(device.type).toBeDefined();
+        expect(device.roomId).toBeUndefined();
+      }
+    } finally {
+      process.env.HOME = originalHome;
+      cleanupTempDir(tempDir);
     }
   });
 });

@@ -1,14 +1,16 @@
 /**
- * E2E tests for dashboard setup - Importing Kibana dashboard
- * Tests the complete dashboard import flow with Elasticsearch and Kibana containers
+ * E2E tests for export-dashboard.ts - Dashboard import/export via Kibana API
+ * Tests the complete dashboard workflow with real Kibana container
  *
  * Note: Containers started once in global setup for all E2E tests
  */
 
-/* eslint-disable no-console */
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGlobalContainers, createElasticsearchClient } from '../utils/global-containers';
+import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
+import { main as dashboardMain } from '../../src/export-dashboard';
 import type { Client } from '@elastic/elasticsearch';
 
 interface SavedObject {
@@ -17,19 +19,19 @@ interface SavedObject {
   attributes?: Record<string, unknown>;
 }
 
-interface ImportResult {
-  success: boolean;
-  successCount: number;
-}
-
 describe('Dashboard E2E', () => {
   let esClient: Client;
   let kibanaUrl: string;
+  let tempDir: string;
+  const containers = getGlobalContainers();
 
   beforeAll(() => {
-    const containers = getGlobalContainers();
     esClient = createElasticsearchClient();
     kibanaUrl = containers.kibanaUrl;
+  });
+
+  beforeEach(() => {
+    tempDir = createTempDir('dashboard-e2e-');
   });
 
   afterAll(async () => {
@@ -40,60 +42,52 @@ describe('Dashboard E2E', () => {
   // No need to test infrastructure availability - if containers weren't ready,
   // global setup would have failed before any tests run
 
-  it('should read dashboard NDJSON file', () => {
-    const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
-
-    // Verify dashboard file exists
-    expect(fs.existsSync(dashboardFile)).toBe(true);
-
-    // Verify it's valid NDJSON
-    const content = fs.readFileSync(dashboardFile, 'utf-8');
-    const lines = content.trim().split('\n');
-
-    expect(lines.length).toBeGreaterThan(0);
-
-    // Parse each line to verify valid JSON
-    const objects = lines.map((line) => JSON.parse(line) as SavedObject);
-
-    // Should contain saved object exports
-    expect(objects.length).toBeGreaterThan(0);
-    expect(objects[0]).toHaveProperty('type');
-    expect(objects[0]).toHaveProperty('id');
-  });
-
-  it('should import dashboard into Kibana', async () => {
+  it('should call main() with --list to show available dashboards', async () => {
+    // First import a dashboard so there's something to list
     const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
     const content = fs.readFileSync(dashboardFile, 'utf-8');
 
-    // Create FormData for multipart upload (Kibana requires this format)
     const formData = new FormData();
     const blob = new Blob([content], { type: 'application/ndjson' });
     formData.append('file', blob, 'dashboard.ndjson');
 
-    // Import saved objects via Kibana API
-    const importResponse = await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
+    await fetch(`${kibanaUrl}/api/saved_objects/_import?overwrite=true`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
-        // Don't set Content-Type - FormData sets it automatically with boundary
       },
       body: formData,
     });
 
-    if (!importResponse.ok) {
-      const errorBody = await importResponse.text();
-      console.error(`[Test] Import failed with body: ${errorBody}`);
+    // Setup environment variables (validation reads from process.env)
+    const originalEnv = { ...process.env };
+    process.env.KIBANA_NODE = kibanaUrl;
+    process.env.ES_USER = 'elastic';
+    process.env.ES_PASSWORD = 'changeme';
+    process.env.ES_TLS_VERIFY = 'false';
+
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
+      };
+
+      // Call main() with --list
+      await dashboardMain(mockExit, {
+        args: ['--list'],
+      });
+
+      // Should exit successfully
+      expect(exitCode).toBe(0);
+    } finally {
+      // Restore environment
+      process.env = originalEnv;
+      cleanupTempDir(tempDir);
     }
-
-    expect(importResponse.ok).toBe(true);
-
-    const importResult = (await importResponse.json()) as ImportResult;
-    expect(importResult.success).toBe(true);
-    expect(importResult.successCount).toBeGreaterThan(0);
   });
 
-  it('should verify dashboard exists in Kibana after import', async () => {
-    // First import the dashboard
+  it('should call main() to export dashboard from Kibana to NDJSON file', async () => {
+    // First import a dashboard
     const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
     const content = fs.readFileSync(dashboardFile, 'utf-8');
 
@@ -101,7 +95,7 @@ describe('Dashboard E2E', () => {
     const blob = new Blob([content], { type: 'application/ndjson' });
     formData.append('file', blob, 'dashboard.ndjson');
 
-    await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
+    await fetch(`${kibanaUrl}/api/saved_objects/_import?overwrite=true`, {
       method: 'POST',
       headers: {
         'kbn-xsrf': 'true',
@@ -109,129 +103,115 @@ describe('Dashboard E2E', () => {
       body: formData,
     });
 
-    // Find dashboard objects from the NDJSON
+    // Get dashboard name from imported file
     const lines = content.trim().split('\n');
     const objects = lines.map((line) => JSON.parse(line) as SavedObject);
-    const dashboards = objects.filter((obj) => obj.type === 'dashboard');
+    const dashboard = objects.find((obj) => obj.type === 'dashboard');
+    const dashboardTitle = dashboard?.attributes?.title as string | undefined;
+    expect(dashboardTitle).toBeDefined();
 
-    expect(dashboards.length).toBeGreaterThan(0);
+    // Setup export directory
+    const dashboardsDir = path.join(tempDir, 'dashboards');
+    fs.mkdirSync(dashboardsDir, { recursive: true });
 
-    // Query for the dashboard
-    const dashboardId = dashboards[0]?.id;
-    expect(dashboardId).toBeDefined();
+    // Setup environment and working directory
+    const originalEnv = { ...process.env };
+    const originalCwd = process.cwd();
+    process.env.KIBANA_NODE = kibanaUrl;
+    process.env.ES_USER = 'elastic';
+    process.env.ES_PASSWORD = 'changeme';
+    process.env.ES_TLS_VERIFY = 'false';
+    process.env.HOME = tempDir;
+    process.chdir(tempDir);
 
-    const findResponse = await fetch(
-      `${kibanaUrl}/api/saved_objects/dashboard/${String(dashboardId)}`,
-      {
-        headers: {
-          'kbn-xsrf': 'true',
-        },
-      },
-    );
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
+      };
 
-    expect(findResponse.ok).toBe(true);
+      // Call main() to export dashboard
+      if (!dashboardTitle) {
+        throw new Error('Dashboard title not found');
+      }
 
-    const dashboard = (await findResponse.json()) as SavedObject;
-    expect(dashboard.type).toBe('dashboard');
-    expect(dashboard.id).toBe(dashboardId);
-    expect(dashboard.attributes).toHaveProperty('title');
-  });
+      await dashboardMain(mockExit, {
+        args: [dashboardTitle],
+        outputDir: dashboardsDir,
+      });
 
-  it('should handle dashboard re-import (overwrite)', async () => {
-    const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
-    const content = fs.readFileSync(dashboardFile, 'utf-8');
+      // Should exit successfully
+      expect(exitCode).toBeUndefined();
 
-    // First import
-    const formData1 = new FormData();
-    const blob1 = new Blob([content], { type: 'application/ndjson' });
-    formData1.append('file', blob1, 'dashboard.ndjson');
+      // Verify dashboard file was created
+      const exportedFile = path.join(dashboardsDir, 'smart-home.ndjson');
+      expect(fs.existsSync(exportedFile)).toBe(true);
 
-    const firstImport = await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
-      method: 'POST',
-      headers: {
-        'kbn-xsrf': 'true',
-      },
-      body: formData1,
-    });
+      // Verify exported content is valid NDJSON
+      const exportedContent = fs.readFileSync(exportedFile, 'utf-8');
+      const exportedLines = exportedContent.trim().split('\n');
+      expect(exportedLines.length).toBeGreaterThan(0);
 
-    expect(firstImport.ok).toBe(true);
-
-    // Second import with overwrite flag
-    const formData2 = new FormData();
-    const blob2 = new Blob([content], { type: 'application/ndjson' });
-    formData2.append('file', blob2, 'dashboard.ndjson');
-
-    const secondImport = await fetch(`${kibanaUrl}/api/saved_objects/_import?overwrite=true`, {
-      method: 'POST',
-      headers: {
-        'kbn-xsrf': 'true',
-      },
-      body: formData2,
-    });
-
-    expect(secondImport.ok).toBe(true);
-
-    const secondResult = (await secondImport.json()) as ImportResult;
-    expect(secondResult.success).toBe(true);
-    // Should show objects were overwritten, not created
-    expect(secondResult.successCount).toBeGreaterThan(0);
-  });
-
-  it('should validate dashboard can be exported back', async () => {
-    // First import the dashboard
-    const dashboardFile = path.join(__dirname, '../../dashboards/smart-home.ndjson');
-    const content = fs.readFileSync(dashboardFile, 'utf-8');
-
-    const formData = new FormData();
-    const blob = new Blob([content], { type: 'application/ndjson' });
-    formData.append('file', blob, 'dashboard.ndjson');
-
-    await fetch(`${kibanaUrl}/api/saved_objects/_import`, {
-      method: 'POST',
-      headers: {
-        'kbn-xsrf': 'true',
-      },
-      body: formData,
-    });
-
-    // Find dashboard ID
-    const lines = content.trim().split('\n');
-    const objects = lines.map((line) => JSON.parse(line) as SavedObject);
-    const dashboards = objects.filter((obj) => obj.type === 'dashboard');
-    const dashboardId = dashboards[0]?.id;
-    expect(dashboardId).toBeDefined();
-
-    // Export the dashboard
-    const exportResponse = await fetch(`${kibanaUrl}/api/saved_objects/_export`, {
-      method: 'POST',
-      headers: {
-        'kbn-xsrf': 'true',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        // Use 'objects' to export specific dashboard (not 'type')
-        objects: [{ type: 'dashboard', id: String(dashboardId) }],
-        includeReferencesDeep: true,
-      }),
-    });
-
-    if (!exportResponse.ok) {
-      const errorBody = await exportResponse.text();
-      console.error(`[Test] Export failed with body: ${errorBody}`);
+      // Verify contains dashboard object
+      const exportedObjects = exportedLines.map((line) => JSON.parse(line) as SavedObject);
+      const exportedDashboard = exportedObjects.find((obj) => obj.type === 'dashboard');
+      expect(exportedDashboard).toBeDefined();
+    } finally {
+      process.env = originalEnv;
+      process.chdir(originalCwd);
+      cleanupTempDir(tempDir);
     }
+  }, 15000);
 
-    expect(exportResponse.ok).toBe(true);
+  it('should call main() and handle dashboard not found error', async () => {
+    const originalEnv = { ...process.env };
+    process.env.KIBANA_NODE = kibanaUrl;
+    process.env.ES_USER = 'elastic';
+    process.env.ES_PASSWORD = 'changeme';
+    process.env.ES_TLS_VERIFY = 'false';
 
-    const exportedContent = await exportResponse.text();
-    const exportedLines = exportedContent.trim().split('\n');
-    const exportedObjects = exportedLines.map((line) => JSON.parse(line) as SavedObject);
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
+      };
 
-    // Should have at least the dashboard object
-    expect(exportedObjects.length).toBeGreaterThan(0);
+      // Call main() with non-existent dashboard name
+      await dashboardMain(mockExit, {
+        args: ['NonExistent Dashboard'],
+      });
 
-    // Find the exported dashboard
-    const exportedDashboard = exportedObjects.find((obj) => obj.type === 'dashboard');
-    expect(exportedDashboard).toBeDefined();
-    expect(exportedDashboard?.id).toBe(dashboardId);
+      // Should exit with error code
+      expect(exitCode).toBe(1);
+    } finally {
+      process.env = originalEnv;
+      cleanupTempDir(tempDir);
+    }
+  });
+
+  it('should call main() with --help and exit successfully', async () => {
+    const originalEnv = { ...process.env };
+    process.env.KIBANA_NODE = kibanaUrl;
+    process.env.ES_USER = 'elastic';
+    process.env.ES_PASSWORD = 'changeme';
+    process.env.ES_TLS_VERIFY = 'false';
+
+    try {
+      let exitCode: number | undefined;
+      const mockExit = (code: number): void => {
+        exitCode = code;
+      };
+
+      // Call main() with --help
+      await dashboardMain(mockExit, {
+        args: ['--help'],
+      });
+
+      // Should exit successfully
+      expect(exitCode).toBe(0);
+    } finally {
+      process.env = originalEnv;
+      cleanupTempDir(tempDir);
+    }
   });
 });

@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
+import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
 import type { BshcClient } from 'bosch-smart-home-bridge/dist/api/bshc-client';
 import { firstValueFrom } from 'rxjs';
 import { getCertFile, getKeyFile, getDataDir } from './config';
 import { createLogger } from './logger';
 import { validateRegistryConfig } from './validation';
+import type { RegistryConfig } from './validation';
 import { withSpan } from './instrumentation';
 
 const log = createLogger('registry');
@@ -142,29 +144,47 @@ function buildRegistryData(devices: BshDevice[], rooms: BshRoom[]): DeviceRegist
 /**
  * Save registry to file
  * @param registry - Registry data to save
+ * @param registryFile - Optional file path override (for testing)
  */
-function saveRegistry(registry: DeviceRegistry): void {
-  const registryFile = getRegistryFile();
-  fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2));
+function saveRegistry(registry: DeviceRegistry, registryFile?: string): void {
+  const filePath = registryFile ?? getRegistryFile();
+  fs.writeFileSync(filePath, JSON.stringify(registry, null, 2));
   log.info(
     {
-      'file.path': registryFile,
+      'file.path': filePath,
       'device.count': Object.keys(registry.devices).length,
       'room.count': Object.keys(registry.rooms).length,
     },
-    `Registry saved to ${registryFile}: ${String(Object.keys(registry.devices).length)} devices, ${String(Object.keys(registry.rooms).length)} rooms`,
+    `Registry saved to ${filePath}: ${String(Object.keys(registry.devices).length)} devices, ${String(Object.keys(registry.rooms).length)} rooms`,
   );
+}
+
+/**
+ * Registry context for dependency injection.
+ *
+ * Allows tests to inject mock configuration and bridge while maintaining
+ * backward compatibility with CLI usage (defaults to env vars and real bridge).
+ */
+export interface RegistryContext {
+  /** Registry configuration (defaults to env vars) */
+  config?: Partial<RegistryConfig>;
+  /** Bridge factory (defaults to BoschSmartHomeBridgeBuilder) */
+  bridgeFactory?: (host: string, cert: string, key: string) => BoschSmartHomeBridge;
+  /** Output file path override (defaults to ~/.shc2es/data/device-registry.json) */
+  outputFile?: string;
 }
 
 /**
  * Main entry point - orchestrates registry fetching and saving
  * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
+ * @param context - Optional dependency injection context for testing
  * @returns Promise that resolves when registry is saved
  */
 export async function main(
   exit: (code: number) => void = (code) => process.exit(code),
+  context: RegistryContext = {},
 ): Promise<void> {
-  // Validate configuration (env already loaded by cli.ts)
+  // Validate configuration (env already loaded by cli.ts, merge with injected config)
   const configResult = validateRegistryConfig();
   if (configResult.isErr()) {
     const error = configResult.error;
@@ -175,7 +195,8 @@ export async function main(
     exit(1);
     return;
   }
-  const config = configResult.value;
+  const baseConfig = configResult.value;
+  const config: RegistryConfig = { ...baseConfig, ...context.config };
 
   log.info(
     `Fetching device and room registry from Bosch Smart Home Controller at ${config.bshHost}`,
@@ -183,17 +204,22 @@ export async function main(
 
   const { cert, key } = loadCertificate();
 
-  const bshb = BoschSmartHomeBridgeBuilder.builder()
-    .withHost(config.bshHost)
-    .withClientCert(cert)
-    .withClientPrivateKey(key)
-    .build();
+  // Use bridge factory if provided, otherwise use default
+  const bridgeFactory =
+    context.bridgeFactory ??
+    ((host: string, cert: string, key: string): BoschSmartHomeBridge =>
+      BoschSmartHomeBridgeBuilder.builder()
+        .withHost(host)
+        .withClientCert(cert)
+        .withClientPrivateKey(key)
+        .build());
 
+  const bshb = bridgeFactory(config.bshHost, cert, key);
   const client = bshb.getBshcClient();
 
   const { devices, rooms } = await fetchDevicesAndRooms(client);
   const registry = buildRegistryData(devices, rooms);
-  saveRegistry(registry);
+  saveRegistry(registry, context.outputFile);
 }
 
 // Module exports functions - main() is called by cli.ts

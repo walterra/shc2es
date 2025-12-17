@@ -5,12 +5,18 @@
  * Note: Mock controller uses ephemeral port (0) to avoid conflicts with real controller
  */
 
+/* eslint-disable max-lines-per-function */
+
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MockBoschController } from '../mocks/bosch-controller-server';
+import { createMockBridgeFactory } from '../mocks/mock-bridge-adapter';
 import { createTempDir, cleanupTempDir } from '../utils/test-helpers';
 import smartHomeEvents from '../fixtures/smart-home-events.json';
 import type { SmartHomeEvent } from '../../src/types/smart-home-events';
+import { main as pollMain } from '../../src/poll';
+import { parseLine } from '../../src/ingest/utils';
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -27,6 +33,48 @@ const setupTestEnv = (controllerUrl: string, tempDir: string): void => {
   process.env.BSH_CLIENT_ID = 'test-id';
   process.env.HOME = tempDir; // Override home to use temp .shc2es directory
 };
+
+/**
+ * Setup polling directories (certs, logs, data)
+ */
+function setupPollingDirs(tempDir: string): {
+  configDir: string;
+  certsDir: string;
+  logsDir: string;
+  dataDir: string;
+} {
+  const configDir = path.join(tempDir, '.shc2es');
+  const certsDir = path.join(configDir, 'certs');
+  const logsDir = path.join(configDir, 'logs');
+  const dataDir = path.join(configDir, 'data');
+
+  fs.mkdirSync(certsDir, { recursive: true });
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
+
+  return { configDir, certsDir, logsDir, dataDir };
+}
+
+/**
+ * Read and parse NDJSON events from file
+ */
+function readEventsFromFile(dataDir: string): SmartHomeEvent[] {
+  const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.ndjson'));
+  expect(files.length).toBeGreaterThan(0);
+
+  const latestFile = files.sort().reverse()[0];
+  const filePath = path.join(dataDir, latestFile);
+  const content = fs.readFileSync(filePath, 'utf-8');
+
+  expect(content.trim().length).toBeGreaterThan(0);
+
+  return content
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => parseLine(line))
+    .filter((event): event is NonNullable<typeof event> => event !== null) as SmartHomeEvent[];
+}
 
 describe('Poll E2E', () => {
   let mockController: MockBoschController;
@@ -132,39 +180,44 @@ describe('Poll E2E', () => {
     expect(pollResult).toHaveLength(2); // We added 2 events
   });
 
-  it('should write events to NDJSON when integrated', () => {
-    // Note: This test would require refactoring poll.ts to:
-    // 1. Accept controller URL as parameter instead of env var
-    // 2. Accept config directory as parameter
-    // 3. Return from main() instead of calling process.exit()
-    // 4. Accept a signal/callback for when to stop polling
-
-    // For now, we create a placeholder test that validates our setup
-    const dataDir = path.join(tempDir, '.shc2es', 'data');
-    fs.mkdirSync(dataDir, { recursive: true });
-
-    const testFile = path.join(dataDir, 'events-2025-12-16.ndjson');
-    const testEvents = [
+  it('should call main() with mock controller and write NDJSON files', async () => {
+    // Add fresh events to mock controller for this test
+    mockController.addEvents([
       smartHomeEvents.deviceServiceData,
       smartHomeEvents.deviceServiceDataWithFaults,
-    ];
+    ]);
 
-    // Simulate what poll.ts does
-    const lines = testEvents.map((event) => JSON.stringify(event)).join('\n');
-    fs.writeFileSync(testFile, lines + '\n');
+    // Setup directories and config
+    const { dataDir } = setupPollingDirs(tempDir);
+    const config = {
+      bshHost: new URL(controllerUrl).hostname,
+      bshPassword: 'test-password',
+      bshClientName: 'test-client',
+      bshClientId: 'test-id',
+      logLevel: 'info' as const,
+    };
 
-    // Verify file was created and contains events
-    expect(fs.existsSync(testFile)).toBe(true);
-    const content = fs.readFileSync(testFile, 'utf-8');
-    const events = content
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as SmartHomeEvent);
+    // Track exit calls
+    let exitCode: number | undefined;
+    const mockExit = (code: number): void => {
+      exitCode = code;
+    };
 
-    expect(events).toHaveLength(2);
-    expect(events[0]).toMatchObject({
-      '@type': 'DeviceServiceData',
-      deviceId: 'hdm:ZigBee:001e5e0902b94515',
-    });
-  });
+    // Start polling with mock bridge
+    const abortController = new AbortController();
+    const mockBridgeFactory = createMockBridgeFactory({ controllerUrl });
+    pollMain(mockExit, config, abortController.signal, mockBridgeFactory);
+
+    // Wait for events, then abort and flush
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    abortController.abort();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // Verify events were written
+    const events = readEventsFromFile(dataDir);
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events[0]).toHaveProperty('@type');
+    expect(events[0]).toMatchObject({ '@type': 'DeviceServiceData' });
+    expect(exitCode).toBeUndefined();
+  }, 10000);
 });

@@ -1,6 +1,6 @@
 /**
- * Jest global test setup
- * Runs once before all tests
+ * Vitest global test setup
+ * Runs before each test file
  */
 
 // Set test environment variables
@@ -17,19 +17,5 @@ process.env.ES_NODE = 'https://localhost:9200';
 process.env.ES_PASSWORD = 'test-es-password';
 process.env.ES_USER = 'elastic';
 
-// Increase timeout for integration tests
-jest.setTimeout(10000);
-
 // Increase max listeners to avoid warnings during tests
 process.setMaxListeners(20);
-
-// Global test utilities
-global.console = {
-  ...console,
-  // Suppress console output in tests unless LOG_LEVEL is set
-  log: jest.fn(),
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-};
