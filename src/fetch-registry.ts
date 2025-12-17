@@ -4,7 +4,7 @@ import { BoschSmartHomeBridgeBuilder } from 'bosch-smart-home-bridge';
 import type { BshcClient } from 'bosch-smart-home-bridge/dist/api/bshc-client';
 import { firstValueFrom } from 'rxjs';
 import { getCertFile, getKeyFile, getDataDir } from './config';
-import { createLogger, logErrorAndExit } from './logger';
+import { createLogger } from './logger';
 import { validateRegistryConfig } from './validation';
 import { withSpan } from './instrumentation';
 
@@ -158,16 +158,22 @@ function saveRegistry(registry: DeviceRegistry): void {
 
 /**
  * Main entry point - orchestrates registry fetching and saving
+ * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
  * @returns Promise that resolves when registry is saved
  */
-export async function main(): Promise<void> {
+export async function main(
+  exit: (code: number) => void = (code) => process.exit(code),
+): Promise<void> {
   // Validate configuration (env already loaded by cli.ts)
   const configResult = validateRegistryConfig();
   if (configResult.isErr()) {
-    logErrorAndExit(
-      configResult.error,
-      `Configuration validation failed: ${configResult.error.message}`,
+    const error = configResult.error;
+    log.fatal(
+      { 'error.code': error.code, 'error.variable': error.variable },
+      `Configuration validation failed: ${error.message}`,
     );
+    exit(1);
+    return;
   }
   const config = configResult.value;
 

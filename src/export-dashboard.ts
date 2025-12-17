@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { Agent, fetch as undiciFetch } from 'undici';
 
-import { createLogger, logErrorAndExit } from './logger';
+import { createLogger } from './logger';
 import { validateDashboardConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
 import type {
@@ -16,25 +16,23 @@ import { isExportMetadata } from './types/kibana-saved-objects';
 
 const log = createLogger('export-dashboard');
 
-// Validate configuration early
-const configResult = validateDashboardConfig();
-if (configResult.isErr()) {
-  logErrorAndExit(
-    configResult.error,
-    `Configuration validation failed: ${configResult.error.message}`,
-  );
-}
-// TypeScript now knows config is Ok
-const config = configResult.value;
-
 // TLS configuration for fetch requests
 interface TlsConfig {
   rejectUnauthorized?: boolean;
   ca?: Buffer;
 }
 
+// Dashboard configuration
+interface DashboardConfig {
+  kibanaNode: string;
+  esUser: string;
+  esPassword: string;
+  esTlsVerify: boolean;
+  esCaCert?: string;
+}
+
 // Build TLS config based on validated configuration
-function buildTlsConfig(): TlsConfig {
+function buildTlsConfig(config: DashboardConfig): TlsConfig {
   if (!config.esTlsVerify) {
     log.debug('TLS verification disabled via ES_TLS_VERIFY=false (development mode)');
     return { rejectUnauthorized: false };
@@ -52,8 +50,8 @@ function buildTlsConfig(): TlsConfig {
 }
 
 // Create fetch with custom TLS settings for Kibana requests
-function createTlsFetch(): typeof globalThis.fetch {
-  const tlsConfig = buildTlsConfig();
+function createTlsFetch(config: DashboardConfig): typeof globalThis.fetch {
+  const tlsConfig = buildTlsConfig(config);
 
   // If no custom TLS config needed, use global fetch
   if (Object.keys(tlsConfig).length === 0) {
@@ -73,17 +71,11 @@ function createTlsFetch(): typeof globalThis.fetch {
       dispatcher: agent,
     })) as typeof globalThis.fetch;
 }
-
-const tlsFetch = createTlsFetch();
-
-const KIBANA_NODE = config.kibanaNode;
-const ES_USER = config.esUser;
-const ES_PASSWORD = config.esPassword;
 const DASHBOARDS_DIR = path.join(__dirname, '..', 'dashboards');
 const DEFAULT_DASHBOARD_NAME = 'smart-home';
 
-function getAuthHeader(): string {
-  return `Basic ${Buffer.from(`${ES_USER}:${ES_PASSWORD}`).toString('base64')}`;
+function getAuthHeader(config: DashboardConfig): string {
+  return `Basic ${Buffer.from(`${config.esUser}:${config.esPassword}`).toString('base64')}`;
 }
 
 // Fields to strip from exported objects for privacy
@@ -118,11 +110,15 @@ function stripSensitiveMetadata(ndjson: string): string {
   });
 }
 
-async function findDashboardByName(name: string): Promise<SavedObject<DashboardAttributes> | null> {
+async function findDashboardByName(
+  name: string,
+  config: DashboardConfig,
+  tlsFetch: typeof globalThis.fetch,
+): Promise<SavedObject<DashboardAttributes> | null> {
   return withSpan('find_dashboard', { [SpanAttributes.DASHBOARD_NAME]: name }, async () => {
     log.info(
-      { 'dashboard.name': name, 'url.full': KIBANA_NODE },
-      `Searching for dashboard '${name}' in Kibana at ${KIBANA_NODE}`,
+      { 'dashboard.name': name, 'url.full': config.kibanaNode },
+      `Searching for dashboard '${name}' in Kibana at ${config.kibanaNode}`,
     );
 
     const params = new URLSearchParams({
@@ -131,21 +127,25 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
       search_fields: 'title',
     });
 
-    const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        'kbn-xsrf': 'true',
-        Authorization: getAuthHeader(),
+    const response = await tlsFetch(
+      `${config.kibanaNode}/api/saved_objects/_find?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'kbn-xsrf': 'true',
+          Authorization: getAuthHeader(config),
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const text = await response.text();
+      const error = new Error(`Dashboard search failed with HTTP ${String(response.status)}`);
       log.fatal(
         { 'http.response.status_code': response.status, 'http.response.body': text },
-        `Dashboard search failed with HTTP ${String(response.status)}`,
+        error.message,
       );
-      process.exit(1);
+      throw error;
     }
 
     const result = (await response.json()) as FindResponse<DashboardAttributes>;
@@ -193,35 +193,48 @@ async function findDashboardByName(name: string): Promise<SavedObject<DashboardA
   });
 }
 
-async function listDashboards(): Promise<void> {
-  log.info({ 'url.full': KIBANA_NODE }, `Listing all dashboards from Kibana at ${KIBANA_NODE}`);
+async function listDashboards(
+  config: DashboardConfig,
+  tlsFetch: typeof globalThis.fetch,
+): Promise<void> {
+  log.info(
+    { 'url.full': config.kibanaNode },
+    `Listing all dashboards from Kibana at ${config.kibanaNode}`,
+  );
 
   const params = new URLSearchParams({
     type: 'dashboard',
     per_page: '100',
   });
 
-  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_find?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'kbn-xsrf': 'true',
-      Authorization: getAuthHeader(),
+  const response = await tlsFetch(
+    `${config.kibanaNode}/api/saved_objects/_find?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        'kbn-xsrf': 'true',
+        Authorization: getAuthHeader(config),
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     const text = await response.text();
+    const error = new Error(`Dashboard list failed with HTTP ${String(response.status)}`);
     log.fatal(
       { 'http.response.status_code': response.status, 'http.response.body': text },
-      `Dashboard list failed with HTTP ${String(response.status)}`,
+      error.message,
     );
-    process.exit(1);
+    throw error;
   }
 
   const result = (await response.json()) as FindResponse<DashboardAttributes>;
 
   if (result.total === 0) {
-    log.info({ 'url.full': KIBANA_NODE }, `No dashboards found in Kibana at ${KIBANA_NODE}`);
+    log.info(
+      { 'url.full': config.kibanaNode },
+      `No dashboards found in Kibana at ${config.kibanaNode}`,
+    );
     return;
   }
 
@@ -239,36 +252,40 @@ async function listDashboards(): Promise<void> {
 /**
  * Fetch dashboard export from Kibana API
  * @param dashboardId - ID of the dashboard to export
+ * @param config - Dashboard configuration
+ * @param tlsFetch - Fetch function with TLS config
  * @returns Raw NDJSON string from Kibana export API
  */
-async function fetchDashboardExport(dashboardId: string): Promise<string> {
+async function fetchDashboardExport(
+  dashboardId: string,
+  config: DashboardConfig,
+  tlsFetch: typeof globalThis.fetch,
+): Promise<string> {
   const body = {
     objects: [{ type: 'dashboard', id: dashboardId }],
     includeReferencesDeep: true,
   };
 
   log.info(
-    { 'url.full': KIBANA_NODE, 'dashboard.id': dashboardId },
-    `Exporting dashboard ${dashboardId} from Kibana at ${KIBANA_NODE}`,
+    { 'url.full': config.kibanaNode, 'dashboard.id': dashboardId },
+    `Exporting dashboard ${dashboardId} from Kibana at ${config.kibanaNode}`,
   );
 
-  const response = await tlsFetch(`${KIBANA_NODE}/api/saved_objects/_export`, {
+  const response = await tlsFetch(`${config.kibanaNode}/api/saved_objects/_export`, {
     method: 'POST',
     headers: {
       'kbn-xsrf': 'true',
       'Content-Type': 'application/json',
-      Authorization: getAuthHeader(),
+      Authorization: getAuthHeader(config),
     },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    log.fatal(
-      { status: response.status, body: text },
-      `Export failed: HTTP ${String(response.status)}`,
-    );
-    process.exit(1);
+    const error = new Error(`Export failed: HTTP ${String(response.status)}`);
+    log.fatal({ status: response.status, body: text }, error.message);
+    throw error;
   }
 
   return response.text();
@@ -289,8 +306,9 @@ function parseDashboardExport(ndjson: string): ExportMetadata {
   // Last line is export metadata
   const lastObject = objects[objects.length - 1];
   if (!lastObject || !isExportMetadata(lastObject)) {
-    log.fatal('Export response missing metadata line');
-    process.exit(1);
+    const error = new Error('Export response missing metadata line');
+    log.fatal(error.message);
+    throw error;
   }
 
   const metadata = lastObject;
@@ -353,9 +371,16 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
  * Export a dashboard from Kibana and save to file
  * @param dashboardId - ID of the dashboard to export
  * @param outputName - Name for the output file
+ * @param config - Dashboard configuration
+ * @param tlsFetch - Fetch function with TLS config
  * @returns Promise that resolves when export is complete
  */
-async function exportDashboard(dashboardId: string, outputName: string): Promise<void> {
+async function exportDashboard(
+  dashboardId: string,
+  outputName: string,
+  config: DashboardConfig,
+  tlsFetch: typeof globalThis.fetch,
+): Promise<void> {
   return withSpan(
     'export_dashboard',
     {
@@ -363,7 +388,7 @@ async function exportDashboard(dashboardId: string, outputName: string): Promise
       [SpanAttributes.DASHBOARD_NAME]: outputName,
     },
     async () => {
-      const ndjson = await fetchDashboardExport(dashboardId);
+      const ndjson = await fetchDashboardExport(dashboardId, config, tlsFetch);
       parseDashboardExport(ndjson);
       saveDashboardFile(ndjson, outputName);
     },
@@ -395,37 +420,66 @@ Examples:
 /**
  * Main entry point for the dashboard export CLI
  * Handles command-line arguments and orchestrates dashboard operations
+ * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
  */
-export async function main(): Promise<void> {
+export async function main(
+  exit: (code: number) => void = (code) => process.exit(code),
+): Promise<void> {
   // Env already loaded by cli.ts
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     printUsage();
-    process.exit(0);
+    exit(0);
+    return;
   }
 
+  // Validate configuration
+  const configResult = validateDashboardConfig();
+  if (configResult.isErr()) {
+    const error = configResult.error;
+    log.fatal(
+      { 'error.code': error.code, 'error.variable': error.variable },
+      `Configuration validation failed: ${error.message}`,
+    );
+    exit(1);
+    return;
+  }
+  const config = configResult.value;
+
+  // Create TLS fetch with validated config
+  const tlsFetch = createTlsFetch(config);
+
   if (args.includes('--list')) {
-    await listDashboards();
-    process.exit(0);
+    try {
+      await listDashboards(config, tlsFetch);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.fatal({ err: message }, `List dashboards failed: ${message}`);
+      exit(1);
+      return;
+    }
+    exit(0);
+    return;
   }
 
   const dashboardName = args.join(' ');
 
   try {
-    const dashboard = await findDashboardByName(dashboardName);
+    const dashboard = await findDashboardByName(dashboardName, config, tlsFetch);
 
     if (!dashboard) {
       log.info(`Dashboard '${dashboardName}' not found. Use --list to see available dashboards`);
-      process.exit(1);
+      exit(1);
+      return;
     }
 
     // Use hardcoded filename (template can be reused with different prefixes)
-    await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME);
+    await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME, config, tlsFetch);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.fatal({ err: message }, `Export failed: ${message}`);
-    process.exit(1);
+    exit(1);
   }
 }
 

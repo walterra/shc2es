@@ -1,6 +1,5 @@
 import pino from 'pino';
 import * as path from 'path';
-import * as fs from 'fs';
 import { getDataDir, getLogsDir, ensureConfigDirs } from './config';
 
 // Ensure config directories exist before creating file loggers
@@ -247,77 +246,6 @@ export const dataLogger = new Proxy({} as pino.Logger, {
 // Note: If validation fails immediately, you may see "Fatal error: sonic boom is not ready yet"
 // This is a harmless internal pino message - the error was already written via errorLogger
 // See: https://github.com/pinojs/pino/issues/871
-
-/**
- * Synchronous logger for fatal errors before exit
- * Uses fs.openSync to avoid "sonic boom is not ready yet" error
- * See: https://github.com/pinojs/pino/issues/871
- */
-let _errorLogger: pino.Logger | undefined;
-
-function getErrorLogger(): pino.Logger {
-  if (_errorLogger) {
-    return _errorLogger;
-  }
-
-  const appLogFile = path.join(getLogsDir(), `poll-${dateStamp}.log`);
-  const errorLogFd = fs.openSync(appLogFile, 'a');
-
-  _errorLogger = pino(
-    {
-      name: buildLoggerName(),
-      level: 'error',
-    },
-    pino.destination({ fd: errorLogFd, sync: true }),
-  );
-
-  return _errorLogger;
-}
-
-/**
- * Log a fatal error and exit the process immediately.
- *
- * This function is used for unrecoverable errors during application startup
- * (e.g., configuration validation failures, missing required files). It uses
- * synchronous writes to ensure the error is logged before the process exits.
- *
- * **Why synchronous?** Pino's default async writes may not complete before
- * process.exit() terminates the process, resulting in "sonic boom is not ready yet"
- * warnings and lost logs. This function uses a separate synchronous logger to
- * guarantee the error is written to disk.
- *
- * **Side effects:**
- * - Writes error to log file synchronously
- * - Writes error to stderr for immediate visibility
- * - Calls process.exit(1) - **does not return**
- *
- * @param errorObj - Error object or value to log (will be serialized)
- * @param message - Human-readable error message
- * @returns Never returns - exits the process with code 1
- *
- * @example
- * ```typescript
- * import { logErrorAndExit } from './logger';
- *
- * const configResult = validateConfig();
- * if (configResult.isErr()) {
- *   logErrorAndExit(
- *     configResult.error,
- *     `Configuration validation failed: ${configResult.error.message}`
- *   );
- *   // Process exits here - code below never runs
- * }
- * ```
- */
-export function logErrorAndExit(errorObj: unknown, message: string): never {
-  // Log to file synchronously
-  getErrorLogger().error({ error: errorObj }, message);
-
-  // Also write to stderr for immediate visibility
-  process.stderr.write(`[ERROR] ${message}\n`);
-
-  process.exit(1);
-}
 
 /**
  * Serialize an error object to ECS-compliant fields.

@@ -245,32 +245,4 @@ describe('logger module', () => {
       });
     });
   });
-
-  describe('logErrorAndExit', () => {
-    let exitSpy: jest.SpiedFunction<typeof process.exit>;
-
-    beforeEach(() => {
-      exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-    });
-
-    afterEach(() => {
-      exitSpy.mockRestore();
-    });
-
-    it('should log error and exit with code 1', () => {
-      const error = { message: 'Test error' };
-
-      logger.logErrorAndExit(error, 'Fatal error occurred');
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-    });
-
-    it('should handle Error instances', () => {
-      const error = new Error('Test error');
-
-      logger.logErrorAndExit(error, 'Fatal error occurred');
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-    });
-  });
 });

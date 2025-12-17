@@ -8,7 +8,7 @@
 import { Client } from '@elastic/elasticsearch';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { readFileSync } from 'fs';
-import { createLogger, logErrorAndExit } from '../logger';
+import { createLogger } from '../logger';
 import { validateIngestConfig } from '../validation';
 import type { IngestConfig } from '../validation';
 
@@ -29,10 +29,11 @@ let _config: IngestConfig | null = null;
  * Gets validated ingest configuration with lazy loading.
  *
  * Loads and validates configuration on first call, then caches for subsequent calls.
- * Exits process if validation fails.
+ * Throws ValidationError if validation fails.
  *
  * @param requireKibana - Whether Kibana configuration is required
  * @returns Validated ingest configuration
+ * @throws ValidationError if configuration validation fails
  */
 export function getIngestConfig(requireKibana = false): IngestConfig {
   if (_config) {
@@ -40,10 +41,7 @@ export function getIngestConfig(requireKibana = false): IngestConfig {
   }
   const configResult = validateIngestConfig({ requireKibana });
   if (configResult.isErr()) {
-    logErrorAndExit(
-      configResult.error,
-      `Configuration validation failed: ${configResult.error.message}`,
-    );
+    throw configResult.error;
   }
   _config = configResult.value;
   return _config;
