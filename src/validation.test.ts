@@ -46,29 +46,6 @@ describe('validation module', () => {
   });
 
   describe('validateRequired', () => {
-    it('should return Ok with value when set', () => {
-      const result = validateRequired('TEST', 'value');
-      expect(result.isOk()).toBe(true);
-      expect(result._unsafeUnwrap()).toBe('value');
-    });
-
-    it('should return Err when undefined', () => {
-      const result = validateRequired('TEST', undefined);
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error.message).toMatch(/TEST is required/);
-      expect(error.code).toBe('MISSING_REQUIRED');
-    });
-
-    it('should return Err when empty string', () => {
-      const result1 = validateRequired('TEST', '');
-      expect(result1.isErr()).toBe(true);
-
-      const result2 = validateRequired('TEST', '   ');
-      expect(result2.isErr()).toBe(true);
-    });
-
     it('should include env file hint in error message', () => {
       const result = validateRequired('TEST', undefined);
       expect(result.isErr()).toBe(true);
@@ -77,45 +54,16 @@ describe('validation module', () => {
   });
 
   describe('validateUrl', () => {
-    it('should validate valid HTTP URLs', () => {
-      const result = validateUrl('TEST', 'http://localhost:9200');
-      expect(result.isOk()).toBe(true);
-      expect(result._unsafeUnwrap()).toBe('http://localhost:9200');
-    });
-
-    it('should validate valid HTTPS URLs', () => {
-      const result = validateUrl('TEST', 'https://example.com:443');
-      expect(result.isOk()).toBe(true);
-      expect(result._unsafeUnwrap()).toBe('https://example.com:443');
-    });
-
     it('should trim whitespace', () => {
       const result = validateUrl('TEST', '  https://example.com  ');
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe('https://example.com');
     });
 
-    it('should return Err when missing protocol', () => {
-      const result = validateUrl('TEST', 'localhost:9200');
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error.message).toMatch(/must start with http/);
-      expect(error.code).toBe('INVALID_URL_PROTOCOL');
-    });
-
     it('should return Err when invalid URL', () => {
       const result = validateUrl('TEST', 'http://');
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().code).toBe('INVALID_URL_FORMAT');
-    });
-
-    it('should return Err when trailing slash in path', () => {
-      const result = validateUrl('TEST', 'http://localhost:9200/path/');
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error.message).toMatch(/trailing slash/);
-      expect(error.code).toBe('INVALID_URL_TRAILING_SLASH');
     });
 
     it('should allow trailing slash on root', () => {
@@ -184,28 +132,6 @@ describe('validation module', () => {
   });
 
   describe('validateBoolean', () => {
-    it("should parse 'true' as true", () => {
-      expect(validateBoolean('TEST', 'true')._unsafeUnwrap()).toBe(true);
-      expect(validateBoolean('TEST', 'TRUE')._unsafeUnwrap()).toBe(true);
-      expect(validateBoolean('TEST', '  true  ')._unsafeUnwrap()).toBe(true);
-    });
-
-    it("should parse '1' and 'yes' as true", () => {
-      expect(validateBoolean('TEST', '1')._unsafeUnwrap()).toBe(true);
-      expect(validateBoolean('TEST', 'yes')._unsafeUnwrap()).toBe(true);
-    });
-
-    it("should parse 'false' as false", () => {
-      expect(validateBoolean('TEST', 'false')._unsafeUnwrap()).toBe(false);
-      expect(validateBoolean('TEST', 'FALSE')._unsafeUnwrap()).toBe(false);
-      expect(validateBoolean('TEST', '  false  ')._unsafeUnwrap()).toBe(false);
-    });
-
-    it("should parse '0' and 'no' as false", () => {
-      expect(validateBoolean('TEST', '0')._unsafeUnwrap()).toBe(false);
-      expect(validateBoolean('TEST', 'no')._unsafeUnwrap()).toBe(false);
-    });
-
     it('should return default when empty', () => {
       expect(validateBoolean('TEST', '', false)._unsafeUnwrap()).toBe(false);
       expect(validateBoolean('TEST', undefined, true)._unsafeUnwrap()).toBe(true);
@@ -222,15 +148,6 @@ describe('validation module', () => {
   });
 
   describe('validateLogLevel', () => {
-    it('should validate valid log levels', () => {
-      expect(validateLogLevel('TEST', 'debug')._unsafeUnwrap()).toBe('debug');
-      expect(validateLogLevel('TEST', 'info')._unsafeUnwrap()).toBe('info');
-      expect(validateLogLevel('TEST', 'warn')._unsafeUnwrap()).toBe('warn');
-      expect(validateLogLevel('TEST', 'error')._unsafeUnwrap()).toBe('error');
-      expect(validateLogLevel('TEST', 'fatal')._unsafeUnwrap()).toBe('fatal');
-      expect(validateLogLevel('TEST', 'trace')._unsafeUnwrap()).toBe('trace');
-    });
-
     it('should normalize case', () => {
       expect(validateLogLevel('TEST', 'DEBUG')._unsafeUnwrap()).toBe('debug');
       expect(validateLogLevel('TEST', 'INFO')._unsafeUnwrap()).toBe('info');
@@ -245,14 +162,6 @@ describe('validation module', () => {
       expect(validateLogLevel('TEST', undefined, 'error' as LogLevel)._unsafeUnwrap()).toBe(
         'error',
       );
-    });
-
-    it('should return Err on invalid level', () => {
-      const result = validateLogLevel('TEST', 'invalid');
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error.message).toMatch(/must be one of/);
-      expect(error.code).toBe('INVALID_LOG_LEVEL');
     });
   });
 

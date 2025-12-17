@@ -40,41 +40,6 @@ describe('config module', () => {
   });
 
   describe('path functions', () => {
-    it('getUserConfigDir should return path in home directory', () => {
-      const result = config.getUserConfigDir();
-      expect(result).toBe(path.join(os.homedir(), '.shc2es'));
-    });
-
-    it('getCertsDir should return certs subdirectory', () => {
-      const result = config.getCertsDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'certs'));
-    });
-
-    it('getDataDir should return data subdirectory', () => {
-      const result = config.getDataDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'data'));
-    });
-
-    it('getLogsDir should return logs subdirectory', () => {
-      const result = config.getLogsDir();
-      expect(result).toBe(path.join(config.getUserConfigDir(), 'logs'));
-    });
-
-    it('getCertFile should return cert file path', () => {
-      const result = config.getCertFile();
-      expect(result).toBe(path.join(config.getCertsDir(), 'client-cert.pem'));
-    });
-
-    it('getKeyFile should return key file path', () => {
-      const result = config.getKeyFile();
-      expect(result).toBe(path.join(config.getCertsDir(), 'client-key.pem'));
-    });
-
-    it('getEnvFile should return env file path', () => {
-      const result = config.getEnvFile();
-      expect(result).toBe(path.join(config.getUserConfigDir(), '.env'));
-    });
-
     it('getLocalEnvFile should return local env file path', () => {
       const result = config.getLocalEnvFile();
       expect(result).toBe(path.join(process.cwd(), '.env'));

@@ -229,22 +229,6 @@ describe('SmartHomeEvent types', () => {
   });
 
   describe('isKnownEventType', () => {
-    it('should return true for known event types', () => {
-      const knownTypes = ['DeviceServiceData', 'device', 'room', 'message', 'client', 'light'];
-
-      knownTypes.forEach((type) => {
-        expect(isKnownEventType({ '@type': type })).toBe(true);
-      });
-    });
-
-    it('should return false for unknown event types', () => {
-      const unknownTypes = ['unknown', 'foo', 'bar', 'sensor', 'actuator'];
-
-      unknownTypes.forEach((type) => {
-        expect(isKnownEventType({ '@type': type })).toBe(false);
-      });
-    });
-
     describe('Property-based tests', () => {
       it('should accept all known event types', () => {
         const knownEventTypes = fc.constantFrom(

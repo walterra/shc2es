@@ -84,9 +84,18 @@ Add property-based testing with `fast-check` to complement existing example-base
 
 **User tests:**
 
-- [ ] Verify property-based tests appear in test output with "✓" marks
-- [ ] Verify tests complete in reasonable time (< 30s for all property tests)
-- [ ] Check coverage report shows property-based tests are counted
+- [x] Verify property-based tests appear in test output with "✓" marks
+- [x] Verify tests complete in reasonable time (< 30s for all property tests)
+- [x] Check coverage report shows property-based tests are counted
+
+**7. Remove redundant tests**
+
+- [x] Analyze test redundancy (22 tests identified)
+- [x] Remove 12 redundant tests from validation.test.ts
+- [x] Remove 7 redundant tests from config.test.ts
+- [x] Remove 2 redundant tests from smart-home-events.test.ts
+- [x] Verify all tests still pass (222/222)
+- [x] Verify coverage maintained (92.13%)
 
 ## Review
 
@@ -128,3 +137,12 @@ Add property-based testing with `fast-check` to complement existing example-base
 - Found edge case: fc.webUrl() generates URLs with trailing slashes (http://a.aa//) that validateUrl correctly rejects
 - Validates that transformation functions never throw exceptions across arbitrary inputs
 - Ensures path utilities are deterministic and consistent across all possible inputs
+
+**Redundant test removal:**
+
+- Removed 22 example-based tests that were fully covered by property tests
+- Test count reduced from 244 to 222 tests
+- Estimated ~200 lines of test code removed
+- Coverage maintained at 92.13% (no degradation)
+- Kept high-value tests for specific edge cases, error messages, and real fixture validation
+- See `removal-summary.md` and `redundancy-analysis.md` for details
