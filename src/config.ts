@@ -213,11 +213,10 @@ export function findEnvFile(): string | null {
 }
 
 /**
- * Load environment variables from the appropriate .env file.
+ * Loads environment variables from .env file.
  *
- * This function should be called early in application startup (by cli.ts)
- * to ensure environment variables are available. It uses dotenv to parse
- * the .env file and add variables to process.env.
+ * Called by cli.ts during startup. Uses dotenv to parse the .env file and add
+ * variables to process.env.
  *
  * **Side effects:**
  * - Modifies process.env with variables from .env file
