@@ -82,26 +82,6 @@
     - Completing in-flight spans (OpenTelemetry)
   - Ensure all resources are cleaned up before exit
 
-### Testing
-
-- **E2E tests don't test application code** (PARTIALLY FIXED - ✅ testability improved)
-  - Current `tests/e2e/` are infrastructure tests (mock controller, ES client), not application tests
-  - **What they test**: Mock HTTP endpoints work, ES bulk operations succeed, TestContainers infrastructure
-  - **What they DON'T test**:
-    - `poll.ts` connecting to controller and writing NDJSON files
-    - `ingest/main.ts` reading NDJSON and calling ES APIs
-    - `fetch-registry.ts` fetching and saving device/room registry
-    - `export-dashboard.ts` importing/exporting dashboards
-  - **Progress made (2025-12-17):**
-    - ✅ **Exit callback injection** - All `main()` functions now accept mockable `exit: (code: number) => void` parameter
-    - ✅ **No process.exit() in library code** - Exit behavior is fully testable
-    - ✅ **Tests can call main()** - No process termination during test execution
-  - **Remaining work:**
-    - ❌ Accept config/clients as parameters (full dependency injection)
-    - ❌ Support graceful shutdown via AbortSignal
-    - ❌ Write actual E2E tests that exercise full CLI flows
-  - **Alternative**: Rename `tests/e2e/` → `tests/infrastructure/` to be honest about what's tested
-
 ### SOLID Principles
 
 - **Dependency Injection for testability** (PARTIALLY DONE - ✅ exit callback pattern implemented)
