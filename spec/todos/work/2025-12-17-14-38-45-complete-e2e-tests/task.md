@@ -39,11 +39,12 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 - [x] Extract bridge creation into injectable factory (src/poll.ts:199-210)
   - Accept optional `bridgeFactory` parameter in main()
   - Allow tests to inject mock bridge
-- [~] Write E2E test: poll with mock controller → verify NDJSON files (tests/e2e/poll.e2e.test.ts:92-136)
-  - **BLOCKED**: Jest/ESM compatibility issue with `uuid` package (used by bosch-smart-home-bridge)
-  - Test code written but cannot run due to Jest not supporting ESM modules in dependencies
-  - Alternative: Create integration test with fully mocked bridge (no bosch-smart-home-bridge import)
-  - Code changes complete and verified via build/unit tests; E2E test deferred
+- [x] Write E2E test: poll with mock controller → verify NDJSON files (tests/e2e/poll.e2e.test.ts:139-191)
+  - ✅ Created mock bridge adapter (`tests/mocks/mock-bridge-adapter.ts`)
+  - ✅ Test calls actual `pollMain()` with injected config, signal, and mock bridge
+  - ✅ Verifies NDJSON files created with correct event data
+  - ✅ Tests AbortSignal support for graceful shutdown
+  - ✅ All 4 poll E2E tests passing
 
 ### Phase 1.5: Migrate from Jest to Vitest (COMPLETE ✅)
 
@@ -64,8 +65,8 @@ Complete full E2E testing by finishing dependency injection and writing actual a
   - Coverage uses `@vitest/coverage-v8` provider
 - [x] Verify all tests pass: ✅ 209/209 tests passing
 - [x] Clean up old Jest configs (removed jest.config.js, jest.config.unit.js, jest.config.e2e.ts)
-- [ ] Verify E2E infrastructure works: `yarn test:e2e` (deferred - needs next phase)
-- [ ] Update documentation (CLAUDE.md, tests/README.md)
+- [x] Verify E2E infrastructure works: `yarn test:e2e` ✅ All 16 E2E tests passing
+- [ ] Update documentation (CLAUDE.md, tests/README.md) - deferred to completion phase
 
 **Why This Phase:**
 
@@ -76,6 +77,8 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 - Modern, future-proof foundation for E2E tests
 
 ### Phase 2: ingest/main.ts - Full Dependency Injection
+
+**Current State:** E2E tests exist (4 tests passing) but are infrastructure-only - they test ES operations directly, not via ingest main()
 
 - [ ] Refactor `main()` to accept optional config object (src/ingest/main.ts:26-69)
   - Add `IngestConfig` interface with all dependencies (esNode, esUser, esPassword, indexPrefix, kibanaNode, dataDir, etc.)
@@ -100,6 +103,8 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 
 ### Phase 3: fetch-registry.ts - Full Dependency Injection
 
+**Current State:** E2E tests exist (3 tests passing) but are infrastructure-only - they test mock controller API directly, not via fetch-registry main()
+
 - [ ] Refactor `main()` to accept optional config object (src/fetch-registry.ts:164-200)
   - Add `RegistryConfig` interface with dependencies (bshHost, certsDir, dataDir)
   - Support env vars and injected config
@@ -113,6 +118,8 @@ Complete full E2E testing by finishing dependency injection and writing actual a
   - Verify metadata fields (fetchedAt, device types, room icons)
 
 ### Phase 4: export-dashboard.ts - Full Dependency Injection
+
+**Current State:** E2E tests exist (5 tests passing) but are infrastructure-only - they test Kibana API directly, not via export-dashboard main()
 
 - [ ] Refactor `main()` to accept optional config object (src/export-dashboard.ts:425-end)
   - Add `DashboardConfig` interface with dependencies (kibanaNode, esUser, esPassword, indexPrefix, etc.)
@@ -253,3 +260,14 @@ Complete full E2E testing by finishing dependency injection and writing actual a
   - Updated `tests/utils/global-containers.ts` to use `inject()` from 'vitest'
   - Fixed E2E config to NOT merge with base (was running unit tests in E2E mode)
   - Skipped poll E2E test - needs mock bridge adapter (bosch-smart-home-bridge expects HTTPS:8444, mock uses HTTP:random)
+
+**Poll E2E Test Unblocked - 2025-12-17 (Date TBD - found during resume)**
+
+- ✅ Created `tests/mocks/mock-bridge-adapter.ts` to adapt MockBoschController for bosch-smart-home-bridge interface
+- ✅ Mock bridge implements only methods used by poll.ts: `pairIfNeeded()`, `getBshcClient()`
+- ✅ Mock client implements subscribe() and longPolling() via HTTP to MockBoschController
+- ✅ poll.e2e.test.ts now calls actual `pollMain()` with injected dependencies
+- ✅ Test verifies complete flow: config → pairing → subscribe → poll → NDJSON files
+- ✅ Test verifies AbortSignal support for graceful shutdown
+- ✅ All 4 poll E2E tests passing (infrastructure + full main() integration)
+- **Result**: Phase 1 is now FULLY COMPLETE including working E2E test
