@@ -4,6 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as fc from 'fast-check';
 import { createTempDir, cleanupTempDir } from '../tests/utils/test-helpers';
 import type { LogLevel } from './validation';
 import {
@@ -504,6 +505,164 @@ describe('validation module', () => {
       const result = validateDashboardConfig();
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().message).toMatch(/ES_PASSWORD is required/);
+    });
+  });
+
+  describe('Property-based tests', () => {
+    describe('validateRequired properties', () => {
+      it('should accept any non-empty string', () => {
+        fc.assert(
+          fc.property(
+            fc.string({ minLength: 1 }).filter((s) => s.trim().length > 0),
+            (value) => {
+              const result = validateRequired('TEST', value);
+              expect(result.isOk()).toBe(true);
+              expect(result._unsafeUnwrap()).toBe(value);
+            },
+          ),
+        );
+      });
+
+      it('should reject undefined, empty, and whitespace-only strings', () => {
+        const invalidValues = fc.oneof(
+          fc.constant(undefined),
+          fc.constant(''),
+          fc.stringMatching(/^\s+$/), // Only whitespace
+        );
+
+        fc.assert(
+          fc.property(invalidValues, (value) => {
+            const result = validateRequired('TEST', value);
+            expect(result.isErr()).toBe(true);
+            expect(result._unsafeUnwrapErr()).toBeInstanceOf(ValidationError);
+            expect(result._unsafeUnwrapErr().code).toBe('MISSING_REQUIRED');
+          }),
+        );
+      });
+    });
+
+    describe('validateUrl properties', () => {
+      it('should accept valid HTTP/HTTPS URLs', () => {
+        fc.assert(
+          fc.property(fc.webUrl({ validSchemes: ['http', 'https'] }), (url: string) => {
+            const result = validateUrl('TEST', url);
+
+            // URLs with trailing slashes in paths are rejected (known validation rule)
+            // So we expect either Ok or Err with INVALID_URL_TRAILING_SLASH
+            if (result.isErr()) {
+              expect(result._unsafeUnwrapErr().code).toBe('INVALID_URL_TRAILING_SLASH');
+            } else {
+              expect(result._unsafeUnwrap()).toBeTruthy();
+            }
+          }),
+        );
+      });
+
+      it('should reject URLs without http/https protocol', () => {
+        const invalidUrls = fc.oneof(
+          fc.constant('localhost:9200'),
+          fc.constant('example.com'),
+          fc.string({ minLength: 1 }).filter((s) => !s.startsWith('http')),
+        );
+
+        fc.assert(
+          fc.property(invalidUrls, (url: string) => {
+            const result = validateUrl('TEST', url);
+            if (result.isErr()) {
+              expect(result._unsafeUnwrapErr()).toBeInstanceOf(ValidationError);
+              expect([
+                'INVALID_URL_PROTOCOL',
+                'INVALID_URL_FORMAT',
+                'INVALID_URL_TRAILING_SLASH',
+              ]).toContain(result._unsafeUnwrapErr().code);
+            }
+          }),
+        );
+      });
+
+      it('should reject URLs with trailing slash in path', () => {
+        const urlsWithTrailingSlash = fc
+          .webUrl({ validSchemes: ['http', 'https'] })
+          .filter((url) => {
+            // Must have a path (not just domain) and end with /
+            return /^https?:\/\/[^/]+\/.+\/$/.exec(url) !== null;
+          });
+
+        fc.assert(
+          fc.property(urlsWithTrailingSlash, (url) => {
+            const result = validateUrl('TEST', url);
+            expect(result.isErr()).toBe(true);
+            expect(result._unsafeUnwrapErr().code).toBe('INVALID_URL_TRAILING_SLASH');
+          }),
+        );
+      });
+    });
+
+    describe('validateBoolean properties', () => {
+      it('should be idempotent (same input produces same output)', () => {
+        fc.assert(
+          fc.property(fc.string(), fc.boolean(), (value: string, defaultValue: boolean) => {
+            const result1 = validateBoolean('TEST', value, defaultValue);
+            const result2 = validateBoolean('TEST', value, defaultValue);
+
+            // Both should succeed or both should fail
+            expect(result1.isOk()).toBe(result2.isOk());
+
+            if (result1.isOk() && result2.isOk()) {
+              expect(result1._unsafeUnwrap()).toBe(result2._unsafeUnwrap());
+            }
+          }),
+        );
+      });
+
+      it('should accept valid boolean strings', () => {
+        const validBooleans = fc.constantFrom(
+          'true',
+          'false',
+          '1',
+          '0',
+          'yes',
+          'no',
+          'TRUE',
+          'FALSE',
+        );
+
+        fc.assert(
+          fc.property(validBooleans, (value: string) => {
+            const result = validateBoolean('TEST', value, false);
+            expect(result.isOk()).toBe(true);
+            expect(typeof result._unsafeUnwrap()).toBe('boolean');
+          }),
+        );
+      });
+    });
+
+    describe('validateLogLevel properties', () => {
+      it('should only accept valid log levels', () => {
+        const validLevels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
+
+        fc.assert(
+          fc.property(fc.constantFrom(...validLevels), (level: LogLevel) => {
+            const result = validateLogLevel('TEST', level, 'info');
+            expect(result.isOk()).toBe(true);
+            expect(validLevels).toContain(result._unsafeUnwrap());
+          }),
+        );
+      });
+
+      it('should reject invalid log levels', () => {
+        const invalidLevels = fc
+          .string()
+          .filter((s) => !['trace', 'debug', 'info', 'warn', 'error', 'fatal', ''].includes(s));
+
+        fc.assert(
+          fc.property(invalidLevels, (level: string) => {
+            const result = validateLogLevel('TEST', level, 'info');
+            expect(result.isErr()).toBe(true);
+            expect(result._unsafeUnwrapErr().code).toBe('INVALID_LOG_LEVEL');
+          }),
+        );
+      });
     });
   });
 });

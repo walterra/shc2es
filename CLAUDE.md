@@ -147,21 +147,51 @@ See `spec/OPEN-TELEMETRY.md` for detailed configuration, APM UI requirements, an
 
 ```
 src/
+  cli.ts               # CLI command router
   config.ts            # Centralized config - paths, env loading
-  poll.ts              # Main CLI script - long polling logic
+  config.test.ts       # Unit tests (co-located with source)
   logger.ts            # Pino logger setup (app + data loggers)
-  ingest.ts            # Elasticsearch data ingestion
+  logger.test.ts
+  instrumentation.ts   # OpenTelemetry setup and utilities
+  instrumentation.test.ts
+  validation.ts        # Data validation and schema enforcement
+  validation.test.ts
+  transforms.ts        # Data transformation utilities
+  transforms.test.ts
+  poll.ts              # Long polling CLI - collects smart home events
+  poll.test.ts
   fetch-registry.ts    # Device registry fetching
   export-dashboard.ts  # Kibana dashboard export/import
-  cli.ts               # CLI command router
+  export-dashboard.test.ts
+
+  ingest/              # Elasticsearch ingestion modules
+    main.ts            # Main ingestion entry point
+    config.ts          # Ingestion-specific configuration
+    bulk-import.ts     # Batch NDJSON file import
+    watch.ts           # Live file watching for continuous ingestion
+    transform.ts       # Event transformation for Elasticsearch
+    setup.ts           # Elasticsearch index/template setup
+    dashboard.ts       # Dashboard import automation
+    registry.ts        # Device registry ingestion
+    utils.ts           # Shared ingestion utilities
+
+  types/               # TypeScript type definitions
+    errors.ts          # Custom error classes
+    errors.test.ts
+    smart-home-events.ts  # Smart home event types
+    smart-home-events.test.ts
+    kibana-saved-objects.ts  # Kibana object types
+    kibana-saved-objects.test.ts
 
 tests/
-  unit/                # Unit tests for individual modules
-  integration/         # Integration tests
-  mocks/               # Mock implementations
-  fixtures/            # Test data
-  utils/               # Test helpers
-  setup.ts             # Global test setup
+  e2e/                 # End-to-end integration tests
+  mocks/               # Mock implementations (bridge, controller server)
+  fixtures/            # Test data files
+  utils/               # Test helpers (containers, test-helpers)
+  setup.ts             # Jest test setup
+  setup.e2e.ts         # E2E test setup
+  global-setup.e2e.ts  # E2E global setup (TestContainers)
+  global-teardown.e2e.ts  # E2E global teardown
 
 ~/.shc2es/             # User config directory
   .env                 # Configuration file

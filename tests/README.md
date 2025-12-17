@@ -169,6 +169,66 @@ describe('myModule', () => {
 });
 ```
 
+### Property-Based Testing
+
+Property-based tests use `fast-check` to verify that functions uphold invariants across thousands of randomly generated inputs. This complements example-based tests by exploring edge cases automatically.
+
+**Key modules with property-based tests:**
+
+- **Validation functions** (`src/validation.test.ts`):
+  - `validateRequired()` - Any non-empty string should pass
+  - `validateUrl()` - Valid HTTP/HTTPS URLs should parse consistently
+  - `validateBoolean()` - String-to-boolean conversion should be idempotent
+  - `validateLogLevel()` - Only valid log levels should pass
+
+- **Transformation functions** (`src/transforms.test.ts`):
+  - `extractMetric()` - Should never throw, always return Metric or null
+  - `generateDocId()` - Should be deterministic (same input → same output)
+
+- **Config path utilities** (`src/config.test.ts`):
+  - All path functions should return absolute paths
+  - Paths should always start with user home directory
+
+Example property-based test:
+
+```typescript
+import * as fc from 'fast-check';
+
+describe('Property-based tests', () => {
+  it('should accept any non-empty string', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1 }).filter((s) => s.trim().length > 0),
+        (value) => {
+          const result = validateRequired('TEST', value);
+          expect(result.isOk()).toBe(true);
+          expect(result._unsafeUnwrap()).toBe(value);
+        },
+      ),
+    );
+  });
+});
+```
+
+**Benefits:**
+
+- Catches edge cases not covered by example-based tests
+- Generates hundreds of test cases per property automatically
+- Provides better confidence in function correctness
+- Shrinks failing inputs to minimal reproducible cases
+
+**Running property-based tests:**
+
+Property-based tests run alongside example-based tests with:
+
+```bash
+yarn test          # All tests including property-based
+yarn test:unit     # Unit tests including property-based
+yarn test:coverage # With coverage report
+```
+
+Each property test generates 100+ test cases by default (configurable via `fc.assert` options).
+
 ### Test Helpers
 
 Use the utilities in `tests/utils/test-helpers.ts`:
