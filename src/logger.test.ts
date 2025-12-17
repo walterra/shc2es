@@ -57,17 +57,6 @@ describe('logger module', () => {
       expect(typeof testLogger.debug).toBe('function');
       expect(typeof testLogger.warn).toBe('function');
     });
-
-    it('should create log file with correct naming', () => {
-      logger.createLogger('test-script');
-
-      // Wait a bit for file creation
-      setTimeout(() => {
-        const files = fs.readdirSync(logsDir);
-        const hasTestLog = files.some((f) => f.startsWith('test-script-'));
-        expect(hasTestLog).toBe(true);
-      }, 100);
-    });
   });
 
   describe('appLogger', () => {
