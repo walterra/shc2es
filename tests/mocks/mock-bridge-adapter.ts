@@ -113,13 +113,65 @@ class MockBridgeAdapter implements BoschSmartHomeBridge {
 
 /**
  * Mock implementation of BshcClient
- * Implements only subscribe() and longPolling() methods used by poll.ts
+ * Implements methods used by poll.ts and fetch-registry.ts
  */
 class MockBshcClient {
   private controllerUrl: string;
 
   constructor(controllerUrl: string) {
     this.controllerUrl = controllerUrl;
+  }
+
+  /**
+   * Get devices from MockBoschController
+   */
+  getDevices(): Observable<BshbResponse<unknown[]>> {
+    return new Observable((observer) => {
+      fetch(`${this.controllerUrl}/smarthome/devices`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const error = await response.text();
+            observer.error(new Error(`Get devices failed: ${error}`));
+            return;
+          }
+
+          const devices = (await response.json()) as unknown[];
+          observer.next({
+            parsedResponse: devices,
+            incomingMessage: {} as never,
+          } as BshbResponse<unknown[]>);
+          observer.complete();
+        })
+        .catch((error: unknown) => {
+          observer.error(error);
+        });
+    });
+  }
+
+  /**
+   * Get rooms from MockBoschController
+   */
+  getRooms(): Observable<BshbResponse<unknown[]>> {
+    return new Observable((observer) => {
+      fetch(`${this.controllerUrl}/smarthome/rooms`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const error = await response.text();
+            observer.error(new Error(`Get rooms failed: ${error}`));
+            return;
+          }
+
+          const rooms = (await response.json()) as unknown[];
+          observer.next({
+            parsedResponse: rooms,
+            incomingMessage: {} as never,
+          } as BshbResponse<unknown[]>);
+          observer.complete();
+        })
+        .catch((error: unknown) => {
+          observer.error(error);
+        });
+    });
   }
 
   /**

@@ -110,21 +110,30 @@ Complete full E2E testing by finishing dependency injection and writing actual a
   - ✅ Uses AbortSignal to stop watch mode gracefully
   - ✅ **BUG FIX**: Made startWatchMode() async - returns Promise that resolves on abort
 
-### Phase 3: fetch-registry.ts - Full Dependency Injection
+### Phase 3: fetch-registry.ts - Full Dependency Injection (COMPLETE ✅)
 
-**Current State:** E2E tests exist (3 tests passing) but are infrastructure-only - they test mock controller API directly, not via fetch-registry main()
+**Current State:** All 3 E2E tests calling actual main() and passing
 
-- [ ] Refactor `main()` to accept optional config object (src/fetch-registry.ts:164-200)
-  - Add `RegistryConfig` interface with dependencies (bshHost, certsDir, dataDir)
-  - Support env vars and injected config
-- [ ] Extract BSHB client creation into injectable factory (src/fetch-registry.ts:164-200)
-  - Accept optional `bshbClientFactory` in main()
-  - Allow tests to inject mock client
-- [ ] Write E2E test: fetch registry from mock controller → verify JSON file (tests/e2e/fetch-registry.e2e.test.ts:79-137)
-  - Call actual main() with mock controller URL
-  - Verify device-registry.json created with correct structure
-  - Verify device-room mappings preserved
-  - Verify metadata fields (fetchedAt, device types, room icons)
+- [x] Refactor `main()` to accept optional config object (src/fetch-registry.ts:164-200)
+  - ✅ Added `RegistryContext` interface with config, bridgeFactory, outputFile
+  - ✅ Support both env vars (default) and injected config (tests)
+  - ✅ Backward compatible with existing CLI usage
+- [x] Extract BSHB client creation into injectable factory (src/fetch-registry.ts:164-200)
+  - ✅ Added `bridgeFactory` parameter in RegistryContext
+  - ✅ Tests inject mock bridge via createMockBridgeFactory()
+  - ✅ Extended mock bridge adapter to support getDevices() and getRooms()
+- [x] Write E2E test: fetch registry from mock controller → verify JSON file (tests/e2e/fetch-registry.e2e.test.ts)
+  - ✅ Test calls actual main() with mock bridge factory
+  - ✅ Verifies device-registry.json created with correct structure
+  - ✅ Verifies 3 devices and 2 rooms from fixtures
+  - ✅ Verifies metadata fields (fetchedAt, device types, room icons)
+- [x] Write E2E test: verify device-room relationships (tests/e2e/fetch-registry.e2e.test.ts)
+  - ✅ Test calls main() and verifies device-room mappings
+  - ✅ Verifies all devices have name and type
+  - ✅ Verifies timestamp is valid
+- [x] Write E2E test: handle devices without rooms (tests/e2e/fetch-registry.e2e.test.ts)
+  - ✅ Test calls main() and handles optional roomId field
+  - ✅ Verifies structure allows devices without room assignments
 
 ### Phase 4: export-dashboard.ts - Full Dependency Injection
 
@@ -294,3 +303,25 @@ Complete full E2E testing by finishing dependency injection and writing actual a
 - ✅ Build succeeds, all unit tests pass (209/209)
 - ✅ All E2E tests pass (16/16)
 - **Result**: Phase 2 COMPLETE - ingest fully testable via DI pattern
+
+**Phase 3 Complete - 2025-12-17 23:39**
+
+- ✅ fetch-registry.ts refactored for full dependency injection (RegistryContext with config, bridgeFactory, outputFile)
+- ✅ Extended mock bridge adapter to support getDevices() and getRooms() methods (not just polling)
+- ✅ All 3 E2E tests rewritten to call actual main() function
+- ✅ Tests cover: basic fetch, device-room relationships, devices without rooms
+- ✅ Build succeeds, all unit tests pass (209/209)
+- ✅ All E2E tests pass (16/16)
+- **Result**: Phase 3 COMPLETE - fetch-registry fully testable via DI pattern
+
+**Linting Cleanup - 2025-12-17 23:44**
+
+- ✅ Fixed all 14 ESLint errors (0 errors remaining, 62 warnings)
+- ✅ Fixed missing return type on bridgeFactory arrow function (src/fetch-registry.ts)
+- ✅ Removed unused interface types (Room, Device) from fetch-registry.e2e.test.ts
+- ✅ Removed unused variables (certsDir, dataDir) from E2E tests
+- ✅ Fixed type assertions for Vitest inject() calls (returns unknown, needs cast to string | undefined)
+- ✅ Fixed property names: containers.elasticsearchNode → elasticsearchUrl, kibanaNode → kibanaUrl
+- ✅ Fixed template literal type safety (today variable nullable)
+- ✅ All tests still passing after linting fixes
+- **Result**: Codebase clean, only warnings remaining (test file length/complexity - acceptable)
