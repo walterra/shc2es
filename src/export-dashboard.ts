@@ -4,6 +4,7 @@ import { Agent, fetch as undiciFetch } from 'undici';
 
 import { createLogger } from './logger';
 import { validateDashboardConfig } from './validation';
+import type { DashboardConfig } from './validation';
 import { withSpan, SpanAttributes } from './instrumentation';
 import type {
   SavedObject,
@@ -20,15 +21,6 @@ const log = createLogger('export-dashboard');
 interface TlsConfig {
   rejectUnauthorized?: boolean;
   ca?: Buffer;
-}
-
-// Dashboard configuration
-interface DashboardConfig {
-  kibanaNode: string;
-  esUser: string;
-  esPassword: string;
-  esTlsVerify: boolean;
-  esCaCert?: string;
 }
 
 // Build TLS config based on validated configuration
@@ -346,12 +338,15 @@ function parseDashboardExport(ndjson: string): ExportMetadata {
  * Save dashboard NDJSON to file with stripped metadata
  * @param ndjson - Raw NDJSON to save
  * @param outputName - Name of the output file (without .ndjson extension)
+ * @param dashboardsDir - Optional directory override (defaults to DASHBOARDS_DIR)
  */
-function saveDashboardFile(ndjson: string, outputName: string): void {
+function saveDashboardFile(ndjson: string, outputName: string, dashboardsDir?: string): void {
+  const outputDir = dashboardsDir ?? DASHBOARDS_DIR;
+
   // Ensure dashboards directory exists
-  if (!existsSync(DASHBOARDS_DIR)) {
-    mkdirSync(DASHBOARDS_DIR, { recursive: true });
-    log.info({ 'file.path': DASHBOARDS_DIR }, `Created dashboards directory at ${DASHBOARDS_DIR}`);
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+    log.info({ 'file.path': outputDir }, `Created dashboards directory at ${outputDir}`);
   }
 
   // Strip sensitive metadata before saving
@@ -362,7 +357,7 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
   );
 
   // Write to file
-  const outputFile = path.join(DASHBOARDS_DIR, `${outputName}.ndjson`);
+  const outputFile = path.join(outputDir, `${outputName}.ndjson`);
   writeFileSync(outputFile, strippedNdjson);
   log.info({ 'file.path': outputFile }, `Dashboard exported successfully to ${outputFile}`);
 }
@@ -373,13 +368,16 @@ function saveDashboardFile(ndjson: string, outputName: string): void {
  * @param outputName - Name for the output file
  * @param config - Dashboard configuration
  * @param tlsFetch - Fetch function with TLS config
+ * @param dashboardsDir - Optional output directory override
  * @returns Promise that resolves when export is complete
  */
+// eslint-disable-next-line max-params
 async function exportDashboard(
   dashboardId: string,
   outputName: string,
   config: DashboardConfig,
   tlsFetch: typeof globalThis.fetch,
+  dashboardsDir?: string,
 ): Promise<void> {
   return withSpan(
     'export_dashboard',
@@ -390,7 +388,7 @@ async function exportDashboard(
     async () => {
       const ndjson = await fetchDashboardExport(dashboardId, config, tlsFetch);
       parseDashboardExport(ndjson);
-      saveDashboardFile(ndjson, outputName);
+      saveDashboardFile(ndjson, outputName, dashboardsDir);
     },
   );
 }
@@ -418,15 +416,34 @@ Examples:
 }
 
 /**
+ * Dashboard context for dependency injection.
+ *
+ * Allows tests to inject mock configuration and fetch function while maintaining
+ * backward compatibility with CLI usage (defaults to env vars and real fetch).
+ */
+export interface DashboardContext {
+  /** Dashboard configuration (defaults to env vars) */
+  config?: Partial<DashboardConfig>;
+  /** Fetch function factory (defaults to createTlsFetch) */
+  fetchFactory?: (config: DashboardConfig) => typeof globalThis.fetch;
+  /** Command arguments (defaults to process.argv.slice(2)) */
+  args?: string[];
+  /** Output directory for dashboards (defaults to ./dashboards) */
+  outputDir?: string;
+}
+
+/**
  * Main entry point for the dashboard export CLI
  * Handles command-line arguments and orchestrates dashboard operations
  * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
+ * @param context - Optional dependency injection context for testing
  */
 export async function main(
   exit: (code: number) => void = (code) => process.exit(code),
+  context: DashboardContext = {},
 ): Promise<void> {
   // Env already loaded by cli.ts
-  const args = process.argv.slice(2);
+  const args = context.args ?? process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     printUsage();
@@ -434,7 +451,7 @@ export async function main(
     return;
   }
 
-  // Validate configuration
+  // Validate configuration (merge with injected config)
   const configResult = validateDashboardConfig();
   if (configResult.isErr()) {
     const error = configResult.error;
@@ -445,10 +462,12 @@ export async function main(
     exit(1);
     return;
   }
-  const config = configResult.value;
+  const baseConfig = configResult.value;
+  const config: DashboardConfig = { ...baseConfig, ...context.config };
 
-  // Create TLS fetch with validated config
-  const tlsFetch = createTlsFetch(config);
+  // Create TLS fetch with validated config (use factory if provided)
+  const fetchFactory = context.fetchFactory ?? createTlsFetch;
+  const tlsFetch = fetchFactory(config);
 
   if (args.includes('--list')) {
     try {
@@ -475,7 +494,13 @@ export async function main(
     }
 
     // Use hardcoded filename (template can be reused with different prefixes)
-    await exportDashboard(dashboard.id, DEFAULT_DASHBOARD_NAME, config, tlsFetch);
+    await exportDashboard(
+      dashboard.id,
+      DEFAULT_DASHBOARD_NAME,
+      config,
+      tlsFetch,
+      context.outputDir,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.fatal({ err: message }, `Export failed: ${message}`);
