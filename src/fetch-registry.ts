@@ -6,8 +6,7 @@ import type { BshcClient } from 'bosch-smart-home-bridge/dist/api/bshc-client';
 import { firstValueFrom } from 'rxjs';
 import { getCertFile, getKeyFile, getDataDir } from './config';
 import { createLogger } from './logger';
-import { validateRegistryConfig } from './validation';
-import type { RegistryConfig } from './validation';
+import type { RegistryConfig } from './types/config';
 import { withSpan } from './instrumentation';
 
 const log = createLogger('registry');
@@ -162,12 +161,12 @@ function saveRegistry(registry: DeviceRegistry, registryFile?: string): void {
 /**
  * Registry context for dependency injection.
  *
- * Allows tests to inject mock configuration and bridge while maintaining
- * backward compatibility with CLI usage (defaults to env vars and real bridge).
+ * Configuration is validated in cli.ts and passed as required parameter.
+ * Tests inject mock configuration and bridge.
  */
 export interface RegistryContext {
-  /** Registry configuration (defaults to env vars) */
-  config?: Partial<RegistryConfig>;
+  /** Registry configuration (validated by cli.ts) */
+  config: RegistryConfig;
   /** Bridge factory (defaults to BoschSmartHomeBridgeBuilder) */
   bridgeFactory?: (host: string, cert: string, key: string) => BoschSmartHomeBridge;
   /** Output file path override (defaults to ~/.shc2es/data/device-registry.json) */
@@ -176,27 +175,19 @@ export interface RegistryContext {
 
 /**
  * Main entry point - orchestrates registry fetching and saving
- * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
- * @param context - Optional dependency injection context for testing
+ *
+ * Configuration is validated in cli.ts and passed via context.
+ *
+ * @param _exit - Exit callback (reserved for future error handling, currently unused)
+ * @param context - Dependency injection context with validated config
  * @returns Promise that resolves when registry is saved
  */
 export async function main(
-  exit: (code: number) => void = (code) => process.exit(code),
-  context: RegistryContext = {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _exit: (code: number) => void = (code) => process.exit(code),
+  context: RegistryContext,
 ): Promise<void> {
-  // Validate configuration (env already loaded by cli.ts, merge with injected config)
-  const configResult = validateRegistryConfig();
-  if (configResult.isErr()) {
-    const error = configResult.error;
-    log.fatal(
-      { 'error.code': error.code, 'error.variable': error.variable },
-      `Configuration validation failed: ${error.message}`,
-    );
-    exit(1);
-    return;
-  }
-  const baseConfig = configResult.value;
-  const config: RegistryConfig = { ...baseConfig, ...context.config };
+  const config = context.config;
 
   log.info(
     `Fetching device and room registry from Bosch Smart Home Controller at ${config.bshHost}`,

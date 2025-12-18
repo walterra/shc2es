@@ -3,8 +3,7 @@ import * as path from 'path';
 import { Agent, fetch as undiciFetch } from 'undici';
 
 import { createLogger } from './logger';
-import { validateDashboardConfig } from './validation';
-import type { DashboardConfig } from './validation';
+import type { DashboardConfig } from './types/config';
 import { withSpan, SpanAttributes } from './instrumentation';
 import type {
   SavedObject,
@@ -418,12 +417,12 @@ Examples:
 /**
  * Dashboard context for dependency injection.
  *
- * Allows tests to inject mock configuration and fetch function while maintaining
- * backward compatibility with CLI usage (defaults to env vars and real fetch).
+ * Configuration is validated in cli.ts and passed as required parameter.
+ * Tests inject mock configuration and fetch function.
  */
 export interface DashboardContext {
-  /** Dashboard configuration (defaults to env vars) */
-  config?: Partial<DashboardConfig>;
+  /** Dashboard configuration (validated by cli.ts) */
+  config: DashboardConfig;
   /** Fetch function factory (defaults to createTlsFetch) */
   fetchFactory?: (config: DashboardConfig) => typeof globalThis.fetch;
   /** Command arguments (defaults to process.argv.slice(2)) */
@@ -440,7 +439,7 @@ export interface DashboardContext {
  */
 export async function main(
   exit: (code: number) => void = (code) => process.exit(code),
-  context: DashboardContext = {},
+  context: DashboardContext,
 ): Promise<void> {
   // Env already loaded by cli.ts
   const args = context.args ?? process.argv.slice(2);
@@ -451,19 +450,8 @@ export async function main(
     return;
   }
 
-  // Validate configuration (merge with injected config)
-  const configResult = validateDashboardConfig();
-  if (configResult.isErr()) {
-    const error = configResult.error;
-    log.fatal(
-      { 'error.code': error.code, 'error.variable': error.variable },
-      `Configuration validation failed: ${error.message}`,
-    );
-    exit(1);
-    return;
-  }
-  const baseConfig = configResult.value;
-  const config: DashboardConfig = { ...baseConfig, ...context.config };
+  // Configuration is validated in cli.ts
+  const config = context.config;
 
   // Create TLS fetch with validated config (use factory if provided)
   const fetchFactory = context.fetchFactory ?? createTlsFetch;

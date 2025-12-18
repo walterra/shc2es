@@ -43,8 +43,9 @@ export function getIngestConfig(requireKibana = false): IngestConfig {
   if (configResult.isErr()) {
     throw configResult.error;
   }
-  _config = configResult.value;
-  return _config;
+  const validatedConfig = configResult.value;
+  _config = validatedConfig;
+  return validatedConfig;
 }
 
 /**
