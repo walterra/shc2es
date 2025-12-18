@@ -3,8 +3,7 @@ import type { BoschSmartHomeBridge } from 'bosch-smart-home-bridge';
 import { BoschSmartHomeBridgeBuilder, BshbUtils } from 'bosch-smart-home-bridge';
 import { getCertsDir, getCertFile, getKeyFile, getConfigPaths } from './config';
 import { appLogger, dataLogger, BshbLogger, serializeError } from './logger';
-import { validatePollConfig } from './validation';
-import type { PollConfig } from './validation';
+import type { PollConfig } from './types/config';
 import { withSpan, SpanAttributes } from './instrumentation';
 
 /**
@@ -254,39 +253,22 @@ export function isPairingButtonError(message: string): boolean {
 /**
  * Main entry point for the polling client
  * Initializes connection, pairs if needed, and starts long polling loop
+ *
+ * Configuration is validated in cli.ts and passed as a required parameter.
+ *
  * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
- * @param injectedConfig - Optional config override (for tests, defaults to env vars)
+ * @param config - Poll configuration (validated by cli.ts)
  * @param signal - Optional AbortSignal to cancel polling (for graceful shutdown)
  * @param bridgeFactory - Optional factory for creating bridge instances (for tests)
  */
 export function main(
   exit: (code: number) => void = (code) => process.exit(code),
-  injectedConfig?: PollConfig,
+  config: PollConfig,
   signal?: AbortSignal,
   bridgeFactory: BridgeFactory = createBridge,
 ): void {
   // Create polling context to avoid parameter explosion
   const ctx: PollingContext = { exit, signal, bridgeFactory };
-
-  // Use injected config or validate from env vars
-  let config: PollConfig;
-  if (injectedConfig) {
-    config = injectedConfig;
-    appLogger.debug('Using injected configuration (test mode)');
-  } else {
-    // Validate configuration (env already loaded by cli.ts)
-    const configResult = validatePollConfig();
-    if (configResult.isErr()) {
-      const error = configResult.error;
-      appLogger.fatal(
-        { 'error.code': error.code, 'error.variable': error.variable },
-        `Configuration validation failed: ${error.message}`,
-      );
-      exit(1);
-      return;
-    }
-    config = configResult.value;
-  }
 
   // Check abort signal before starting
   if (signal?.aborted) {

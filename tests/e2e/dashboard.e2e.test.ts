@@ -59,13 +59,6 @@ describe('Dashboard E2E', () => {
       body: formData,
     });
 
-    // Setup environment variables (validation reads from process.env)
-    const originalEnv = { ...process.env };
-    process.env.KIBANA_NODE = kibanaUrl;
-    process.env.ES_USER = 'elastic';
-    process.env.ES_PASSWORD = 'changeme';
-    process.env.ES_TLS_VERIFY = 'false';
-
     try {
       let exitCode: number | undefined;
       const mockExit = (code: number): void => {
@@ -74,14 +67,18 @@ describe('Dashboard E2E', () => {
 
       // Call main() with --list
       await dashboardMain(mockExit, {
+        config: {
+          kibanaNode: kibanaUrl,
+          esUser: 'elastic',
+          esPassword: 'changeme',
+          esTlsVerify: false,
+        },
         args: ['--list'],
       });
 
       // Should exit successfully
       expect(exitCode).toBe(0);
     } finally {
-      // Restore environment
-      process.env = originalEnv;
       cleanupTempDir(tempDir);
     }
   });
@@ -114,13 +111,8 @@ describe('Dashboard E2E', () => {
     const dashboardsDir = path.join(tempDir, 'dashboards');
     fs.mkdirSync(dashboardsDir, { recursive: true });
 
-    // Setup environment and working directory
-    const originalEnv = { ...process.env };
+    // Setup working directory
     const originalCwd = process.cwd();
-    process.env.KIBANA_NODE = kibanaUrl;
-    process.env.ES_USER = 'elastic';
-    process.env.ES_PASSWORD = 'changeme';
-    process.env.ES_TLS_VERIFY = 'false';
     process.env.HOME = tempDir;
     process.chdir(tempDir);
 
@@ -136,6 +128,12 @@ describe('Dashboard E2E', () => {
       }
 
       await dashboardMain(mockExit, {
+        config: {
+          kibanaNode: kibanaUrl,
+          esUser: 'elastic',
+          esPassword: 'changeme',
+          esTlsVerify: false,
+        },
         args: [dashboardTitle],
         outputDir: dashboardsDir,
       });
@@ -157,19 +155,12 @@ describe('Dashboard E2E', () => {
       const exportedDashboard = exportedObjects.find((obj) => obj.type === 'dashboard');
       expect(exportedDashboard).toBeDefined();
     } finally {
-      process.env = originalEnv;
       process.chdir(originalCwd);
       cleanupTempDir(tempDir);
     }
   }, 15000);
 
   it('should call main() and handle dashboard not found error', async () => {
-    const originalEnv = { ...process.env };
-    process.env.KIBANA_NODE = kibanaUrl;
-    process.env.ES_USER = 'elastic';
-    process.env.ES_PASSWORD = 'changeme';
-    process.env.ES_TLS_VERIFY = 'false';
-
     try {
       let exitCode: number | undefined;
       const mockExit = (code: number): void => {
@@ -178,24 +169,23 @@ describe('Dashboard E2E', () => {
 
       // Call main() with non-existent dashboard name
       await dashboardMain(mockExit, {
+        config: {
+          kibanaNode: kibanaUrl,
+          esUser: 'elastic',
+          esPassword: 'changeme',
+          esTlsVerify: false,
+        },
         args: ['NonExistent Dashboard'],
       });
 
       // Should exit with error code
       expect(exitCode).toBe(1);
     } finally {
-      process.env = originalEnv;
       cleanupTempDir(tempDir);
     }
   });
 
   it('should call main() with --help and exit successfully', async () => {
-    const originalEnv = { ...process.env };
-    process.env.KIBANA_NODE = kibanaUrl;
-    process.env.ES_USER = 'elastic';
-    process.env.ES_PASSWORD = 'changeme';
-    process.env.ES_TLS_VERIFY = 'false';
-
     try {
       let exitCode: number | undefined;
       const mockExit = (code: number): void => {
@@ -203,14 +193,20 @@ describe('Dashboard E2E', () => {
       };
 
       // Call main() with --help
+      // Note: --help exits early, so config can be minimal
       await dashboardMain(mockExit, {
+        config: {
+          kibanaNode: kibanaUrl,
+          esUser: 'elastic',
+          esPassword: 'changeme',
+          esTlsVerify: false,
+        },
         args: ['--help'],
       });
 
       // Should exit successfully
       expect(exitCode).toBe(0);
     } finally {
-      process.env = originalEnv;
       cleanupTempDir(tempDir);
     }
   });

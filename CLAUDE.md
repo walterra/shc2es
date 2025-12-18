@@ -176,6 +176,7 @@ src/
     utils.ts           # Shared ingestion utilities
 
   types/               # TypeScript type definitions
+    config.ts          # Configuration interfaces (centralized)
     errors.ts          # Custom error classes
     errors.test.ts
     smart-home-events.ts  # Smart home event types
@@ -212,6 +213,32 @@ Two separate log streams:
 | ------------ | -------------------------------- | ------ | ---------------------- |
 | `appLogger`  | `~/.shc2es/logs/poll-*.log`      | JSON   | Debug the polling tool |
 | `dataLogger` | `~/.shc2es/data/events-*.ndjson` | NDJSON | Smart home event data  |
+
+### Configuration Flow
+
+Consistent dependency injection pattern for testability:
+
+1. **cli.ts** - Entry point loads and validates all configuration
+   - Calls `loadEnv()` to read from `.env` files
+   - Validates configuration based on command (`validatePollConfig()`, `validateIngestConfig()`, etc.)
+   - Passes validated config to command's `main()` function
+2. **Scripts** - Receive configuration via dependency injection
+   - `poll.ts`: `main(exit, config, signal?, bridgeFactory?)`
+   - `ingest/main.ts`: `main(exit, context)` where `context.config` is required
+   - `fetch-registry.ts`: `main(exit, context)` where `context.config` is required
+   - `export-dashboard.ts`: `main(exit, context)` where `context.config` is required
+3. **Tests** - Inject configuration the same way production code does
+   - Unit tests pass minimal config objects
+   - E2E tests pass full config with container URLs
+
+**Key principle:** Scripts never read from `process.env` directly. All configuration flows through `cli.ts` → `main()` → script logic.
+
+**Configuration types:** Centralized in `src/types/config.ts`:
+
+- `PollConfig` - Controller connection settings
+- `IngestConfig` - Elasticsearch and Kibana settings
+- `RegistryConfig` - Controller connection for registry fetch
+- `DashboardConfig` - Kibana settings for dashboard export
 
 ### Dependencies
 

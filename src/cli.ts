@@ -16,6 +16,13 @@ if (!noOtel) {
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { loadEnv } from './config';
+import {
+  validatePollConfig,
+  validateIngestConfig,
+  validateRegistryConfig,
+  validateDashboardConfig,
+} from './validation';
+import type { PollConfig, IngestConfig, RegistryConfig, DashboardConfig } from './types/config';
 
 const COMMANDS: Record<string, { description: string; module: string; usage?: string }> = {
   poll: {
@@ -101,6 +108,55 @@ async function main(): Promise<void> {
   // Load environment variables before executing any command
   loadEnv();
 
+  // Validate configuration based on command
+  // Configuration is loaded once here and passed to command's main() function
+  let config: PollConfig | IngestConfig | RegistryConfig | DashboardConfig | undefined;
+
+  switch (command) {
+    case 'poll': {
+      const result = validatePollConfig();
+      if (result.isErr()) {
+        console.error(`Configuration error: ${result.error.message}`);
+        process.exit(1);
+      }
+      config = result.value;
+      break;
+    }
+    case 'ingest': {
+      // Check if --setup flag is present (requires Kibana)
+      const requireKibana = args.includes('--setup');
+      const result = validateIngestConfig({ requireKibana });
+      if (result.isErr()) {
+        console.error(`Configuration error: ${result.error.message}`);
+        process.exit(1);
+      }
+      config = result.value;
+      break;
+    }
+    case 'registry': {
+      const result = validateRegistryConfig();
+      if (result.isErr()) {
+        console.error(`Configuration error: ${result.error.message}`);
+        process.exit(1);
+      }
+      config = result.value;
+      break;
+    }
+    case 'dashboard': {
+      const result = validateDashboardConfig();
+      if (result.isErr()) {
+        console.error(`Configuration error: ${result.error.message}`);
+        process.exit(1);
+      }
+      config = result.value;
+      break;
+    }
+    default:
+      // Should never happen due to earlier validation
+      console.error(`Unknown command: ${command}`);
+      process.exit(1);
+  }
+
   // Remove the command and --no-otel from argv so submodules see correct args
   const subArgs = args.filter((arg) => arg !== command && arg !== '--no-otel');
   process.argv = [process.argv[0] ?? 'node', process.argv[1] ?? '', ...subArgs];
@@ -108,16 +164,83 @@ async function main(): Promise<void> {
   // Dynamic import of the command module and call its main() function
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const modulePath = COMMANDS[command]!.module;
-  const module = (await import(modulePath)) as {
-    main?: () => void | Promise<void>;
+
+  // Create exit callback to avoid unbound method issues
+  const exit = (code: number): void => {
+    process.exit(code);
   };
 
-  // Call main() if it exists
-  if (typeof module.main === 'function') {
-    await module.main();
-  } else {
-    console.error(`Module ${modulePath} does not export a main() function`);
-    process.exit(1);
+  // Call main() with config based on command type
+  // Each command has a different signature - handle appropriately
+  switch (command) {
+    case 'poll': {
+      const module = (await import(modulePath)) as {
+        main?: (
+          exit: (code: number) => void,
+          config: PollConfig,
+          signal?: AbortSignal,
+          bridgeFactory?: unknown,
+        ) => void | Promise<void>;
+      };
+      if (typeof module.main === 'function') {
+        // Pass config as required second parameter for poll command
+        // Poll main() is synchronous (returns void, not Promise<void>)
+        // Use void operator to explicitly ignore return value for ESLint
+        void module.main(exit, config as PollConfig);
+      } else {
+        console.error(`Module ${modulePath} does not export a main() function`);
+        exit(1);
+      }
+      break;
+    }
+    case 'ingest': {
+      const module = (await import(modulePath)) as {
+        main?: (
+          exit: (code: number) => void,
+          context?: { config?: Partial<IngestConfig> },
+        ) => void | Promise<void>;
+      };
+      if (typeof module.main === 'function') {
+        // Pass config via IngestContext for ingest command
+        await module.main(exit, { config: config as IngestConfig });
+      } else {
+        console.error(`Module ${modulePath} does not export a main() function`);
+        exit(1);
+      }
+      break;
+    }
+    case 'registry': {
+      const module = (await import(modulePath)) as {
+        main?: (
+          exit: (code: number) => void,
+          context: { config: RegistryConfig },
+        ) => void | Promise<void>;
+      };
+      if (typeof module.main === 'function') {
+        // Pass config via RegistryContext for registry command
+        await module.main(exit, { config: config as RegistryConfig });
+      } else {
+        console.error(`Module ${modulePath} does not export a main() function`);
+        exit(1);
+      }
+      break;
+    }
+    case 'dashboard': {
+      const module = (await import(modulePath)) as {
+        main?: (
+          exit: (code: number) => void,
+          context: { config: DashboardConfig },
+        ) => void | Promise<void>;
+      };
+      if (typeof module.main === 'function') {
+        // Pass config via DashboardContext for dashboard command
+        await module.main(exit, { config: config as DashboardConfig });
+      } else {
+        console.error(`Module ${modulePath} does not export a main() function`);
+        exit(1);
+      }
+      break;
+    }
   }
 }
 

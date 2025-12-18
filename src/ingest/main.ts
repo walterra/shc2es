@@ -6,25 +6,25 @@
 
 import type { Client } from '@elastic/elasticsearch';
 import { createLogger, serializeError } from '../logger';
-import { getIngestConfig, createElasticsearchClient, createKibanaFetch } from './config';
+import { createElasticsearchClient, createKibanaFetch } from './config';
 import { loadDeviceRegistry } from './registry';
 import { setupElasticsearch } from './setup';
 import { importKibanaDashboard } from './dashboard';
 import { importFiles } from './bulk-import';
 import { startWatchMode } from './watch';
-import type { IngestConfig } from '../validation';
+import type { IngestConfig } from '../types/config';
 
 const log = createLogger('ingest');
 
 /**
  * Ingest context for dependency injection.
  *
- * Allows tests to inject mock configuration and clients while maintaining
- * backward compatibility with CLI usage (defaults to env vars and real clients).
+ * Configuration is validated in cli.ts and passed as required parameter.
+ * Tests inject mock configuration and clients.
  */
 export interface IngestContext {
-  /** Ingest configuration (defaults to env vars) */
-  config?: Partial<IngestConfig>;
+  /** Ingest configuration (validated by cli.ts) */
+  config: IngestConfig;
   /** Elasticsearch client factory (defaults to createElasticsearchClient) */
   esClientFactory?: (config: IngestConfig) => Client;
   /** Kibana fetch factory (defaults to createKibanaFetch) */
@@ -43,21 +43,21 @@ export interface IngestContext {
  * - `--watch`: Real-time ingestion with file tailing
  * - `--pattern <glob>`: Batch import matching files (default: all events-*.ndjson)
  *
+ * Configuration is validated in cli.ts and passed via context.
+ *
  * @param exit - Exit callback (defaults to process.exit for CLI, can be mocked for tests)
- * @param context - Optional dependency injection context for testing
+ * @param context - Dependency injection context with validated config
  */
 export async function main(
   exit: (code: number) => void = (code) => process.exit(code),
-  context: IngestContext = {},
+  context: IngestContext,
 ): Promise<void> {
   // Env already loaded by cli.ts
   const args = context.args ?? process.argv.slice(2);
 
   try {
-    // Load configuration (merge injected config with env vars)
-    const requireKibana = args.includes('--setup');
-    const baseConfig = getIngestConfig(requireKibana);
-    const config: IngestConfig = { ...baseConfig, ...context.config };
+    // Configuration is validated in cli.ts
+    const config = context.config;
 
     // Create clients (use factories if provided, otherwise defaults)
     const esClientFactory = context.esClientFactory ?? createElasticsearchClient;
