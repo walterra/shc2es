@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2
+
+### Patch Changes
+
+- 758f7cb: Refactor E2E test infrastructure with dependency injection and Vitest migration. All CLI modules now have E2E test coverage calling actual main() functions.
+- 02ecc7b: Fix dataLogger stripping event time field, preventing documents from appearing in Kibana
+- eb9490f: Fix release workflow to delete completed todo files when creating release PRs
+- 265f758: Fix crash when logging objects with null prototype and add property-based testing infrastructure with fast-check (e72850e)
+- 4aec595: Refactor configuration injection for consistent dependency injection pattern across all CLI commands
+- 30f94f8: Add ESLint complexity rules and refactor ingest module into focused single-responsibility modules for improved maintainability
+- 0813680: Remove broken text linting tools, improve documentation and JSDoc clarity with manual technical writing fixes
+- 5756518: Replace process.exit() calls with injectable exit callbacks for full testability across all CLI commands
+
 ## 0.4.1
 
 ### Patch Changes
