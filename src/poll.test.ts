@@ -187,7 +187,13 @@ describe('poll module', () => {
 
       processEvent(event);
 
-      expect(dataLogger.info).toHaveBeenCalledWith(event);
+      // Event should be enriched with time field
+      expect(dataLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...event,
+          time: expect.any(String),
+        }),
+      );
     });
 
     it('should log device event to dataLogger', () => {
@@ -200,7 +206,12 @@ describe('poll module', () => {
 
       processEvent(event);
 
-      expect(dataLogger.info).toHaveBeenCalledWith(event);
+      expect(dataLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...event,
+          time: expect.any(String),
+        }),
+      );
     });
 
     it('should log room event to dataLogger', () => {
@@ -212,7 +223,12 @@ describe('poll module', () => {
 
       processEvent(event);
 
-      expect(dataLogger.info).toHaveBeenCalledWith(event);
+      expect(dataLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...event,
+          time: expect.any(String),
+        }),
+      );
     });
 
     it('should log debug info to appLogger', () => {
@@ -241,7 +257,12 @@ describe('poll module', () => {
 
       processEvent(event);
 
-      expect(dataLogger.info).toHaveBeenCalledWith(event);
+      expect(dataLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...event,
+          time: expect.any(String),
+        }),
+      );
       expect(appLogger.debug).toHaveBeenCalledWith(
         {
           'event.type': 'message',
@@ -267,9 +288,18 @@ describe('poll module', () => {
       processEvents(events);
 
       expect(dataLogger.info).toHaveBeenCalledTimes(3);
-      expect(dataLogger.info).toHaveBeenNthCalledWith(1, events[0]);
-      expect(dataLogger.info).toHaveBeenNthCalledWith(2, events[1]);
-      expect(dataLogger.info).toHaveBeenNthCalledWith(3, events[2]);
+      expect(dataLogger.info).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ ...events[0], time: expect.any(String) }),
+      );
+      expect(dataLogger.info).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ ...events[1], time: expect.any(String) }),
+      );
+      expect(dataLogger.info).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({ ...events[2], time: expect.any(String) }),
+      );
     });
 
     it('should log summary after processing', () => {
@@ -281,8 +311,8 @@ describe('poll module', () => {
       processEvents(events);
 
       expect(appLogger.info).toHaveBeenCalledWith(
-        { 'event.count': 2 },
-        'Processed 2 events from controller',
+        expect.objectContaining({ 'event.count': 2 }),
+        expect.stringContaining('events from controller'),
       );
     });
 
@@ -300,8 +330,8 @@ describe('poll module', () => {
 
       expect(dataLogger.info).toHaveBeenCalledTimes(1);
       expect(appLogger.info).toHaveBeenCalledWith(
-        { 'event.count': 1 },
-        'Processed 1 events from controller',
+        expect.objectContaining({ 'event.count': 1 }),
+        expect.stringContaining('events from controller'),
       );
     });
 
@@ -314,11 +344,11 @@ describe('poll module', () => {
 
       processEvents(events);
 
-      // Verify order by checking call sequence
+      // Verify order by checking call sequence (events are enriched with time)
       const calls = dataLogger.info.mock.calls;
-      expect(calls[0][0]).toBe(events[0]);
-      expect(calls[1][0]).toBe(events[1]);
-      expect(calls[2][0]).toBe(events[2]);
+      expect(calls[0][0]).toMatchObject(events[0]);
+      expect(calls[1][0]).toMatchObject(events[1]);
+      expect(calls[2][0]).toMatchObject(events[2]);
     });
   });
 

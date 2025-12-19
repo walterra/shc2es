@@ -1,5 +1,7 @@
 import pino from 'pino';
 import * as path from 'path';
+import * as fs from 'fs';
+import { Transform } from 'stream';
 import { getDataDir, getLogsDir, ensureConfigDirs } from './config';
 
 // Ensure config directories exist before creating file loggers
@@ -215,29 +217,44 @@ function getDataLogger(): pino.Logger {
 
   const dataLogFile = path.join(getDataDir(), `events-${dateStamp}.ndjson`);
 
-  // Use sync mode for tests to avoid buffering issues
-  const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+  // Create a writable stream that strips Pino metadata before writing
+  const stripMetadataTransform = new Transform({
+    transform(chunk: Buffer, encoding: string, callback: (error?: Error | null) => void): void {
+      try {
+        const line = chunk.toString();
+        if (!line.trim()) {
+          callback();
+          return;
+        }
+
+        const obj = JSON.parse(line) as Record<string, unknown>;
+        // Strip only Pino-specific metadata fields
+        // Do NOT strip 'time' as it belongs to the event, not Pino (we disabled Pino's timestamp)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { level, pid, hostname, name, msg, ...eventData } = obj;
+        // Write clean event data as NDJSON
+        this.push(JSON.stringify(eventData) + '\n');
+        callback();
+      } catch (err) {
+        callback(err instanceof Error ? err : new Error(String(err)));
+      }
+    },
+  });
+
+  const fileStream = fs.createWriteStream(dataLogFile, {
+    flags: 'a',
+    encoding: 'utf8',
+  });
+
+  stripMetadataTransform.pipe(fileStream);
 
   _dataLogger = pino(
     {
       level: 'info',
-      // Custom formatter to write only the raw event data (no pino metadata)
-      formatters: {
-        log: (obj) => {
-          // Pino merges the event object into the log record
-          // We strip out pino-specific fields and return only the event data
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { name, pid, hostname, level, time, msg, ...event } = obj;
-          return event;
-        },
-      },
       timestamp: false, // Events have their own timestamp field
-      base: null, // Don't add pid/hostname
+      base: null, // Don't add pid/hostname/name
     },
-    pino.destination({
-      dest: dataLogFile,
-      sync: isTestEnv, // Synchronous writes in test environment
-    }),
+    stripMetadataTransform,
   );
 
   return _dataLogger;
