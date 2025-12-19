@@ -72,6 +72,13 @@ describe('logger module', () => {
       expect(logger.dataLogger).toBeDefined();
       expect(typeof logger.dataLogger.info).toBe('function');
     });
+
+    // TODO: Add integration test for dataLogger NDJSON output
+    // Currently skipped due to module initialization timing with mocks
+    it.skip('should preserve event time field and not add Pino metadata', () => {
+      // This would test that dataLogger writes clean NDJSON without Pino metadata
+      // Requires proper module reset or integration test setup
+    });
   });
 
   describe('BshbLogger', () => {

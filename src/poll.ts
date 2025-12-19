@@ -67,8 +67,34 @@ export function processEvent(event: unknown): void {
       [SpanAttributes.DEVICE_ID]: typeof eventObj.deviceId === 'string' ? eventObj.deviceId : '',
     },
     () => {
+      // Log raw event structure for investigation
+      appLogger.debug(
+        {
+          'event.raw': eventObj,
+          'event.keys': Object.keys(eventObj),
+          'event.has_time': 'time' in eventObj,
+          'event.has_timestamp': 'timestamp' in eventObj,
+        },
+        `Raw event from controller: @type=${String(eventObj['@type'])}`,
+      );
+
+      // Add timestamp to event (bridge events don't include this)
+      const enrichedEvent = {
+        ...eventObj,
+        time: new Date().toISOString(),
+      };
+
+      // Log enriched event before writing to NDJSON
+      appLogger.debug(
+        {
+          'event.enriched': enrichedEvent,
+          'event.enriched_keys': Object.keys(enrichedEvent),
+        },
+        `Enriched event ready for NDJSON: @type=${String(eventObj['@type'])}`,
+      );
+
       // Log to data file (NDJSON)
-      dataLogger.info(event);
+      dataLogger.info(enrichedEvent);
       // Also log summary to app logger
       appLogger.debug(
         {
@@ -89,12 +115,36 @@ export function processEvents(events: unknown[]): void {
   if (events.length === 0) return;
 
   withSpan('process_events', { [SpanAttributes.EVENT_COUNT]: events.length }, () => {
+    // Log the batch summary
+    appLogger.info(
+      {
+        'event.count': events.length,
+        'event.batch_types': events
+          .map((e) => (e as Record<string, unknown>)['@type'])
+          .filter((t, i, arr) => arr.indexOf(t) === i), // unique types
+      },
+      `Processing batch of ${String(events.length)} events from controller`,
+    );
+
+    // Log first event in detail for investigation
+    if (events.length > 0) {
+      const firstEvent = events[0] as Record<string, unknown>;
+      appLogger.debug(
+        {
+          'event.first_event': firstEvent,
+          'event.structure': JSON.stringify(firstEvent, null, 2),
+        },
+        `First event in batch (for structure analysis)`,
+      );
+    }
+
     for (const event of events) {
       processEvent(event);
     }
+
     appLogger.info(
       { 'event.count': events.length },
-      `Processed ${String(events.length)} events from controller`,
+      `Completed processing ${String(events.length)} events from controller`,
     );
   });
 }
@@ -141,6 +191,17 @@ function handlePollingLoop(
     // Auto-instrumentation already traces the HTTP long-poll requests
     client.longPolling(subscriptionId).subscribe({
       next: (pollResponse) => {
+        // Log raw poll response for investigation
+        appLogger.debug(
+          {
+            'poll.response': pollResponse,
+            'poll.parsed_response': pollResponse.parsedResponse,
+            'poll.result_type': typeof pollResponse.parsedResponse.result,
+            'poll.result_is_array': Array.isArray(pollResponse.parsedResponse.result),
+          },
+          `Received long polling response`,
+        );
+
         const events = pollResponse.parsedResponse.result as unknown[];
         processEvents(events);
         poll(); // Continue polling
