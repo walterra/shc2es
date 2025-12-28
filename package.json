@@ -79,7 +79,7 @@
     "es-dev:stop": "cd elastic-start-local && docker compose stop",
     "es-dev:down": "cd elastic-start-local && docker compose down",
     "es-dev:logs": "cd elastic-start-local && docker compose logs -f",
-    "prepare": "husky"
+    "prepare": "node -e \"try { require('husky').default() } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e }\""
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.2.0",
