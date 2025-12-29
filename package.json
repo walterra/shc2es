@@ -101,7 +101,7 @@
     "@changesets/cli": "^2.29.8",
     "@testcontainers/elasticsearch": "^11.10.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^24.10.2",
+    "@types/node": "^25.0.2",
     "@types/split2": "^4.2.3",
     "@types/tail": "^2.2.3",
     "@vitest/coverage-v8": "^4.0.16",
