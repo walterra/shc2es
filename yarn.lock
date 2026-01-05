@@ -1878,17 +1878,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/node@*", "@types/node@^24.0.3", "@types/node@^24.10.2":
-  version "24.10.2"
-  resolved "https://registry.npmjs.org/@types/node/-/node-24.10.2.tgz"
-  integrity sha512-WOhQTZ4G8xZ1tjJTvKOpyEVSGgOTvJAfDK3FNFgELyaTpzhdgHVHeqW8V+UJvzF5BT+/B54T/1S2K6gd9c7bbA==
-  dependencies:
-    undici-types "~7.16.0"
-
-"@types/node@>=13.7.0":
-  version "25.0.0"
-  resolved "https://registry.npmjs.org/@types/node/-/node-25.0.0.tgz"
-  integrity sha512-rl78HwuZlaDIUSeUKkmogkhebA+8K1Hy7tddZuJ3D0xV8pZSfsYGTsliGUol1JPzu9EKnTxPC4L1fiWouStRew==
+"@types/node@*", "@types/node@>=13.7.0", "@types/node@^25.0.3":
+  version "25.0.3"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-25.0.3.tgz#79b9ac8318f373fbfaaf6e2784893efa9701f269"
+  integrity sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==
   dependencies:
     undici-types "~7.16.0"
 
@@ -1903,6 +1896,13 @@
   integrity sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==
   dependencies:
     undici-types "~5.26.4"
+
+"@types/node@^24.0.3":
+  version "24.10.2"
+  resolved "https://registry.npmjs.org/@types/node/-/node-24.10.2.tgz"
+  integrity sha512-WOhQTZ4G8xZ1tjJTvKOpyEVSGgOTvJAfDK3FNFgELyaTpzhdgHVHeqW8V+UJvzF5BT+/B54T/1S2K6gd9c7bbA==
+  dependencies:
+    undici-types "~7.16.0"
 
 "@types/oracledb@6.5.2":
   version "6.5.2"
