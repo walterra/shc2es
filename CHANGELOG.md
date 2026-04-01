@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+### Patch Changes
+
+- fdf56f7: Fix husky installation failure during yarn install on fresh clones
+
 ## 0.4.2
 
 ### Patch Changes
